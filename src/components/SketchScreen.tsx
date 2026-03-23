@@ -484,6 +484,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (toolState.canvasMode === 'select' && selRectStart.current && selRect) {
       if (selRect.w > 5 && selRect.h > 5) {
         const selIds = layers.filter(layer => {
+          if (layer.tool === 'text') return false; // géré par selT ci-dessous
           if (layer.tool === 'airbrush') {
             return layer.points.some(p => p.x >= selRect.x && p.x <= selRect.x + selRect.w && p.y >= selRect.y && p.y <= selRect.y + selRect.h);
           } else {
@@ -709,6 +710,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
                 const handleTap = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
                   e.cancelBubble = true;
+                  if (toolState.canvasMode === 'select') { selectItem(); return; }
                   if (!isTextTool) return;
                   if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
 
