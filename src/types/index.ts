@@ -31,9 +31,6 @@ export interface AirbrushStroke {
   points: Array<{ x: number; y: number }>;
 }
 
-// Pile unifiée — ordre = z-index réel
-export type DrawLayer = Stroke | AirbrushStroke;
-
 export interface TextBox {
   id: string;
   x: number;
@@ -53,15 +50,21 @@ export interface TextBox {
   padding: number;
 }
 
+// TextBox dans la pile unifiée — discriminant tool: 'text'
+export type TextLayer = TextBox & { tool: 'text' };
+
+// Pile unifiée — ordre chronologique = z-index réel
+export type DrawLayer = Stroke | AirbrushStroke | TextLayer;
+
 export interface Drawing {
   id: string;
   name: string;
-  layers: DrawLayer[];       // remplace strokes + airbrushStrokes
-  textBoxes: TextBox[];
+  layers: DrawLayer[];
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;
   // Champs legacy pour migration des anciens dessins sauvegardés
   strokes?: Stroke[];
   airbrushStrokes?: AirbrushStroke[];
+  textBoxes?: TextBox[];   // legacy — migré vers layers au chargement
 }

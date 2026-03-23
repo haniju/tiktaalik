@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Stroke, AirbrushStroke, TextBox } from '../types';
+import { DrawLayer, Stroke, AirbrushStroke, TextLayer } from '../types';
 import { useDragToReorder } from '../hooks/useDragToReorder';
 
 interface PanelItem {
@@ -8,9 +8,7 @@ interface PanelItem {
 }
 
 interface Props {
-  strokes: Stroke[];
-  airbrushStrokes: AirbrushStroke[];
-  textBoxes: TextBox[];
+  layers: DrawLayer[];
   selection: string[];
   focusedId: string | null;
   onFocus: (id: string) => void;
@@ -18,9 +16,6 @@ interface Props {
   onDeleteItem: (id: string) => void;
   onDeleteSelected: () => void;
   onClearSelection: () => void;
-  onReorderStrokes: (strokes: Stroke[]) => void;
-  onReorderAirbrush: (strokes: AirbrushStroke[]) => void;
-  onReorderTextBoxes: (textBoxes: TextBox[]) => void;
   onReorderByIds: (orderedIds: string[]) => void;
 }
 
@@ -31,7 +26,7 @@ function ItemPreview({ kind, stroke, ab, tb }: {
   kind: PanelItem['kind'];
   stroke?: Stroke;
   ab?: AirbrushStroke;
-  tb?: TextBox;
+  tb?: TextLayer;
 }) {
   return (
     <div style={{ width: THUMB_W, height: THUMB_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -65,7 +60,7 @@ function ItemPreview({ kind, stroke, ab, tb }: {
 }
 
 export function SelectionPanel({
-  strokes, airbrushStrokes, textBoxes,
+  layers,
   selection,
   onDeselect, onDeleteItem, onDeleteSelected, onClearSelection,
   onReorderByIds,
@@ -75,11 +70,13 @@ export function SelectionPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [panelSelected, setPanelSelected] = useState<string[]>([]);
 
-  const allItems: PanelItem[] = [
-    ...strokes.map(s => ({ id: s.id, kind: 'stroke' as const })),
-    ...airbrushStrokes.map(ab => ({ id: ab.id, kind: 'airbrush' as const })),
-    ...textBoxes.map(tb => ({ id: tb.id, kind: 'text' as const })),
-  ].filter(item => selection.includes(item.id)).reverse(); // on-top à gauche
+  const allItems: PanelItem[] = layers
+    .filter(l => selection.includes(l.id))
+    .map(l => ({
+      id: l.id,
+      kind: l.tool === 'airbrush' ? 'airbrush' : l.tool === 'text' ? 'text' : 'stroke',
+    } as PanelItem))
+    .reverse(); // on-top à gauche
 
   const handleSelect = (id: string) =>
     setPanelSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -106,9 +103,10 @@ export function SelectionPanel({
       <div ref={scrollRef} style={s.list}>
         {allItems.map((item, idx) => {
           const { id, kind } = item;
-          const stroke = kind === 'stroke' ? strokes.find(x => x.id === id) : undefined;
-          const ab = kind === 'airbrush' ? airbrushStrokes.find(x => x.id === id) : undefined;
-          const tb = kind === 'text' ? textBoxes.find(x => x.id === id) : undefined;
+          const layer = layers.find(l => l.id === id);
+          const stroke = kind === 'stroke' ? layer as Stroke : undefined;
+          const ab = kind === 'airbrush' ? layer as AirbrushStroke : undefined;
+          const tb = kind === 'text' ? layer as TextLayer : undefined;
 
           const isItemSelected = panelSelected.includes(id);
           const isDraggingThis = dragState.draggingId === id && dragState.isDragging;
@@ -185,9 +183,10 @@ export function SelectionPanel({
       {/* Ghost fixé sous le doigt pendant le drag */}
       {dragState.isDragging && draggingItem && (() => {
         const { id, kind } = draggingItem;
-        const stroke = kind === 'stroke' ? strokes.find(x => x.id === id) : undefined;
-        const ab = kind === 'airbrush' ? airbrushStrokes.find(x => x.id === id) : undefined;
-        const tb = kind === 'text' ? textBoxes.find(x => x.id === id) : undefined;
+        const layer = layers.find(l => l.id === id);
+        const stroke = kind === 'stroke' ? layer as Stroke : undefined;
+        const ab = kind === 'airbrush' ? layer as AirbrushStroke : undefined;
+        const tb = kind === 'text' ? layer as TextLayer : undefined;
         const isGroup = panelSelected.includes(id) && panelSelected.length > 1;
         const followers = panelSelected.filter(pid => pid !== id).slice(0, 3);
 
@@ -203,9 +202,10 @@ export function SelectionPanel({
             {isGroup && followers.map((pid, i) => {
               const fItem = allItems.find(it => it.id === pid);
               if (!fItem) return null;
-              const fStroke = fItem.kind === 'stroke' ? strokes.find(x => x.id === pid) : undefined;
-              const fAb = fItem.kind === 'airbrush' ? airbrushStrokes.find(x => x.id === pid) : undefined;
-              const fTb = fItem.kind === 'text' ? textBoxes.find(x => x.id === pid) : undefined;
+              const fLayer = layers.find(l => l.id === pid);
+              const fStroke = fItem.kind === 'stroke' ? fLayer as Stroke : undefined;
+              const fAb = fItem.kind === 'airbrush' ? fLayer as AirbrushStroke : undefined;
+              const fTb = fItem.kind === 'text' ? fLayer as TextLayer : undefined;
               return (
                 <div key={pid} style={{
                   ...s.thumb,

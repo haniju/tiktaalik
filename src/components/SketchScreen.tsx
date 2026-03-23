@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
-import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, DrawingTool, CanvasMode } from '../types';
+import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, TextLayer, DrawingTool, CanvasMode } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { exportSvg, generateThumbnail } from '../utils/export';
@@ -84,7 +84,8 @@ function measureTextWidth(text: string, fontSize: number, fontFamily: string, fo
   return Math.max(maxLine + 16, 80); // +16 padding, min 80
 }
 
-const makeTextBox = (id: string, x: number, y: number): TextBox => ({
+const makeTextLayer = (id: string, x: number, y: number): TextLayer => ({
+  tool: 'text',
   id, x, y,
   width: 200,
   text: '', fontSize: 24, fontFamily: 'Arial', fontStyle: 'normal',
@@ -92,13 +93,20 @@ const makeTextBox = (id: string, x: number, y: number): TextBox => ({
   color: '#000000', background: '', opacity: 1, padding: 8,
 });
 
-// Migration des anciens dessins (strokes + airbrushStrokes → layers)
+// Migration des anciens dessins vers la pile unifiée
 function migrateLayers(drawing: Drawing): DrawLayer[] {
-  if (drawing.layers) return drawing.layers;
-  return [
-    ...(drawing.strokes || []),
-    ...(drawing.airbrushStrokes || []),
+  let layers: DrawLayer[] = drawing.layers ?? [
+    ...(drawing.strokes ?? []),
+    ...(drawing.airbrushStrokes ?? []),
   ];
+  // Legacy textBoxes séparées (avant v1.3)
+  if (drawing.textBoxes && drawing.textBoxes.length > 0) {
+    const alreadyMigrated = layers.some(l => l.tool === 'text');
+    if (!alreadyMigrated) {
+      layers = [...layers, ...drawing.textBoxes.map(tb => ({ ...tb, tool: 'text' as const }))];
+    }
+  }
+  return layers;
 }
 
 export function SketchScreen({ drawing, onBack }: Props) {
@@ -115,8 +123,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   } = useToolState();
 
   const [stageSize, setStageSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const [layers, setLayers] = useState<DrawLayer[]>(migrateLayers(drawing));
-  const [textBoxes, setTextBoxes] = useState<TextBox[]>(drawing.textBoxes || []);
+  const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [currentAirbrush, setCurrentAirbrush] = useState<AirbrushStroke | null>(null);
   const [selection, setSelection] = useState<string[]>([]);
@@ -125,8 +132,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [drawingName, setDrawingName] = useState(drawing.name);
-  const initLayers = migrateLayers(drawing);
-  const [undoStack, setUndoStack] = useState([{ layers: initLayers, textBoxes: drawing.textBoxes || [] }]);
+  const [undoStack, setUndoStack] = useState(() => [{ layers: migrateLayers(drawing) }]);
   const [undoIndex, setUndoIndex] = useState(0);
   const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
@@ -174,9 +180,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pushUndo = useCallback((l: DrawLayer[], t: TextBox[]) => {
+  const pushUndo = useCallback((l: DrawLayer[]) => {
     setUndoStack(prev => {
-      const next = [...prev.slice(0, undoIndex + 1), { layers: l, textBoxes: t }];
+      const next = [...prev.slice(0, undoIndex + 1), { layers: l }];
       setUndoIndex(next.length - 1);
       return next;
     });
@@ -187,7 +193,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const i = undoIndex - 1;
     setUndoIndex(i);
     setLayers(undoStack[i].layers);
-    setTextBoxes(undoStack[i].textBoxes);
     setIsDirty(true);
   }, [undoIndex, undoStack]);
 
@@ -196,7 +201,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const i = undoIndex + 1;
     setUndoIndex(i);
     setLayers(undoStack[i].layers);
-    setTextBoxes(undoStack[i].textBoxes);
     setIsDirty(true);
   }, [undoIndex, undoStack]);
 
@@ -218,13 +222,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
     // Guard : ignorer un blur arrivant moins de 300ms après la création
     // (touchend du Stage qui blur la textarea fraîchement créée)
     if (Date.now() - editingCreatedAtRef.current < 300) return;
-    setTextBoxes(prev => {
+    setLayers(prev => {
       const activeId = editingTextId;
-      const next = prev
+      return prev
         // Supprimer les textboxes vides
-        .filter(t => t.id !== activeId || t.text.trim() !== '')
-        .map(t => {
-          if (t.id !== activeId) return t;
+        .filter(l => l.tool !== 'text' || l.id !== activeId || (l as TextLayer).text.trim() !== '')
+        .map(l => {
+          if (l.tool !== 'text' || l.id !== activeId) return l;
+          const t = l as TextLayer;
           return {
             ...t,
             width: t.text.trim()
@@ -233,22 +238,21 @@ export function SketchScreen({ drawing, onBack }: Props) {
             manualHeight: undefined,
           };
         });
-      return next;
     });
     setTbState({ kind: 'idle' });
     setContextPanel(null);
   }, [editingTextId, setContextPanel]);
 
   const addTextBox = useCallback((x: number, y: number) => {
-    const tb = makeTextBox(uuidv4(), x, y);
-    const newTbs = [...textBoxes, tb];
-    setTextBoxes(newTbs);
-    pushUndo(layers, newTbs);
+    const tl = makeTextLayer(uuidv4(), x, y);
+    const newLayers = [...layers, tl];
+    setLayers(newLayers);
+    pushUndo(newLayers);
     editingCreatedAtRef.current = Date.now();
-    setTbState({ kind: 'editing', id: tb.id });
+    setTbState({ kind: 'editing', id: tl.id });
     setContextPanel('text');
     setIsDirty(true);
-  }, [textBoxes, layers, pushUndo, setContextPanel]);
+  }, [layers, pushUndo, setContextPanel]);
 
   const handleSetCanvasMode = useCallback((mode: CanvasMode) => {
     setCanvasMode(mode);
@@ -372,6 +376,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   const eraseAt = useCallback((pos: { x: number; y: number }) => {
     setLayers(prev => prev.filter(layer => {
+      if (layer.tool === 'text') return true; // les textboxes ne s'effacent pas à la gomme
       if (layer.tool === 'airbrush') {
         return !layer.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < layer.radius * 0.8);
       } else {
@@ -472,7 +477,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
     if (toolState.activeTool === 'eraser' && isErasing.current) {
       isErasing.current = false;
-      setLayers(prev => { pushUndo(prev, textBoxes); return prev; });
+      setLayers(prev => { pushUndo(prev); return prev; });
       return;
     }
 
@@ -486,7 +491,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
             return pts.some((_, i) => i % 2 === 0 && pts[i] >= selRect.x && pts[i] <= selRect.x + selRect.w && pts[i + 1] >= selRect.y && pts[i + 1] <= selRect.y + selRect.h);
           }
         }).map(l => l.id);
-        const selT = textBoxes.filter(tb => tb.x >= selRect.x && tb.x <= selRect.x + selRect.w && tb.y >= selRect.y && tb.y <= selRect.y + selRect.h).map(tb => tb.id);
+        const selT = layers
+          .filter((l): l is TextLayer => l.tool === 'text')
+          .filter(tb => tb.x >= selRect.x && tb.x <= selRect.x + selRect.w && tb.y >= selRect.y && tb.y <= selRect.y + selRect.h)
+          .map(tb => tb.id);
         setSelection([...selIds, ...selT]);
       }
       selRectStart.current = null; setSelRect(null);
@@ -496,7 +504,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (toolState.activeTool === 'airbrush' && isDrawing.current && currentAirbrush) {
       isDrawing.current = false; lastAirbrushPt.current = null;
       const newL = [...layers, currentAirbrush];
-      setLayers(newL); pushUndo(newL, textBoxes);
+      setLayers(newL); pushUndo(newL);
       setCurrentAirbrush(null); setIsDirty(true);
       return;
     }
@@ -504,47 +512,45 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (currentStroke && isDrawing.current) {
       isDrawing.current = false;
       const newL = [...layers, currentStroke];
-      setLayers(newL); pushUndo(newL, textBoxes);
+      setLayers(newL); pushUndo(newL);
       setCurrentStroke(null); setIsDirty(true);
     }
-  }, [toolState, selRect, layers, textBoxes, currentStroke, currentAirbrush, pushUndo, editingTextId, addTextBox]);
+  }, [toolState, selRect, layers, currentStroke, currentAirbrush, pushUndo, editingTextId, addTextBox]);
 
   const updateTextBox = useCallback((patch: Partial<TextBox>) => {
-    setTextBoxes(prev => prev.map(t => {
-      if (t.id !== editingTextId) return t;
-      return { ...t, ...patch };
+    setLayers(prev => prev.map(l => {
+      if (l.tool !== 'text' || l.id !== editingTextId) return l;
+      return { ...l, ...patch };
     }));
     setIsDirty(true);
   }, [editingTextId]);
 
   const deleteItem = useCallback((id: string) => {
     const newL = layers.filter(l => l.id !== id);
-    const newT = textBoxes.filter(t => t.id !== id);
-    setLayers(newL); setTextBoxes(newT);
+    setLayers(newL);
     setSelection(prev => prev.filter(x => x !== id));
     if (tbState.kind !== 'idle' && tbState.id === id) setTbState({ kind: 'idle' });
-    pushUndo(newL, newT); setIsDirty(true);
-  }, [layers, textBoxes, tbState, pushUndo]);
+    pushUndo(newL); setIsDirty(true);
+  }, [layers, tbState, pushUndo]);
 
   const deleteSelected = useCallback(() => {
     const newL = layers.filter(l => !selection.includes(l.id));
-    const newT = textBoxes.filter(t => !selection.includes(t.id));
-    setLayers(newL); setTextBoxes(newT);
+    setLayers(newL);
     setSelection([]); setTbState({ kind: 'idle' });
-    pushUndo(newL, newT); setIsDirty(true);
-  }, [layers, textBoxes, selection, pushUndo]);
+    pushUndo(newL); setIsDirty(true);
+  }, [layers, selection, pushUndo]);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const thumbnail = generateThumbnail(layers, textBoxes, A4_WIDTH, A4_HEIGHT);
-      storage.save({ ...drawing, name: drawingName, layers, textBoxes, updatedAt: Date.now(), thumbnail });
+      const thumbnail = generateThumbnail(layers, A4_WIDTH, A4_HEIGHT);
+      storage.save({ ...drawing, name: drawingName, layers, updatedAt: Date.now(), thumbnail });
       setIsDirty(false);
     } finally { setIsSaving(false); }
   };
 
   const handleExportSvg = () => {
-    exportSvg(layers, textBoxes, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`);
+    exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`);
   };
 
   const handleRename = () => {
@@ -562,7 +568,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
     onBack();
   };
 
-  const editingTextBox = editingTextId ? textBoxes.find(t => t.id === editingTextId) ?? null : null;
+  const editingTextBox = editingTextId
+    ? (layers.find(l => l.id === editingTextId && l.tool === 'text') as TextLayer | undefined) ?? null
+    : null;
   const activeDrawingTool: DrawingTool = ['airbrush', 'pen', 'marker'].includes(toolState.activeTool ?? '') ? toolState.activeTool as DrawingTool : 'pen';
 
   const barsRef = useRef<HTMLDivElement>(null);
@@ -614,9 +622,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
         {toolState.canvasMode === 'select' && selection.length > 0 && (
           <SelectionPanel
-            strokes={layers.filter((l): l is Stroke => l.tool !== 'airbrush')}
-            airbrushStrokes={layers.filter((l): l is AirbrushStroke => l.tool === 'airbrush')}
-            textBoxes={textBoxes}
+            layers={layers}
             selection={selection}
             focusedId={tbState.kind !== 'idle' ? tbState.id : null}
             onFocus={id => setTbState(prev =>
@@ -629,41 +635,21 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onDeleteItem={deleteItem}
             onDeleteSelected={deleteSelected}
             onClearSelection={() => { setSelection([]); setTbState({ kind: 'idle' }); }}
-            onReorderStrokes={() => {}}
-            onReorderAirbrush={() => {}}
-            onReorderTextBoxes={() => {}}
             onReorderByIds={orderedIds => {
-              // orderedIds = nouveaux ids sélectionnés dans leur ordre voulu.
-              // Algorithme replacement-in-place : les positions qu'occupaient les items
-              // sélectionnés dans chaque tableau sont réattribuées dans l'ordre de orderedIds.
+              // Replacement-in-place : les positions des items sélectionnés
+              // dans layers sont réattribuées dans l'ordre de orderedIds.
               const selectedSet = new Set(orderedIds);
-
-              // Helper : réordonne un tableau par replacement-in-place
-              function reorderInPlace<T extends { id: string }>(
-                arr: T[], newIdOrder: string[]
-              ): T[] {
-                if (newIdOrder.length === 0) return arr;
-                const byId = new Map(arr.map(x => [x.id, x]));
-                const origIndices = arr
-                  .map((x, i) => (selectedSet.has(x.id) ? i : -1))
-                  .filter(i => i !== -1);
-                const result = [...arr];
-                origIndices.forEach((origIdx, rank) => {
-                  const item = byId.get(newIdOrder[rank]);
-                  if (item) result[origIdx] = item;
-                });
-                return result;
-              }
-
-              const newLayerIds = orderedIds.filter(id => layers.some(l => l.id === id));
-              const newTbIds = orderedIds.filter(id => textBoxes.some(t => t.id === id));
-
-              const newLayers = reorderInPlace(layers, newLayerIds);
-              const newTbs = reorderInPlace(textBoxes, newTbIds);
-
+              const byId = new Map(layers.map(l => [l.id, l]));
+              const origIndices = layers
+                .map((l, i) => (selectedSet.has(l.id) ? i : -1))
+                .filter(i => i !== -1);
+              const newLayers = [...layers];
+              origIndices.forEach((origIdx, rank) => {
+                const item = byId.get(orderedIds[rank]);
+                if (item) newLayers[origIdx] = item;
+              });
               setLayers(newLayers);
-              setTextBoxes(newTbs);
-              pushUndo(newLayers, newTbs);
+              pushUndo(newLayers);
               setIsDirty(true);
             }}
           />
@@ -703,11 +689,177 @@ export function SketchScreen({ drawing, onBack }: Props) {
           <Layer>
             <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={toolState.canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
 
-            {/* Pile unifiée — ordre chronologique = z-index réel */}
+            {/* Pile unifiée — ordre chronologique = z-index réel (tracés + textboxes) */}
             {layers.map(layer => {
               const isSelected = selection.includes(layer.id);
               const isFocused = tbState.kind !== 'idle' && tbState.id === layer.id;
               const selectItem = () => toolState.canvasMode === 'select' && setSelection(prev => prev.includes(layer.id) ? prev : [...prev, layer.id]);
+
+              if (layer.tool === 'text') {
+                const tb = layer as TextLayer;
+                const isEditing = tbState.kind === 'editing' && tbState.id === tb.id;
+                const isTextSelected = tbState.kind === 'selected' && tbState.id === tb.id;
+                const isTextTool = toolState.activeTool === 'text';
+
+                const konvaNode = textNodesRef.current.get(tb.id);
+                const measuredH = konvaNode
+                  ? Math.max(konvaNode.height(), 20)
+                  : estimateTextHeight(tb);
+                const tbH = (isTextSelected || isEditing) && tb.manualHeight ? tb.manualHeight : measuredH;
+
+                const handleTap = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+                  e.cancelBubble = true;
+                  if (!isTextTool) return;
+                  if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
+
+                  const heights = new Map(
+                    layers
+                      .filter((l): l is TextLayer => l.tool === 'text')
+                      .map(t => [
+                        t.id,
+                        textNodesRef.current.get(t.id)
+                          ? Math.max(textNodesRef.current.get(t.id)!.height(), 20)
+                          : estimateTextHeight(t),
+                      ])
+                  );
+
+                  const stage = stageRef.current!;
+                  const pos = stage.getRelativePointerPosition()!;
+                  const textLayers = layers.filter((l): l is TextLayer => l.tool === 'text');
+                  const next = nextSelectionState(tbState, pos.x, pos.y, textLayers, heights);
+
+                  if (next.kind === 'editing' && tbState.kind !== 'editing') {
+                    editingCreatedAtRef.current = Date.now();
+                  }
+                  if (tbState.kind === 'editing' && next.kind === 'selected' && next.id !== tbState.id) {
+                    setLayers(prev => {
+                      const prevId = tbState.id;
+                      return prev
+                        .filter(l => l.tool !== 'text' || l.id !== prevId || (l as TextLayer).text.trim() !== '')
+                        .map(l => {
+                          if (l.tool !== 'text' || l.id !== prevId) return l;
+                          const t = l as TextLayer;
+                          return {
+                            ...t,
+                            width: t.text.trim()
+                              ? measureTextWidth(t.text, t.fontSize, t.fontFamily, t.fontStyle)
+                              : t.width,
+                            manualHeight: undefined,
+                          };
+                        });
+                    });
+                  }
+
+                  setTbState(next);
+                  if (next.kind !== 'idle') setContextPanel('text');
+                };
+
+                return (
+                  <Group key={tb.id} x={tb.x} y={tb.y}>
+                    {tb.background !== '' && (
+                      <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
+                    )}
+
+                    <Text x={0} y={0} width={tb.width} height={tb.manualHeight}
+                      ref={node => { if (node) textNodesRef.current.set(tb.id, node); else textNodesRef.current.delete(tb.id); }}
+                      text={isEditing ? '' : tb.text}
+                      fontSize={tb.fontSize} fontFamily={tb.fontFamily} fontStyle={tb.fontStyle}
+                      textDecoration={tb.textDecoration} align={tb.align} verticalAlign={tb.verticalAlign}
+                      fill={tb.color} opacity={tb.opacity} padding={tb.padding}
+                      wrap={isTextSelected || tb.manualHeight ? 'word' : 'none'}
+                      listening={false}
+                    />
+
+                    {/* Zone intérieure principale — tap / double-tap */}
+                    <Rect x={0} y={0} width={tb.width} height={tbH}
+                      fill="transparent"
+                      onClick={handleTap}
+                      onTap={handleTap}
+                    />
+
+                    {/* Bordure sélection/édition */}
+                    {(isTextSelected || isEditing) && (
+                      <Rect x={0} y={0} width={tb.width} height={tbH}
+                        stroke={isEditing ? '#e63946' : '#118ab2'}
+                        strokeWidth={isEditing ? 2 : 1.5}
+                        fill="transparent"
+                        dash={isEditing ? [] : [5, 3]}
+                        listening={false}
+                      />
+                    )}
+
+                    {/* Bords draggables pour déplacer (seulement si sélectionnée) */}
+                    {isTextSelected && !isEditing && <>
+                      <Rect x={HANDLE_W} y={-BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
+                        fill="transparent" draggable
+                        onDragMove={e => {
+                          const stage = stageRef.current!;
+                          const sc = stage.scaleX(), sp = stage.position();
+                          const abs = e.target.absolutePosition();
+                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
+                            ...l, x: (abs.x - sp.x) / sc - HANDLE_W, y: (abs.y - sp.y) / sc + BORDER_HIT / 2,
+                          }));
+                        }}
+                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                      />
+                      <Rect x={HANDLE_W} y={tbH - BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
+                        fill="transparent" draggable
+                        onDragMove={e => {
+                          const stage = stageRef.current!;
+                          const sc = stage.scaleX(), sp = stage.position();
+                          const abs = e.target.absolutePosition();
+                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
+                            ...l, x: (abs.x - sp.x) / sc - HANDLE_W, y: (abs.y - sp.y) / sc - tbH + BORDER_HIT / 2,
+                          }));
+                        }}
+                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                      />
+                      <Rect x={-BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
+                        fill="transparent" draggable
+                        onDragMove={e => {
+                          const stage = stageRef.current!;
+                          const sc = stage.scaleX(), sp = stage.position();
+                          const abs = e.target.absolutePosition();
+                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
+                            ...l, x: (abs.x - sp.x) / sc + BORDER_HIT / 2, y: (abs.y - sp.y) / sc - HANDLE_H,
+                          }));
+                        }}
+                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                      />
+                      <Rect x={tb.width - BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
+                        fill="transparent" draggable
+                        onDragMove={e => {
+                          const stage = stageRef.current!;
+                          const sc = stage.scaleX(), sp = stage.position();
+                          const abs = e.target.absolutePosition();
+                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
+                            ...l, x: (abs.x - sp.x) / sc - tb.width + BORDER_HIT / 2, y: (abs.y - sp.y) / sc - HANDLE_H,
+                          }));
+                        }}
+                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                      />
+                    </>}
+
+                    {/* Handles resize milieu gauche et droit */}
+                    {isTextSelected && !isEditing && <>
+                      <ResizeHandle
+                        cx={0} cy={tbH / 2} tbX={tb.x} tbY={tb.y} side="left" stageRef={stageRef}
+                        onDragEnd={() => setIsDirty(true)}
+                        onMove={dx => setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
+                          ...l, x: (l as TextLayer).x + dx, width: Math.max((l as TextLayer).width - dx, 60),
+                        }))}
+                      />
+                      <ResizeHandle
+                        cx={tb.width} cy={tbH / 2} tbX={tb.x} tbY={tb.y} side="right" stageRef={stageRef}
+                        onDragEnd={() => setIsDirty(true)}
+                        onMove={dx => setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
+                          ...l, width: Math.max((l as TextLayer).width + dx, 60),
+                        }))}
+                      />
+                    </>}
+                  </Group>
+                );
+              }
 
               if (layer.tool === 'airbrush') {
                 const ab = layer as AirbrushStroke;
@@ -756,199 +908,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
             {currentStroke && <Line points={currentStroke.points} stroke={currentStroke.color} strokeWidth={currentStroke.width} opacity={currentStroke.opacity} lineCap="round" lineJoin="round" tension={0.3} />}
             {currentAirbrush && <AirbrushShape stroke={currentAirbrush} />}
 
-            {/* TextBoxes */}
-            {textBoxes.map(tb => {
-              const isEditing = tbState.kind === 'editing' && tbState.id === tb.id;
-              const isSelected = tbState.kind === 'selected' && tbState.id === tb.id;
-              const isTextTool = toolState.activeTool === 'text';
-
-              const konvaNode = textNodesRef.current.get(tb.id);
-              const measuredH = konvaNode
-                ? Math.max(konvaNode.height(), 20)
-                : estimateTextHeight(tb);
-              const tbH = (isSelected || isEditing) && tb.manualHeight ? tb.manualHeight : measuredH;
-
-              const handleTap = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-                e.cancelBubble = true;
-                if (!isTextTool) return;
-                // Ignorer si c'est un touch qui fait partie d'un pinch
-                if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
-
-                // Construire une map de hauteurs pour nextSelectionState
-                const heights = new Map(
-                  textBoxes.map(t => [
-                    t.id,
-                    textNodesRef.current.get(t.id)
-                      ? Math.max(textNodesRef.current.get(t.id)!.height(), 20)
-                      : estimateTextHeight(t),
-                  ])
-                );
-
-                // Coordonnées canvas du tap
-                const stage = stageRef.current!;
-                const pos = stage.getRelativePointerPosition()!;
-
-                const next = nextSelectionState(tbState, pos.x, pos.y, textBoxes, heights);
-
-                // Si on passe en édition, mémoriser l'heure de création
-                if (next.kind === 'editing' && tbState.kind !== 'editing') {
-                  editingCreatedAtRef.current = Date.now();
-                }
-                // Si on sort d'édition vers selected sur une autre box, nettoyer la box précédente
-                if (tbState.kind === 'editing' && next.kind === 'selected' && next.id !== tbState.id) {
-                  setTextBoxes(prev => {
-                    const prevId = tbState.id;
-                    return prev
-                      .filter(t => t.id !== prevId || t.text.trim() !== '')
-                      .map(t => t.id !== prevId ? t : {
-                        ...t,
-                        width: t.text.trim()
-                          ? measureTextWidth(t.text, t.fontSize, t.fontFamily, t.fontStyle)
-                          : t.width,
-                        manualHeight: undefined,
-                      });
-                  });
-                }
-
-                setTbState(next);
-                if (next.kind !== 'idle') setContextPanel('text');
-              };
-
-              return (
-                <Group key={tb.id} x={tb.x} y={tb.y}>
-                  {tb.background !== '' && (
-                    <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
-                  )}
-
-                  <Text x={0} y={0} width={tb.width} height={tb.manualHeight}
-                    ref={node => { if (node) textNodesRef.current.set(tb.id, node); else textNodesRef.current.delete(tb.id); }}
-                    text={isEditing ? '' : tb.text}
-                    fontSize={tb.fontSize} fontFamily={tb.fontFamily} fontStyle={tb.fontStyle}
-                    textDecoration={tb.textDecoration} align={tb.align} verticalAlign={tb.verticalAlign}
-                    fill={tb.color} opacity={tb.opacity} padding={tb.padding}
-                    wrap={isSelected || tb.manualHeight ? 'word' : 'none'}
-                    listening={false}
-                  />
-
-                  {/* Zone intérieure principale — tap / double-tap */}
-                  <Rect x={0} y={0} width={tb.width} height={tbH}
-                    fill="transparent"
-                    onClick={handleTap}
-                    onTap={handleTap}
-                  />
-
-                  {/* Bordure sélection/édition */}
-                  {(isSelected || isEditing) && (
-                    <Rect x={0} y={0} width={tb.width} height={tbH}
-                      stroke={isEditing ? '#e63946' : '#118ab2'}
-                      strokeWidth={isEditing ? 2 : 1.5}
-                      fill="transparent"
-                      dash={isEditing ? [] : [5, 3]}
-                      listening={false}
-                    />
-                  )}
-
-                  {/* Bords draggables pour déplacer (seulement si sélectionnée) */}
-                  {isSelected && !isEditing && <>
-                    {/* Bord haut */}
-                    <Rect x={HANDLE_W} y={-BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
-                      fill="transparent"
-                      draggable
-                      onDragMove={e => {
-                        const stage = stageRef.current!;
-                        const sc = stage.scaleX(), sp = stage.position();
-                        const abs = e.target.absolutePosition();
-                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
-                          ...t,
-                          x: (abs.x - sp.x) / sc - HANDLE_W,
-                          y: (abs.y - sp.y) / sc + BORDER_HIT / 2,
-                        } : t));
-                      }}
-                      onDragEnd={() => setIsDirty(true)}
-                      dragBoundFunc={p => p}
-                    />
-                    {/* Bord bas */}
-                    <Rect x={HANDLE_W} y={tbH - BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
-                      fill="transparent"
-                      draggable
-                      onDragMove={e => {
-                        const stage = stageRef.current!;
-                        const sc = stage.scaleX(), sp = stage.position();
-                        const abs = e.target.absolutePosition();
-                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
-                          ...t,
-                          x: (abs.x - sp.x) / sc - HANDLE_W,
-                          y: (abs.y - sp.y) / sc - tbH + BORDER_HIT / 2,
-                        } : t));
-                      }}
-                      onDragEnd={() => setIsDirty(true)}
-                      dragBoundFunc={p => p}
-                    />
-                    {/* Bord gauche (hors zone handle) */}
-                    <Rect x={-BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
-                      fill="transparent"
-                      draggable
-                      onDragMove={e => {
-                        const stage = stageRef.current!;
-                        const sc = stage.scaleX(), sp = stage.position();
-                        const abs = e.target.absolutePosition();
-                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
-                          ...t,
-                          x: (abs.x - sp.x) / sc + BORDER_HIT / 2,
-                          y: (abs.y - sp.y) / sc - HANDLE_H,
-                        } : t));
-                      }}
-                      onDragEnd={() => setIsDirty(true)}
-                      dragBoundFunc={p => p}
-                    />
-                    {/* Bord droit (hors zone handle) */}
-                    <Rect x={tb.width - BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
-                      fill="transparent"
-                      draggable
-                      onDragMove={e => {
-                        const stage = stageRef.current!;
-                        const sc = stage.scaleX(), sp = stage.position();
-                        const abs = e.target.absolutePosition();
-                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
-                          ...t,
-                          x: (abs.x - sp.x) / sc - tb.width + BORDER_HIT / 2,
-                          y: (abs.y - sp.y) / sc - HANDLE_H,
-                        } : t));
-                      }}
-                      onDragEnd={() => setIsDirty(true)}
-                      dragBoundFunc={p => p}
-                    />
-                  </>}
-
-                  {/* Handles resize milieu gauche et droit (seulement si sélectionnée) */}
-                  {isSelected && !isEditing && <>
-                    <ResizeHandle
-                      cx={0} cy={tbH / 2}
-                      tbX={tb.x} tbY={tb.y}
-                      side="left"
-                      stageRef={stageRef}
-                      onDragEnd={() => setIsDirty(true)}
-                      onMove={dx => setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
-                        ...t,
-                        x: t.x + dx,
-                        width: Math.max(t.width - dx, 60),
-                      } : t))}
-                    />
-                    <ResizeHandle
-                      cx={tb.width} cy={tbH / 2}
-                      tbX={tb.x} tbY={tb.y}
-                      side="right"
-                      stageRef={stageRef}
-                      onDragEnd={() => setIsDirty(true)}
-                      onMove={dx => setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
-                        ...t,
-                        width: Math.max(t.width + dx, 60),
-                      } : t))}
-                    />
-                  </>}
-                </Group>
-              );
-            })}
 
             {selRect && selRect.w > 0 && <Rect x={selRect.x} y={selRect.y} width={selRect.w} height={selRect.h} stroke="#118ab2" strokeWidth={1} dash={[6, 3]} fill="rgba(17,138,178,0.06)" />}
           </Layer>
