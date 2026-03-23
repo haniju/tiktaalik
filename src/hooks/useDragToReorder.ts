@@ -141,13 +141,17 @@ export function useDragToReorder<T>({
       pointerMovedRef.current = false;
       pointerXRef.current = e.clientX;
       pointerYRef.current = e.clientY;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      // Ne pas capturer ici — ça bloquerait le scroll horizontal natif.
+      // On capture seulement si le long-press est confirmé.
+      const targetEl = e.currentTarget as HTMLElement;
+      const capturedPointerId = e.pointerId;
 
       // Démarrer le timer long press
       longPressTimerRef.current = setTimeout(() => {
         longPressTimerRef.current = null;
         if (pointerMovedRef.current) return; // s'est déplacé avant → annuler
-        // Long press reconnu → démarrer le drag
+        // Long press reconnu → capturer et démarrer le drag
+        targetEl.setPointerCapture(capturedPointerId);
         const idx = itemsRef.current.findIndex(i => getId(i) === id);
         const state = {
           draggingId: id, insertIndex: idx, isDragging: true,

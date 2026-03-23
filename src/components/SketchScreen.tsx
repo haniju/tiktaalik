@@ -637,16 +637,17 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onDeleteSelected={deleteSelected}
             onClearSelection={() => { setSelection([]); setTbState({ kind: 'idle' }); }}
             onReorderByIds={orderedIds => {
-              // Replacement-in-place : les positions des items sélectionnés
-              // dans layers sont réattribuées dans l'ordre de orderedIds.
-              const selectedSet = new Set(orderedIds);
+              // orderedIds est en ordre panel (z décroissant, top-of-stack en premier).
+              // layers est en z croissant → inverser pour aligner les deux ordres.
+              const reversedIds = [...orderedIds].reverse();
+              const selectedSet = new Set(reversedIds);
               const byId = new Map(layers.map(l => [l.id, l]));
               const origIndices = layers
                 .map((l, i) => (selectedSet.has(l.id) ? i : -1))
                 .filter(i => i !== -1);
               const newLayers = [...layers];
               origIndices.forEach((origIdx, rank) => {
-                const item = byId.get(orderedIds[rank]);
+                const item = byId.get(reversedIds[rank]);
                 if (item) newLayers[origIdx] = item;
               });
               setLayers(newLayers);
