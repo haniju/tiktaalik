@@ -1,0 +1,1032 @@
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import Konva from 'konva';
+import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
+import { v4 as uuidv4 } from 'uuid';
+import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, DrawingTool, CanvasMode } from '../types';
+import { useToolState } from '../hooks/useToolState';
+import { useDrawingStorage } from '../hooks/useDrawingStorage';
+import { exportSvg, generateThumbnail } from '../utils/export';
+import { AIRBRUSH_CONFIG } from '../utils/airbrushConfig';
+import {
+  TextBoxSelectionState,
+  nextSelectionState,
+  exitState,
+  estimateTextHeight,
+} from '../utils/textboxUtils';
+import { Topbar } from './Topbar';
+import { Drawingbar } from './Drawingbar';
+import { ContextToolbar } from './ContextToolbar';
+import { SelectionPanel } from './SelectionPanel';
+import { AirbrushShape } from './AirbrushLayer';
+import { ActionFABs } from './ActionFABs';
+
+// Version de l'application (source unique : package.json)
+const APP_VERSION = __APP_VERSION__;
+
+const A4_WIDTH = 794;
+const A4_HEIGHT = 1123;
+const HANDLE_W = 12;  // largeur du handle resize
+const HANDLE_H = 28;  // hauteur du handle resize
+const BORDER_HIT = 14; // épaisseur zone hit des bords pour drag
+const DBTAP_MS = 300;  // fenêtre double-tap
+
+interface ResizeHandleProps {
+  cx: number; cy: number;
+  tbX: number; tbY: number;
+  side: 'left' | 'right';
+  stageRef: React.RefObject<Konva.Stage>;
+  onMove: (dx: number) => void;
+  onDragEnd: () => void;
+}
+
+// Handle de resize horizontal — milieu bord gauche ou droit
+function ResizeHandle({ cx, cy, tbX, tbY, side, stageRef, onMove, onDragEnd }: ResizeHandleProps) {
+  return (
+    <Rect
+      x={cx - HANDLE_W / 2} y={cy - HANDLE_H / 2}
+      width={HANDLE_W} height={HANDLE_H}
+      fill="#118ab2" opacity={0.85} cornerRadius={4}
+      draggable
+      dragBoundFunc={pos => ({ x: pos.x, y: (tbY + cy) * stageRef.current!.scaleX() + stageRef.current!.y() })}
+      onDragMove={e => {
+        const stage = stageRef.current!;
+        const sc = stage.scaleX(), sp = stage.position();
+        const abs = e.target.absolutePosition();
+        const canvasX = (abs.x - sp.x) / sc;
+        const dx = canvasX - (tbX + cx);
+        onMove(dx);
+        e.target.absolutePosition({
+          x: (tbX + cx) * sc + sp.x,
+          y: (tbY + cy) * sc + sp.y,
+        });
+      }}
+      onDragEnd={onDragEnd}
+      onMouseEnter={() => { if (stageRef.current) stageRef.current.container().style.cursor = 'ew-resize'; }}
+      onMouseLeave={() => { if (stageRef.current) stageRef.current.container().style.cursor = ''; }}
+    />
+  );
+}
+
+interface Props {
+  drawing: Drawing;
+  onBack: () => void;
+}
+
+// Mesure la largeur naturelle d'un texte (fonction pure, pas de dépendances React)
+function measureTextWidth(text: string, fontSize: number, fontFamily: string, fontStyle: string): number {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  const weight = fontStyle.includes('bold') ? 'bold' : 'normal';
+  const style = fontStyle.includes('italic') ? 'italic' : 'normal';
+  ctx.font = `${style} ${weight} ${fontSize}px ${fontFamily}`;
+  const lines = text.split('\n');
+  const maxLine = Math.max(...lines.map(l => ctx.measureText(l || ' ').width));
+  return Math.max(maxLine + 16, 80); // +16 padding, min 80
+}
+
+const makeTextBox = (id: string, x: number, y: number): TextBox => ({
+  id, x, y,
+  width: 200,
+  text: '', fontSize: 24, fontFamily: 'Arial', fontStyle: 'normal',
+  textDecoration: '', align: 'left', verticalAlign: 'top',
+  color: '#000000', background: '', opacity: 1, padding: 8,
+});
+
+// Migration des anciens dessins (strokes + airbrushStrokes → layers)
+function migrateLayers(drawing: Drawing): DrawLayer[] {
+  if (drawing.layers) return drawing.layers;
+  return [
+    ...(drawing.strokes || []),
+    ...(drawing.airbrushStrokes || []),
+  ];
+}
+
+export function SketchScreen({ drawing, onBack }: Props) {
+  const storage = useDrawingStorage();
+  const stageRef = useRef<Konva.Stage>(null);
+
+  const {
+    state: toolState, contextPanel, setContextPanel,
+    selectDrawingTool, selectTextTool, selectEraser, selectBackground,
+    setCanvasMode, collapsePanel,
+    setToolColor, setToolWidth, setCanvasBackground,
+    activeColor, activeWidth,
+    // compat (non utilisé directement dans ce composant)
+  } = useToolState();
+
+  const [stageSize, setStageSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [layers, setLayers] = useState<DrawLayer[]>(migrateLayers(drawing));
+  const [textBoxes, setTextBoxes] = useState<TextBox[]>(drawing.textBoxes || []);
+  const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
+  const [currentAirbrush, setCurrentAirbrush] = useState<AirbrushStroke | null>(null);
+  const [selection, setSelection] = useState<string[]>([]);
+  // ─── État textbox unifié — remplace editingTextId + selectedTextId + focusedId ───
+  const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [drawingName, setDrawingName] = useState(drawing.name);
+  const initLayers = migrateLayers(drawing);
+  const [undoStack, setUndoStack] = useState([{ layers: initLayers, textBoxes: drawing.textBoxes || [] }]);
+  const [undoIndex, setUndoIndex] = useState(0);
+  const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  const selRectStart = useRef<{ x: number; y: number } | null>(null);
+  const isDrawing = useRef(false);
+  const isErasing = useRef(false);
+  const lastAirbrushPt = useRef<{ x: number; y: number } | null>(null);
+  const isPanning = useRef(false);
+  const panStart = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
+
+  // Pinch zoom — 2 doigts
+  const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
+
+  // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
+  const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
+
+  // Hauteurs fixes des barres — le canvas est positionné absolument sous elles
+  const TOPBAR_H = 48;
+  const DRAWINGBAR_H = 48;
+  // canvasH = hauteur totale moins les deux barres fixes (ContextToolbar et SelectionPanel flottent par-dessus)
+  const canvasH = stageSize.height - TOPBAR_H - DRAWINGBAR_H;
+
+  useEffect(() => {
+    const fn = () => setStageSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+
+  const [zoomPct, setZoomPct] = useState(200);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const sc = 2.0; // 200% par défaut
+    stage.scale({ x: sc, y: sc });
+    stage.position({
+      x: (stageSize.width - A4_WIDTH * sc) / 2,
+      y: (canvasH - A4_HEIGHT * sc) / 2,
+    });
+    stage.batchDraw();
+    setZoomPct(200);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pushUndo = useCallback((l: DrawLayer[], t: TextBox[]) => {
+    setUndoStack(prev => {
+      const next = [...prev.slice(0, undoIndex + 1), { layers: l, textBoxes: t }];
+      setUndoIndex(next.length - 1);
+      return next;
+    });
+  }, [undoIndex]);
+
+  const undo = useCallback(() => {
+    if (undoIndex <= 0) return;
+    const i = undoIndex - 1;
+    setUndoIndex(i);
+    setLayers(undoStack[i].layers);
+    setTextBoxes(undoStack[i].textBoxes);
+    setIsDirty(true);
+  }, [undoIndex, undoStack]);
+
+  const redo = useCallback(() => {
+    if (undoIndex >= undoStack.length - 1) return;
+    const i = undoIndex + 1;
+    setUndoIndex(i);
+    setLayers(undoStack[i].layers);
+    setTextBoxes(undoStack[i].textBoxes);
+    setIsDirty(true);
+  }, [undoIndex, undoStack]);
+
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.shiftKey ? redo() : undo(); }
+    };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, [undo, redo]);
+
+  const editingCreatedAtRef = useRef<number>(0);
+
+  // Dériver les IDs courants depuis tbState (source unique de vérité)
+  const editingTextId = tbState.kind === 'editing' ? tbState.id : null;
+  const selectedTextId = tbState.kind === 'selected' ? tbState.id : null;
+
+  const exitEditing = useCallback(() => {
+    // Guard : ignorer un blur arrivant moins de 300ms après la création
+    // (touchend du Stage qui blur la textarea fraîchement créée)
+    if (Date.now() - editingCreatedAtRef.current < 300) return;
+    setTextBoxes(prev => {
+      const activeId = editingTextId;
+      const next = prev
+        // Supprimer les textboxes vides
+        .filter(t => t.id !== activeId || t.text.trim() !== '')
+        .map(t => {
+          if (t.id !== activeId) return t;
+          return {
+            ...t,
+            width: t.text.trim()
+              ? measureTextWidth(t.text, t.fontSize, t.fontFamily, t.fontStyle)
+              : t.width,
+            manualHeight: undefined,
+          };
+        });
+      return next;
+    });
+    setTbState({ kind: 'idle' });
+    setContextPanel(null);
+  }, [editingTextId, setContextPanel]);
+
+  const addTextBox = useCallback((x: number, y: number) => {
+    const tb = makeTextBox(uuidv4(), x, y);
+    const newTbs = [...textBoxes, tb];
+    setTextBoxes(newTbs);
+    pushUndo(layers, newTbs);
+    editingCreatedAtRef.current = Date.now();
+    setTbState({ kind: 'editing', id: tb.id });
+    setContextPanel('text');
+    setIsDirty(true);
+  }, [textBoxes, layers, pushUndo, setContextPanel]);
+
+  const handleSetCanvasMode = useCallback((mode: CanvasMode) => {
+    setCanvasMode(mode);
+    // Désélectionner tout au changement de mode
+    setSelection([]);
+    setTbState({ kind: 'idle' });
+  }, [setCanvasMode]);
+
+  // Ref pour ignorer le 1er touch d'un pinch
+  const pinchPendingRef = useRef(false);
+  const pinchPendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // --- Handlers canvas ---
+
+  const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const stage = stageRef.current!;
+
+    // Pinch zoom : 2 doigts détectés → ignorer le dessin
+    if (e.evt instanceof TouchEvent && e.evt.touches.length === 2) {
+      // Annuler tout ce qui aurait pu commencer avec le 1er doigt
+      pinchPendingRef.current = false;
+      if (pinchPendingTimerRef.current) { clearTimeout(pinchPendingTimerRef.current); pinchPendingTimerRef.current = null; }
+      const t1 = e.evt.touches[0], t2 = e.evt.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const midX = (t1.clientX + t2.clientX) / 2;
+      const midY = (t1.clientY + t2.clientY) / 2;
+      pinchRef.current = { dist, midX, midY };
+      isDrawing.current = false;
+      isErasing.current = false;
+      setCurrentStroke(null);
+      setCurrentAirbrush(null);
+      return;
+    }
+
+    // 1 seul doigt touch : marquer "pinch pending" pendant 80ms
+    // Si un 2ème doigt arrive dans ce délai, on ignore l'action du 1er doigt
+    if (e.evt instanceof TouchEvent && e.evt.touches.length === 1) {
+      pinchPendingRef.current = true;
+      if (pinchPendingTimerRef.current) clearTimeout(pinchPendingTimerRef.current);
+      pinchPendingTimerRef.current = setTimeout(() => {
+        pinchPendingRef.current = false;
+        pinchPendingTimerRef.current = null;
+      }, 80);
+      // On continue le traitement normal — si un 2ème doigt arrive il annulera via le guard ci-dessus
+    }
+
+    const pos = stage.getRelativePointerPosition()!;
+    const screenPos = stage.getPointerPosition()!;
+
+    // En mode text : si on édite et qu'on clique sur fond → exit édition
+    if (editingTextId && toolState.activeTool === 'text') {
+      exitEditing();
+      return;
+    }
+
+    // Bloquer tout le reste si on édite (sauf text tool géré ci-dessus)
+    if (editingTextId) return;
+
+    // Clic sur le fond (stage OU Rect A4) → sortir de l'édition texte (sécurité)
+    const targetName = typeof (e.target as any)?.name === 'function'
+      ? (e.target as any).name()
+      : (e.target as any)?.name;
+    const isBackground = e.target === stage || targetName === 'background-rect';
+
+    if (toolState.canvasMode === 'move') {
+      isPanning.current = true;
+      panStart.current = { x: screenPos.x, y: screenPos.y, sx: stage.x(), sy: stage.y() };
+      return;
+    }
+
+    if (toolState.canvasMode === 'select') {
+      if (e.target === stage) setSelection([]);
+      selRectStart.current = pos;
+      setSelRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
+      return;
+    }
+
+    if (toolState.canvasMode !== 'draw') return;
+
+    // Replier le panel contextuel au début du dessin (sauf text tool qui a son propre panel)
+    if (toolState.activeTool !== 'text') collapsePanel();
+
+    // En mode draw, clic sur le fond → sortir de l'édition
+    if (e.target === stage && editingTextId) {
+      exitEditing();
+      return;
+    }
+
+    if (toolState.activeTool === 'eraser') {
+      isErasing.current = true;
+      eraseAt(pos);
+      return;
+    }
+
+    // Mode texte — tap sur fond = créer textbox à cet endroit
+    if (toolState.activeTool === 'text') {
+      if (isBackground && !pinchPendingRef.current) {
+        addTextBox(pos.x, pos.y);
+      }
+      // Tap sur une textbox existante → géré dans les handlers Konva de la textbox
+      return;
+    }
+
+    if (toolState.activeTool === 'airbrush') {
+      const radius = activeWidth * AIRBRUSH_CONFIG.radiusMultiplier;
+      const ab: AirbrushStroke = { id: uuidv4(), tool: 'airbrush', color: activeColor, radius, centerOpacity: AIRBRUSH_CONFIG.centerOpacity, points: [{ x: pos.x, y: pos.y }] };
+      setCurrentAirbrush(ab);
+      lastAirbrushPt.current = pos;
+      isDrawing.current = true;
+      return;
+    }
+
+    if (toolState.activeTool === 'pen' || toolState.activeTool === 'marker') {
+      if (editingTextId) exitEditing();
+      const opacity = toolState.activeTool === 'marker' ? 0.4 : 1;
+      const w = toolState.activeTool === 'marker' ? activeWidth * 4 : activeWidth;
+      setCurrentStroke({ id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y] });
+      isDrawing.current = true;
+    }
+  }, [toolState, activeColor, activeWidth, editingTextId, exitEditing, addTextBox]);
+
+  const eraseAt = useCallback((pos: { x: number; y: number }) => {
+    setLayers(prev => prev.filter(layer => {
+      if (layer.tool === 'airbrush') {
+        return !layer.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < layer.radius * 0.8);
+      } else {
+        const pts = (layer as Stroke).points;
+        for (let i = 0; i < pts.length - 2; i += 2) {
+          if (Math.hypot(pts[i] - pos.x, pts[i + 1] - pos.y) < 20) return false;
+        }
+        return true;
+      }
+    }));
+  }, []);
+
+  const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const stage = stageRef.current!;
+
+    // Pinch zoom en cours
+    if (pinchRef.current && e.evt instanceof TouchEvent && e.evt.touches.length === 2) {
+      const t1 = e.evt.touches[0], t2 = e.evt.touches[1];
+      const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const newMidX = (t1.clientX + t2.clientX) / 2;
+      const newMidY = (t1.clientY + t2.clientY) / 2;
+      const ratio = newDist / pinchRef.current.dist;
+      const os = stage.scaleX();
+      const ns = Math.max(0.2, Math.min(40, os * ratio));
+      // Point pivot = milieu des 2 doigts
+      const stageBox = stage.container().getBoundingClientRect();
+      const px = newMidX - stageBox.left;
+      const py = newMidY - stageBox.top;
+      const mpt = { x: (px - stage.x()) / os, y: (py - stage.y()) / os };
+      stage.scale({ x: ns, y: ns });
+      stage.position({ x: px - mpt.x * ns, y: py - mpt.y * ns });
+      stage.batchDraw();
+      setZoomPct(Math.round(ns * 100));
+      pinchRef.current = { dist: newDist, midX: newMidX, midY: newMidY };
+      return;
+    }
+
+    if (editingTextId) return;
+    const pos = stage.getRelativePointerPosition()!;
+    const screenPos = stage.getPointerPosition()!;
+
+    if (toolState.canvasMode === 'move' && isPanning.current && panStart.current) {
+      stage.position({ x: panStart.current.sx + screenPos.x - panStart.current.x, y: panStart.current.sy + screenPos.y - panStart.current.y });
+      stage.batchDraw();
+      return;
+    }
+
+    if (toolState.canvasMode === 'select' && selRectStart.current) {
+      setSelRect({ x: Math.min(selRectStart.current.x, pos.x), y: Math.min(selRectStart.current.y, pos.y), w: Math.abs(pos.x - selRectStart.current.x), h: Math.abs(pos.y - selRectStart.current.y) });
+      return;
+    }
+
+    if (toolState.canvasMode !== 'draw') return;
+
+    if (toolState.activeTool === 'eraser' && isErasing.current) { eraseAt(pos); return; }
+
+    if (toolState.activeTool === 'airbrush' && isDrawing.current && currentAirbrush) {
+      const last = lastAirbrushPt.current;
+      if (last) {
+        const dx = pos.x - last.x, dy = pos.y - last.y;
+        const dist = Math.hypot(dx, dy);
+        const step = currentAirbrush.radius * (1 - AIRBRUSH_CONFIG.pointDensity + 0.1);
+        const steps = Math.max(1, Math.floor(dist / step));
+        const newPts: Array<{ x: number; y: number }> = [];
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const p = { x: last.x + dx * t, y: last.y + dy * t };
+          newPts.push(p);
+        }
+        setCurrentAirbrush(prev => prev ? { ...prev, points: [...prev.points, ...newPts] } : null);
+      }
+      lastAirbrushPt.current = pos;
+      return;
+    }
+
+    if (isDrawing.current && currentStroke) {
+      setCurrentStroke(prev => prev ? { ...prev, points: [...prev.points, pos.x, pos.y] } : null);
+    }
+  }, [toolState, currentStroke, currentAirbrush, editingTextId, eraseAt]);
+
+  const handleMouseUp = useCallback(() => {
+    // Reset pinch
+    pinchRef.current = null;
+
+    if (editingTextId) return;
+
+    if (isPanning.current) { isPanning.current = false; panStart.current = null; return; }
+
+    if (toolState.activeTool === 'eraser' && isErasing.current) {
+      isErasing.current = false;
+      setLayers(prev => { pushUndo(prev, textBoxes); return prev; });
+      return;
+    }
+
+    if (toolState.canvasMode === 'select' && selRectStart.current && selRect) {
+      if (selRect.w > 5 && selRect.h > 5) {
+        const selIds = layers.filter(layer => {
+          if (layer.tool === 'airbrush') {
+            return layer.points.some(p => p.x >= selRect.x && p.x <= selRect.x + selRect.w && p.y >= selRect.y && p.y <= selRect.y + selRect.h);
+          } else {
+            const pts = (layer as Stroke).points;
+            return pts.some((_, i) => i % 2 === 0 && pts[i] >= selRect.x && pts[i] <= selRect.x + selRect.w && pts[i + 1] >= selRect.y && pts[i + 1] <= selRect.y + selRect.h);
+          }
+        }).map(l => l.id);
+        const selT = textBoxes.filter(tb => tb.x >= selRect.x && tb.x <= selRect.x + selRect.w && tb.y >= selRect.y && tb.y <= selRect.y + selRect.h).map(tb => tb.id);
+        setSelection([...selIds, ...selT]);
+      }
+      selRectStart.current = null; setSelRect(null);
+      return;
+    }
+
+    if (toolState.activeTool === 'airbrush' && isDrawing.current && currentAirbrush) {
+      isDrawing.current = false; lastAirbrushPt.current = null;
+      const newL = [...layers, currentAirbrush];
+      setLayers(newL); pushUndo(newL, textBoxes);
+      setCurrentAirbrush(null); setIsDirty(true);
+      return;
+    }
+
+    if (currentStroke && isDrawing.current) {
+      isDrawing.current = false;
+      const newL = [...layers, currentStroke];
+      setLayers(newL); pushUndo(newL, textBoxes);
+      setCurrentStroke(null); setIsDirty(true);
+    }
+  }, [toolState, selRect, layers, textBoxes, currentStroke, currentAirbrush, pushUndo, editingTextId]);
+
+  const updateTextBox = useCallback((patch: Partial<TextBox>) => {
+    setTextBoxes(prev => prev.map(t => {
+      if (t.id !== editingTextId) return t;
+      return { ...t, ...patch };
+    }));
+    setIsDirty(true);
+  }, [editingTextId]);
+
+  const deleteItem = useCallback((id: string) => {
+    const newL = layers.filter(l => l.id !== id);
+    const newT = textBoxes.filter(t => t.id !== id);
+    setLayers(newL); setTextBoxes(newT);
+    setSelection(prev => prev.filter(x => x !== id));
+    if (tbState.kind !== 'idle' && tbState.id === id) setTbState({ kind: 'idle' });
+    pushUndo(newL, newT); setIsDirty(true);
+  }, [layers, textBoxes, tbState, pushUndo]);
+
+  const deleteSelected = useCallback(() => {
+    const newL = layers.filter(l => !selection.includes(l.id));
+    const newT = textBoxes.filter(t => !selection.includes(t.id));
+    setLayers(newL); setTextBoxes(newT);
+    setSelection([]); setTbState({ kind: 'idle' });
+    pushUndo(newL, newT); setIsDirty(true);
+  }, [layers, textBoxes, selection, pushUndo]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const thumbnail = generateThumbnail(layers, textBoxes, A4_WIDTH, A4_HEIGHT);
+      storage.save({ ...drawing, name: drawingName, layers, textBoxes, updatedAt: Date.now(), thumbnail });
+      setIsDirty(false);
+    } finally { setIsSaving(false); }
+  };
+
+  const handleExportSvg = () => {
+    exportSvg(layers, textBoxes, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`);
+  };
+
+  const handleRename = () => {
+    const newName = prompt('Nouveau nom :', drawingName);
+    if (newName && newName.trim()) {
+      setDrawingName(newName.trim());
+      storage.rename(drawing.id, newName.trim());
+      setIsDirty(true);
+    }
+  };
+
+  const handleDeleteDrawing = () => {
+    if (!confirm(`Supprimer "${drawingName}" ? Cette action est irréversible.`)) return;
+    storage.remove(drawing.id);
+    onBack();
+  };
+
+  const editingTextBox = editingTextId ? textBoxes.find(t => t.id === editingTextId) ?? null : null;
+  const activeDrawingTool: DrawingTool = ['airbrush', 'pen', 'marker'].includes(toolState.activeTool ?? '') ? toolState.activeTool as DrawingTool : 'pen';
+
+  const barsRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'relative', background: '#f0f0f0' }}>
+
+      {/* Barres en haut — dans le flux normal */}
+      <div data-bars ref={barsRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50, background: '#fff' }}>
+        <Topbar
+          drawingName={drawingName}
+          canUndo={undoIndex > 0}
+          canRedo={undoIndex < undoStack.length - 1}
+          onBack={() => { if (isDirty && !confirm('Quitter sans sauvegarder ?')) return; onBack(); }}
+          onUndo={undo}
+          onRedo={redo}
+          onExportSvg={handleExportSvg}
+          onRename={handleRename}
+          onDelete={handleDeleteDrawing}
+        />
+
+        <Drawingbar
+          state={toolState}
+          contextPanel={contextPanel}
+          onSelectDrawingTool={selectDrawingTool}
+          onSelectText={selectTextTool}
+          onSelectEraser={selectEraser}
+          onSelectBackground={selectBackground}
+        />
+
+        <ContextToolbar
+          contextPanel={contextPanel}
+          state={toolState}
+          textBox={editingTextBox}
+          onSetToolColor={setToolColor}
+          onSetToolWidth={setToolWidth}
+          onSetBackground={setCanvasBackground}
+          onUpdateTextBox={updateTextBox}
+          onAddTextBox={() => {
+            // Créer au centre du canvas visible
+            const stage = stageRef.current;
+            if (!stage) return;
+            const sc = stage.scaleX(), sp = stage.position();
+            const cx = (stageSize.width / 2 - sp.x) / sc;
+            const cy = (canvasH / 2 - sp.y) / sc;
+            addTextBox(cx - 100, cy - 20);
+          }}
+        />
+
+        {toolState.canvasMode === 'select' && selection.length > 0 && (
+          <SelectionPanel
+            strokes={layers.filter((l): l is Stroke => l.tool !== 'airbrush')}
+            airbrushStrokes={layers.filter((l): l is AirbrushStroke => l.tool === 'airbrush')}
+            textBoxes={textBoxes}
+            selection={selection}
+            focusedId={tbState.kind !== 'idle' ? tbState.id : null}
+            onFocus={id => setTbState(prev =>
+              prev.kind !== 'idle' && prev.id === id ? { kind: 'idle' } : { kind: 'selected', id }
+            )}
+            onDeselect={id => {
+              setSelection(prev => prev.filter(x => x !== id));
+              if (tbState.kind !== 'idle' && tbState.id === id) setTbState({ kind: 'idle' });
+            }}
+            onDeleteItem={deleteItem}
+            onDeleteSelected={deleteSelected}
+            onClearSelection={() => { setSelection([]); setTbState({ kind: 'idle' }); }}
+            onReorderStrokes={() => {}}
+            onReorderAirbrush={() => {}}
+            onReorderTextBoxes={() => {}}
+            onReorderByIds={orderedIds => {
+              // orderedIds = nouveaux ids sélectionnés dans leur ordre voulu.
+              // Algorithme replacement-in-place : les positions qu'occupaient les items
+              // sélectionnés dans chaque tableau sont réattribuées dans l'ordre de orderedIds.
+              const selectedSet = new Set(orderedIds);
+
+              // Helper : réordonne un tableau par replacement-in-place
+              function reorderInPlace<T extends { id: string }>(
+                arr: T[], newIdOrder: string[]
+              ): T[] {
+                if (newIdOrder.length === 0) return arr;
+                const byId = new Map(arr.map(x => [x.id, x]));
+                const origIndices = arr
+                  .map((x, i) => (selectedSet.has(x.id) ? i : -1))
+                  .filter(i => i !== -1);
+                const result = [...arr];
+                origIndices.forEach((origIdx, rank) => {
+                  const item = byId.get(newIdOrder[rank]);
+                  if (item) result[origIdx] = item;
+                });
+                return result;
+              }
+
+              const newLayerIds = orderedIds.filter(id => layers.some(l => l.id === id));
+              const newTbIds = orderedIds.filter(id => textBoxes.some(t => t.id === id));
+
+              const newLayers = reorderInPlace(layers, newLayerIds);
+              const newTbs = reorderInPlace(textBoxes, newTbIds);
+
+              setLayers(newLayers);
+              setTextBoxes(newTbs);
+              pushUndo(newLayers, newTbs);
+              setIsDirty(true);
+            }}
+          />
+        )}
+      </div>
+
+      {/* Canvas — position absolue, top = hauteur des barres fixe (topbar + drawingbar) */}
+      {/* On utilise paddingTop pour pousser le contenu sous les barres sans que le canvas resize */}
+      <div style={{
+        position: 'absolute',
+        top: TOPBAR_H + DRAWINGBAR_H,
+        left: 0, right: 0, bottom: 0,
+        background: '#e0e0e0',
+        overflow: 'hidden',
+        touchAction: 'none',
+        cursor: toolState.canvasMode === 'move' ? 'grab' : 'crosshair',
+      }}>
+        <Stage
+          ref={stageRef}
+          width={stageSize.width}
+          height={canvasH}
+          onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+          onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp}
+          onWheel={e => {
+            e.evt.preventDefault();
+            const stage = stageRef.current!;
+            const os = stage.scaleX();
+            const p = stage.getPointerPosition()!;
+            const mpt = { x: (p.x - stage.x()) / os, y: (p.y - stage.y()) / os };
+            const ns = Math.max(0.2, Math.min(40, os * (1 + (e.evt.deltaY > 0 ? -1 : 1) * 0.1)));
+            stage.scale({ x: ns, y: ns });
+            stage.position({ x: p.x - mpt.x * ns, y: p.y - mpt.y * ns });
+            stage.batchDraw();
+            setZoomPct(Math.round(ns * 100));
+          }}
+        >
+          <Layer>
+            <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={toolState.canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
+
+            {/* Pile unifiée — ordre chronologique = z-index réel */}
+            {layers.map(layer => {
+              const isSelected = selection.includes(layer.id);
+              const isFocused = tbState.kind !== 'idle' && tbState.id === layer.id;
+              const selectItem = () => toolState.canvasMode === 'select' && setSelection(prev => prev.includes(layer.id) ? prev : [...prev, layer.id]);
+
+              if (layer.tool === 'airbrush') {
+                const ab = layer as AirbrushStroke;
+                const xs = ab.points.map(p => p.x), ys = ab.points.map(p => p.y);
+                const minX = Math.min(...xs) - ab.radius, minY = Math.min(...ys) - ab.radius;
+                return (
+                  <Group key={ab.id} onClick={selectItem} onTap={selectItem}>
+                    <AirbrushShape stroke={ab} />
+                    {isSelected && <Rect x={minX} y={minY}
+                      width={Math.max(...xs) + ab.radius - minX}
+                      height={Math.max(...ys) + ab.radius - minY}
+                      stroke={isFocused ? '#e63946' : '#118ab2'}
+                      strokeWidth={1} dash={[4, 3]} fill="transparent" />}
+                  </Group>
+                );
+              } else {
+                const s = layer as Stroke;
+                // Bounding box pour le contour de sélection
+                const pts = s.points;
+                const xs = pts.filter((_, i) => i % 2 === 0);
+                const ys = pts.filter((_, i) => i % 2 === 1);
+                const minX = Math.min(...xs) - s.width / 2 - 4;
+                const minY = Math.min(...ys) - s.width / 2 - 4;
+                const maxX = Math.max(...xs) + s.width / 2 + 4;
+                const maxY = Math.max(...ys) + s.width / 2 + 4;
+                return (
+                  <Group key={s.id} onClick={selectItem} onTap={selectItem}>
+                    <Line points={s.points}
+                      stroke={s.color}
+                      strokeWidth={s.width} opacity={s.opacity}
+                      lineCap="round" lineJoin="round" tension={0.3}
+                    />
+                    {isSelected && <Rect
+                      x={minX} y={minY}
+                      width={maxX - minX} height={maxY - minY}
+                      stroke="#118ab2" strokeWidth={1.5}
+                      dash={[5, 3]} fill="rgba(17,138,178,0.05)"
+                      listening={false}
+                    />}
+                  </Group>
+                );
+              }
+            })}
+
+            {/* Tracé en cours */}
+            {currentStroke && <Line points={currentStroke.points} stroke={currentStroke.color} strokeWidth={currentStroke.width} opacity={currentStroke.opacity} lineCap="round" lineJoin="round" tension={0.3} />}
+            {currentAirbrush && <AirbrushShape stroke={currentAirbrush} />}
+
+            {/* TextBoxes */}
+            {textBoxes.map(tb => {
+              const isEditing = tbState.kind === 'editing' && tbState.id === tb.id;
+              const isSelected = tbState.kind === 'selected' && tbState.id === tb.id;
+              const isTextTool = toolState.activeTool === 'text';
+
+              const konvaNode = textNodesRef.current.get(tb.id);
+              const measuredH = konvaNode
+                ? Math.max(konvaNode.height(), 20)
+                : estimateTextHeight(tb);
+              const tbH = (isSelected || isEditing) && tb.manualHeight ? tb.manualHeight : measuredH;
+
+              const handleTap = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+                e.cancelBubble = true;
+                if (!isTextTool) return;
+                // Ignorer si c'est un touch qui fait partie d'un pinch
+                if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
+
+                // Construire une map de hauteurs pour nextSelectionState
+                const heights = new Map(
+                  textBoxes.map(t => [
+                    t.id,
+                    textNodesRef.current.get(t.id)
+                      ? Math.max(textNodesRef.current.get(t.id)!.height(), 20)
+                      : estimateTextHeight(t),
+                  ])
+                );
+
+                // Coordonnées canvas du tap
+                const stage = stageRef.current!;
+                const pos = stage.getRelativePointerPosition()!;
+
+                const next = nextSelectionState(tbState, pos.x, pos.y, textBoxes, heights);
+
+                // Si on passe en édition, mémoriser l'heure de création
+                if (next.kind === 'editing' && tbState.kind !== 'editing') {
+                  editingCreatedAtRef.current = Date.now();
+                }
+                // Si on sort d'édition vers selected sur une autre box, nettoyer la box précédente
+                if (tbState.kind === 'editing' && next.kind === 'selected' && next.id !== tbState.id) {
+                  setTextBoxes(prev => {
+                    const prevId = tbState.id;
+                    return prev
+                      .filter(t => t.id !== prevId || t.text.trim() !== '')
+                      .map(t => t.id !== prevId ? t : {
+                        ...t,
+                        width: t.text.trim()
+                          ? measureTextWidth(t.text, t.fontSize, t.fontFamily, t.fontStyle)
+                          : t.width,
+                        manualHeight: undefined,
+                      });
+                  });
+                }
+
+                setTbState(next);
+                if (next.kind !== 'idle') setContextPanel('text');
+              };
+
+              return (
+                <Group key={tb.id} x={tb.x} y={tb.y}>
+                  {tb.background !== '' && (
+                    <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
+                  )}
+
+                  <Text x={0} y={0} width={tb.width} height={tb.manualHeight}
+                    ref={node => { if (node) textNodesRef.current.set(tb.id, node); else textNodesRef.current.delete(tb.id); }}
+                    text={isEditing ? '' : tb.text}
+                    fontSize={tb.fontSize} fontFamily={tb.fontFamily} fontStyle={tb.fontStyle}
+                    textDecoration={tb.textDecoration} align={tb.align} verticalAlign={tb.verticalAlign}
+                    fill={tb.color} opacity={tb.opacity} padding={tb.padding}
+                    wrap={isSelected || tb.manualHeight ? 'word' : 'none'}
+                    listening={false}
+                  />
+
+                  {/* Zone intérieure principale — tap / double-tap */}
+                  <Rect x={0} y={0} width={tb.width} height={tbH}
+                    fill="transparent"
+                    onClick={handleTap}
+                    onTap={handleTap}
+                  />
+
+                  {/* Bordure sélection/édition */}
+                  {(isSelected || isEditing) && (
+                    <Rect x={0} y={0} width={tb.width} height={tbH}
+                      stroke={isEditing ? '#e63946' : '#118ab2'}
+                      strokeWidth={isEditing ? 2 : 1.5}
+                      fill="transparent"
+                      dash={isEditing ? [] : [5, 3]}
+                      listening={false}
+                    />
+                  )}
+
+                  {/* Bords draggables pour déplacer (seulement si sélectionnée) */}
+                  {isSelected && !isEditing && <>
+                    {/* Bord haut */}
+                    <Rect x={HANDLE_W} y={-BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
+                      fill="transparent"
+                      draggable
+                      onDragMove={e => {
+                        const stage = stageRef.current!;
+                        const sc = stage.scaleX(), sp = stage.position();
+                        const abs = e.target.absolutePosition();
+                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
+                          ...t,
+                          x: (abs.x - sp.x) / sc - HANDLE_W,
+                          y: (abs.y - sp.y) / sc + BORDER_HIT / 2,
+                        } : t));
+                      }}
+                      onDragEnd={() => setIsDirty(true)}
+                      dragBoundFunc={p => p}
+                    />
+                    {/* Bord bas */}
+                    <Rect x={HANDLE_W} y={tbH - BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
+                      fill="transparent"
+                      draggable
+                      onDragMove={e => {
+                        const stage = stageRef.current!;
+                        const sc = stage.scaleX(), sp = stage.position();
+                        const abs = e.target.absolutePosition();
+                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
+                          ...t,
+                          x: (abs.x - sp.x) / sc - HANDLE_W,
+                          y: (abs.y - sp.y) / sc - tbH + BORDER_HIT / 2,
+                        } : t));
+                      }}
+                      onDragEnd={() => setIsDirty(true)}
+                      dragBoundFunc={p => p}
+                    />
+                    {/* Bord gauche (hors zone handle) */}
+                    <Rect x={-BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
+                      fill="transparent"
+                      draggable
+                      onDragMove={e => {
+                        const stage = stageRef.current!;
+                        const sc = stage.scaleX(), sp = stage.position();
+                        const abs = e.target.absolutePosition();
+                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
+                          ...t,
+                          x: (abs.x - sp.x) / sc + BORDER_HIT / 2,
+                          y: (abs.y - sp.y) / sc - HANDLE_H,
+                        } : t));
+                      }}
+                      onDragEnd={() => setIsDirty(true)}
+                      dragBoundFunc={p => p}
+                    />
+                    {/* Bord droit (hors zone handle) */}
+                    <Rect x={tb.width - BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
+                      fill="transparent"
+                      draggable
+                      onDragMove={e => {
+                        const stage = stageRef.current!;
+                        const sc = stage.scaleX(), sp = stage.position();
+                        const abs = e.target.absolutePosition();
+                        setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
+                          ...t,
+                          x: (abs.x - sp.x) / sc - tb.width + BORDER_HIT / 2,
+                          y: (abs.y - sp.y) / sc - HANDLE_H,
+                        } : t));
+                      }}
+                      onDragEnd={() => setIsDirty(true)}
+                      dragBoundFunc={p => p}
+                    />
+                  </>}
+
+                  {/* Handles resize milieu gauche et droit (seulement si sélectionnée) */}
+                  {isSelected && !isEditing && <>
+                    <ResizeHandle
+                      cx={0} cy={tbH / 2}
+                      tbX={tb.x} tbY={tb.y}
+                      side="left"
+                      stageRef={stageRef}
+                      onDragEnd={() => setIsDirty(true)}
+                      onMove={dx => setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
+                        ...t,
+                        x: t.x + dx,
+                        width: Math.max(t.width - dx, 60),
+                      } : t))}
+                    />
+                    <ResizeHandle
+                      cx={tb.width} cy={tbH / 2}
+                      tbX={tb.x} tbY={tb.y}
+                      side="right"
+                      stageRef={stageRef}
+                      onDragEnd={() => setIsDirty(true)}
+                      onMove={dx => setTextBoxes(prev => prev.map(t => t.id === tb.id ? {
+                        ...t,
+                        width: Math.max(t.width + dx, 60),
+                      } : t))}
+                    />
+                  </>}
+                </Group>
+              );
+            })}
+
+            {selRect && selRect.w > 0 && <Rect x={selRect.x} y={selRect.y} width={selRect.w} height={selRect.h} stroke="#118ab2" strokeWidth={1} dash={[6, 3]} fill="rgba(17,138,178,0.06)" />}
+          </Layer>
+        </Stage>
+
+        {/* Badge zoom */}
+        <div style={{
+          position: 'absolute', bottom: 12, right: 12,
+          background: 'rgba(0,0,0,0.55)', color: '#fff',
+          fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
+          padding: '4px 10px', borderRadius: 20,
+          pointerEvents: 'none', zIndex: 10,
+        }}>
+          {zoomPct} %
+        </div>
+
+        {/* Badge version */}
+        <div style={{
+          position: 'absolute', bottom: 12, left: 12,
+          background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.7)',
+          fontSize: 11, fontWeight: 500, letterSpacing: 0.2,
+          padding: '4px 10px', borderRadius: 20,
+          pointerEvents: 'none', zIndex: 10,
+        }}>
+          v{APP_VERSION}
+        </div>
+
+      </div>
+
+      {/* Textarea édition texte — en position fixed pour ne pas être clippée par overflow:hidden du canvas div */}
+      {editingTextId && editingTextBox && stageRef.current && (() => {
+        const stage = stageRef.current!;
+        const sc = stage.scaleX();
+        const sp = stage.position();
+        const tbH = Math.max(editingTextBox.fontSize * 1.4 * ((editingTextBox.text.split('\n').length) || 1) + editingTextBox.padding * 2, 40);
+        // Coordonnées écran : décalage du canvas div (top = TOPBAR_H + DRAWINGBAR_H) + position Konva
+        const screenLeft = editingTextBox.x * sc + sp.x;
+        const screenTop = TOPBAR_H + DRAWINGBAR_H + editingTextBox.y * sc + sp.y;
+        return (
+          <textarea
+            autoFocus
+            value={editingTextBox.text}
+            onChange={e => updateTextBox({ text: e.target.value })}
+            onKeyDown={e => { if (e.key === 'Escape') exitEditing(); }}
+            onBlur={e => {
+              const related = e.relatedTarget as HTMLElement | null;
+              // Ne pas sortir si le focus part vers les barres (topbar, drawingbar, contextToolbar, textPanel)
+              // ou vers les FABs
+              if (related && (
+                related.closest('[data-text-panel]') ||
+                related.closest('[data-bars]') ||
+                related.closest('[data-fabs]')
+              )) return;
+              exitEditing();
+            }}
+            style={{
+              position: 'fixed',
+              left: screenLeft,
+              top: screenTop,
+              width: editingTextBox.width * sc,
+              minWidth: 80 * sc,
+              minHeight: tbH * sc,
+              height: 'auto',
+              fontSize: editingTextBox.fontSize * sc,
+              fontFamily: editingTextBox.fontFamily,
+              fontWeight: editingTextBox.fontStyle.includes('bold') ? 'bold' : 'normal',
+              fontStyle: editingTextBox.fontStyle.includes('italic') ? 'italic' : 'normal',
+              textDecoration: editingTextBox.textDecoration,
+              textAlign: editingTextBox.align,
+              color: editingTextBox.color,
+              background: 'transparent',
+              opacity: editingTextBox.opacity,
+              padding: editingTextBox.padding,
+              border: '2px solid #e63946',
+              borderRadius: 4, resize: 'none', outline: 'none',
+              zIndex: 200, lineHeight: 1.4, boxSizing: 'border-box',
+              caretColor: editingTextBox.color,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          />
+        );
+      })()}
+
+      <ActionFABs
+        canvasMode={toolState.canvasMode}
+        isDirty={isDirty}
+        isSaving={isSaving}
+        onSetMode={handleSetCanvasMode}
+        onSave={handleSave}
+      />
+    </div>
+  );
+}
