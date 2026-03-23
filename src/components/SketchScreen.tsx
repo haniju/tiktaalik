@@ -140,6 +140,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
   // Pinch zoom — 2 doigts
   const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
 
+  // Position du tap texte en attente — création différée au touchend pour ignorer les pinches
+  const pendingTextboxRef = useRef<{ x: number; y: number } | null>(null);
+
   // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
 
@@ -340,10 +343,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
-    // Mode texte — tap sur fond = créer textbox à cet endroit
+    // Mode texte — tap sur fond = mémoriser la position, création au touchend (guard pinch)
     if (toolState.activeTool === 'text') {
-      if (isBackground && !pinchPendingRef.current) {
-        addTextBox(pos.x, pos.y);
+      if (isBackground) {
+        pendingTextboxRef.current = { x: pos.x, y: pos.y };
       }
       // Tap sur une textbox existante → géré dans les handlers Konva de la textbox
       return;
@@ -450,8 +453,18 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [toolState, currentStroke, currentAirbrush, editingTextId, eraseAt]);
 
   const handleMouseUp = useCallback(() => {
-    // Reset pinch
+    // Lire avant reset : pinchRef non-null = un pinch était en cours
+    const wasPinch = pinchRef.current !== null;
     pinchRef.current = null;
+
+    // Créer la textbox si c'était un vrai tap (pas un pinch)
+    if (pendingTextboxRef.current && !wasPinch) {
+      const { x, y } = pendingTextboxRef.current;
+      pendingTextboxRef.current = null;
+      addTextBox(x, y);
+      return;
+    }
+    pendingTextboxRef.current = null;
 
     if (editingTextId) return;
 
@@ -494,7 +507,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       setLayers(newL); pushUndo(newL, textBoxes);
       setCurrentStroke(null); setIsDirty(true);
     }
-  }, [toolState, selRect, layers, textBoxes, currentStroke, currentAirbrush, pushUndo, editingTextId]);
+  }, [toolState, selRect, layers, textBoxes, currentStroke, currentAirbrush, pushUndo, editingTextId, addTextBox]);
 
   const updateTextBox = useCallback((patch: Partial<TextBox>) => {
     setTextBoxes(prev => prev.map(t => {
