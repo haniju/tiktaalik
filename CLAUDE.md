@@ -95,3 +95,15 @@ The app version from `package.json` is injected at build time as the global `__A
 - Do not use `sudo` with npm
 - Do not introduce new `any` types
 - Do not break the TextBoxSelectionState state machine by adding separate boolean flags
+
+## Active Bugs (v1.2.0)
+
+### Critical
+- [ ] Draw mode: secondary toolbar (DrawingSecondaryToolbar) does not open when selecting pen/marker/airbrush
+- [ ] Text mode: tapping canvas does not create a new textbox
+
+### Select Mode
+- [ ] Horizontal scroll broken on groups with 5+ objects in SelectionPanel
+- [ ] Individual deselect/delete in level-2 selection not working
+- [ ] Stack reordering inconsistent (works once, then reverts on next object)
+- [ ] Cannot drag-move a selected object on canvas
