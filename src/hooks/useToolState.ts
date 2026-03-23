@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Tool, DrawingTool, CanvasMode, ToolState } from '../types';
 
 const STORAGE_KEY = 'sketchpad_tool_state';
@@ -40,39 +40,43 @@ export function useToolState() {
   });
   const [contextPanel, setContextPanel] = useState<ContextPanel>(null);
 
+  // Refs pour lire l'état courant sans créer de dépendances dans useCallback
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const contextPanelRef = useRef(contextPanel);
+  contextPanelRef.current = contextPanel;
+
   const selectDrawingTool = useCallback((tool: DrawingTool) => {
-    setState(prev => {
-      const isSame = prev.activeTool === tool && prev.canvasMode === 'draw';
-      if (isSame) {
-        // Même outil → toggle panel
-        setContextPanel(p => p === 'drawing' ? null : 'drawing');
-        return prev;
-      }
+    const { activeTool, canvasMode } = stateRef.current;
+    const isSame = activeTool === tool && canvasMode === 'draw';
+    if (isSame) {
+      // Même outil → toggle panel
+      setContextPanel(p => p === 'drawing' ? null : 'drawing');
+    } else {
       // Outil différent mais panel drawing ouvert → le garder ouvert
-      setContextPanel(p => p === 'drawing' ? 'drawing' : null);
-      return { ...prev, activeTool: tool, canvasMode: 'draw' };
-    });
+      setContextPanel(contextPanelRef.current === 'drawing' ? 'drawing' : null);
+      setState(prev => ({ ...prev, activeTool: tool, canvasMode: 'draw' }));
+    }
   }, []);
 
   const selectTextTool = useCallback(() => {
-    setState(prev => {
-      const isSame = prev.activeTool === 'text' && prev.canvasMode === 'draw';
-      if (isSame) {
-        setContextPanel(p => p === 'text' ? null : 'text');
-        return prev;
-      }
+    const { activeTool, canvasMode } = stateRef.current;
+    const isSame = activeTool === 'text' && canvasMode === 'draw';
+    if (isSame) {
+      setContextPanel(p => p === 'text' ? null : 'text');
+    } else {
       setContextPanel(null); // ferme le panel drawing si ouvert
-      return { ...prev, activeTool: 'text', canvasMode: 'draw' };
-    });
+      setState(prev => ({ ...prev, activeTool: 'text', canvasMode: 'draw' }));
+    }
   }, []);
 
   const selectEraser = useCallback(() => {
-    setState(prev => {
-      const isSame = prev.activeTool === 'eraser' && prev.canvasMode === 'draw';
-      if (isSame) return prev;
+    const { activeTool, canvasMode } = stateRef.current;
+    const isSame = activeTool === 'eraser' && canvasMode === 'draw';
+    if (!isSame) {
       setContextPanel(null); // ferme tout panel ouvert
-      return { ...prev, activeTool: 'eraser', canvasMode: 'draw' };
-    });
+      setState(prev => ({ ...prev, activeTool: 'eraser', canvasMode: 'draw' }));
+    }
   }, []);
 
   const selectBackground = useCallback(() => {
@@ -81,13 +85,12 @@ export function useToolState() {
   }, []);
 
   const setCanvasMode = useCallback((mode: CanvasMode) => {
-    setState(prev => {
-      if (mode === 'move' || mode === 'select') {
-        setContextPanel(null);
-        return { ...prev, canvasMode: mode, activeTool: null };
-      }
-      return { ...prev, canvasMode: mode };
-    });
+    if (mode === 'move' || mode === 'select') {
+      setContextPanel(null);
+      setState(prev => ({ ...prev, canvasMode: mode, activeTool: null }));
+    } else {
+      setState(prev => ({ ...prev, canvasMode: mode }));
+    }
   }, []);
 
   const collapsePanel = useCallback(() => setContextPanel(null), []);
