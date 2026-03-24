@@ -884,12 +884,24 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
                     {/* Zone intérieure principale — tap / double-tap */}
                     <Rect x={0} y={0} width={tb.width} height={tbH}
-                      fill="transparent"
+                      fill="rgba(0,0,0,0)"
                       onClick={handleTap}
                       onTap={handleTap}
                     />
 
-                    {/* Bordure sélection/édition */}
+                    {/* Bordure select mode (canvas selection) */}
+                    {isSelected && !isTextSelected && !isEditing && (
+                      <Rect x={-2} y={-2} width={tb.width + 4} height={tbH + 4}
+                        stroke={isFocused ? '#e63946' : '#118ab2'}
+                        strokeWidth={1.5}
+                        dash={[5, 3]}
+                        fill="transparent"
+                        cornerRadius={3}
+                        listening={false}
+                      />
+                    )}
+
+                    {/* Bordure sélection/édition text tool */}
                     {(isTextSelected || isEditing) && (
                       <Rect x={0} y={0} width={tb.width} height={tbH}
                         stroke={isEditing ? '#e63946' : '#118ab2'}
