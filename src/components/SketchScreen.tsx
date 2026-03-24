@@ -41,13 +41,22 @@ interface ResizeHandleProps {
 
 // Handle de resize horizontal — milieu bord gauche ou droit
 function ResizeHandle({ cx, cy, tbX, tbY, side, stageRef, onMove, onDragEnd }: ResizeHandleProps) {
+  const lockedScreenY = useRef<number | null>(null);
+
   return (
     <Rect
       x={cx - HANDLE_W / 2} y={cy - HANDLE_H / 2}
       width={HANDLE_W} height={HANDLE_H}
       fill="#118ab2" opacity={0.85} cornerRadius={4}
       draggable
-      dragBoundFunc={pos => ({ x: pos.x, y: (tbY + cy) * stageRef.current!.scaleX() + stageRef.current!.y() })}
+      dragBoundFunc={pos => ({
+        x: pos.x,
+        y: lockedScreenY.current ?? (tbY + cy) * stageRef.current!.scaleX() + stageRef.current!.y(),
+      })}
+      onDragStart={() => {
+        const stage = stageRef.current!;
+        lockedScreenY.current = (tbY + cy) * stage.scaleX() + stage.y();
+      }}
       onDragMove={e => {
         const stage = stageRef.current!;
         const sc = stage.scaleX(), sp = stage.position();
@@ -57,10 +66,10 @@ function ResizeHandle({ cx, cy, tbX, tbY, side, stageRef, onMove, onDragEnd }: R
         onMove(dx);
         e.target.absolutePosition({
           x: (tbX + cx) * sc + sp.x,
-          y: (tbY + cy) * sc + sp.y,
+          y: lockedScreenY.current!,
         });
       }}
-      onDragEnd={onDragEnd}
+      onDragEnd={() => { lockedScreenY.current = null; onDragEnd(); }}
       onMouseEnter={() => { if (stageRef.current) stageRef.current.container().style.cursor = 'ew-resize'; }}
       onMouseLeave={() => { if (stageRef.current) stageRef.current.container().style.cursor = ''; }}
     />
@@ -391,12 +400,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
-    // Mode texte — tap sur fond = mémoriser la position, création au touchend (guard pinch)
+    // Mode texte — mémoriser la position pour création au touchend (guard pinch)
+    // On mémorise même si le tap est sur un tracé existant (pas uniquement sur le fond)
+    // handleTap des textboxes existantes annulera pendingTextboxRef si nécessaire
     if (toolState.activeTool === 'text') {
-      if (isBackground) {
-        pendingTextboxRef.current = { x: pos.x, y: pos.y };
-      }
-      // Tap sur une textbox existante → géré dans les handlers Konva de la textbox
+      pendingTextboxRef.current = { x: pos.x, y: pos.y };
       return;
     }
 
@@ -820,6 +828,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
                 const handleTap = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
                   e.cancelBubble = true;
+                  // Annuler la création d'une nouvelle textbox — on interagit avec une existante
+                  pendingTextboxRef.current = null;
                   if (toolState.canvasMode === 'select') { selectItem(); return; }
                   if (!isTextTool) return;
                   if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
@@ -901,13 +911,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
                       />
                     )}
 
-                    {/* Bordure sélection/édition text tool */}
-                    {(isTextSelected || isEditing) && (
+                    {/* Bordure sélection text tool (pas en édition — la textarea a son propre border) */}
+                    {isTextSelected && !isEditing && (
                       <Rect x={0} y={0} width={tb.width} height={tbH}
-                        stroke={isEditing ? '#e63946' : '#118ab2'}
-                        strokeWidth={isEditing ? 2 : 1.5}
+                        stroke="#118ab2"
+                        strokeWidth={1.5}
                         fill="transparent"
-                        dash={isEditing ? [] : [5, 3]}
+                        dash={[5, 3]}
                         listening={false}
                       />
                     )}
