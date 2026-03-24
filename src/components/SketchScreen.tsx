@@ -868,12 +868,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
                 const ab = layer as AirbrushStroke;
                 const xs = ab.points.map(p => p.x), ys = ab.points.map(p => p.y);
                 const minX = Math.min(...xs) - ab.radius, minY = Math.min(...ys) - ab.radius;
+                const abW = Math.max(...xs) + ab.radius - minX;
+                const abH = Math.max(...ys) + ab.radius - minY;
                 return (
                   <Group key={ab.id} onClick={selectItem} onTap={selectItem}>
                     <AirbrushShape stroke={ab} />
-                    {isSelected && <Rect x={minX} y={minY}
-                      width={Math.max(...xs) + ab.radius - minX}
-                      height={Math.max(...ys) + ab.radius - minY}
+                    {/* Zone de hit transparente — AirbrushShape a listening={false} */}
+                    <Rect x={minX} y={minY} width={abW} height={abH} fill="rgba(0,0,0,0)" />
+                    {isSelected && <Rect x={minX} y={minY} width={abW} height={abH}
                       stroke={isFocused ? '#e63946' : '#118ab2'}
                       strokeWidth={1} dash={[4, 3]} fill="transparent" />}
                   </Group>
