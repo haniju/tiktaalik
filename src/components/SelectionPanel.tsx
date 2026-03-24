@@ -142,7 +142,7 @@ export function SelectionPanel({
                   <button
                     style={s.badgeBtn}
                     onPointerDown={e => e.stopPropagation()}
-                    onClick={e => { e.stopPropagation(); onDeleteItem(id); setPanelSelected(p => p.filter(x => x !== id)); }}
+                    onPointerUp={e => { e.stopPropagation(); onDeleteItem(id); setPanelSelected(p => p.filter(x => x !== id)); }}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4h6v2"/>
@@ -152,7 +152,7 @@ export function SelectionPanel({
                   <button
                     style={s.badgeBtn}
                     onPointerDown={e => e.stopPropagation()}
-                    onClick={e => { e.stopPropagation(); onDeselect(id); setPanelSelected(p => p.filter(x => x !== id)); }}
+                    onPointerUp={e => { e.stopPropagation(); onDeselect(id); setPanelSelected(p => p.filter(x => x !== id)); }}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

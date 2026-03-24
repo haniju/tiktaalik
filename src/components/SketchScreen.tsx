@@ -1008,6 +1008,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                       stroke={s.color}
                       strokeWidth={s.width} opacity={s.opacity}
                       lineCap="round" lineJoin="round" tension={0.3}
+                      hitStrokeWidth={Math.max(s.width, 20)}
                     />
                   </Group>
                 );
