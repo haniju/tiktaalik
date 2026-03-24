@@ -4,6 +4,10 @@ dist/
 *.local
 *.zip
 
+# Déploiement
+deploy.sh
+.env
+
 # Playwright
 /test-results/
 /playwright-report/

@@ -127,6 +127,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [currentAirbrush, setCurrentAirbrush] = useState<AirbrushStroke | null>(null);
   const [selection, setSelection] = useState<string[]>([]);
+  const selectionRef = useRef<string[]>(selection);
   // ─── État textbox unifié — remplace editingTextId + selectedTextId + focusedId ───
   const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
   const [isDirty, setIsDirty] = useState(false);
@@ -136,7 +137,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [undoIndex, setUndoIndex] = useState(0);
   const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
+  selectionRef.current = selection;
   const selRectStart = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingSelection = useRef(false);
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const dragPointerStart = useRef<{ x: number; y: number } | null>(null); // position écran pour seuil mouvement
+  const dragLayerSnapshot = useRef<DrawLayer[]>([]);
+  const dragLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDrawing = useRef(false);
   const isErasing = useRef(false);
   const lastAirbrushPt = useRef<{ x: number; y: number } | null>(null);
@@ -324,9 +331,45 @@ export function SketchScreen({ drawing, onBack }: Props) {
     }
 
     if (toolState.canvasMode === 'select') {
-      if (e.target === stage) setSelection([]);
-      selRectStart.current = pos;
-      setSelRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
+      if (isBackground) {
+        setSelection([]);
+        selRectStart.current = pos;
+        setSelRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
+        return;
+      }
+      // Trouver l'id du layer touché en remontant l'arbre Konva
+      let node: Konva.Node | null = e.target;
+      let hitId: string | null = null;
+      while (node) {
+        const nid = node.id?.();
+        if (nid) { hitId = nid; break; }
+        node = node.getParent?.() ?? null;
+      }
+      if (!hitId) return;
+
+      const alreadySelected = selectionRef.current.includes(hitId);
+      const snapPos = pos;
+      const snapScreen = screenPos;
+
+      if (alreadySelected) {
+        // Drag immédiat pour les objets déjà sélectionnés
+        isDraggingSelection.current = true;
+        dragStartPos.current = snapPos;
+        dragPointerStart.current = snapScreen;
+        dragLayerSnapshot.current = layers.map(l => ({ ...l }));
+      } else {
+        // Long-press (350ms) pour les objets non sélectionnés
+        dragPointerStart.current = snapScreen;
+        dragLongPressTimer.current = setTimeout(() => {
+          dragLongPressTimer.current = null;
+          // Sélectionner l'objet puis démarrer le drag
+          setSelection(prev => prev.includes(hitId!) ? prev : [...prev, hitId!]);
+          selectionRef.current = selectionRef.current.includes(hitId!) ? selectionRef.current : [...selectionRef.current, hitId!];
+          isDraggingSelection.current = true;
+          dragStartPos.current = snapPos;
+          dragLayerSnapshot.current = layers.map(l => ({ ...l }));
+        }, 350);
+      }
       return;
     }
 
@@ -424,8 +467,41 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
-    if (toolState.canvasMode === 'select' && selRectStart.current) {
-      setSelRect({ x: Math.min(selRectStart.current.x, pos.x), y: Math.min(selRectStart.current.y, pos.y), w: Math.abs(pos.x - selRectStart.current.x), h: Math.abs(pos.y - selRectStart.current.y) });
+    if (toolState.canvasMode === 'select') {
+      // Annuler le long-press si le doigt a bougé (scroll ou lasso)
+      if (dragLongPressTimer.current && dragPointerStart.current) {
+        const dx = screenPos.x - dragPointerStart.current.x;
+        const dy = screenPos.y - dragPointerStart.current.y;
+        if (Math.hypot(dx, dy) > 8) {
+          clearTimeout(dragLongPressTimer.current);
+          dragLongPressTimer.current = null;
+          dragPointerStart.current = null;
+        }
+      }
+
+      if (isDraggingSelection.current && dragStartPos.current) {
+        const dx = pos.x - dragStartPos.current.x;
+        const dy = pos.y - dragStartPos.current.y;
+        const selSet = new Set(selectionRef.current);
+        const newLayers = dragLayerSnapshot.current.map(layer => {
+          if (!selSet.has(layer.id)) return layer;
+          if (layer.tool === 'text') {
+            const tb = layer as TextLayer;
+            return { ...tb, x: tb.x + dx, y: tb.y + dy };
+          }
+          if (layer.tool === 'airbrush') {
+            const ab = layer as AirbrushStroke;
+            return { ...ab, points: ab.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
+          }
+          const s = layer as Stroke;
+          return { ...s, points: s.points.map((v, i) => i % 2 === 0 ? v + dx : v + dy) };
+        });
+        setLayers(newLayers);
+        return;
+      }
+      if (selRectStart.current) {
+        setSelRect({ x: Math.min(selRectStart.current.x, pos.x), y: Math.min(selRectStart.current.y, pos.y), w: Math.abs(pos.x - selRectStart.current.x), h: Math.abs(pos.y - selRectStart.current.y) });
+      }
       return;
     }
 
@@ -479,6 +555,22 @@ export function SketchScreen({ drawing, onBack }: Props) {
       isErasing.current = false;
       setLayers(prev => { pushUndo(prev); return prev; });
       return;
+    }
+
+    if (toolState.canvasMode === 'select') {
+      if (dragLongPressTimer.current) {
+        clearTimeout(dragLongPressTimer.current);
+        dragLongPressTimer.current = null;
+      }
+      dragPointerStart.current = null;
+      if (isDraggingSelection.current) {
+        isDraggingSelection.current = false;
+        dragStartPos.current = null;
+        dragLayerSnapshot.current = [];
+        pushUndo(layers);
+        setIsDirty(true);
+        return;
+      }
     }
 
     if (toolState.canvasMode === 'select' && selRectStart.current && selRect) {
@@ -758,7 +850,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                 };
 
                 return (
-                  <Group key={tb.id} x={tb.x} y={tb.y}>
+                  <Group key={tb.id} id={tb.id} x={tb.x} y={tb.y}>
                     {tb.background !== '' && (
                       <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
                     )}
@@ -871,7 +963,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                 const abW = Math.max(...xs) + ab.radius - minX;
                 const abH = Math.max(...ys) + ab.radius - minY;
                 return (
-                  <Group key={ab.id} onClick={selectItem} onTap={selectItem}>
+                  <Group key={ab.id} id={ab.id} onClick={selectItem} onTap={selectItem}>
                     {/* Outline de sélection — cercles plus larges en dessous */}
                     {isSelected && (
                       <AirbrushOutline stroke={ab} color={isFocused ? '#e63946' : '#118ab2'} />
@@ -884,7 +976,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
               } else {
                 const s = layer as Stroke;
                 return (
-                  <Group key={s.id} onClick={selectItem} onTap={selectItem}>
+                  <Group key={s.id} id={s.id} onClick={selectItem} onTap={selectItem}>
                     {/* Outline de sélection — même tracé, plus épais, en dessous */}
                     {isSelected && (
                       <Line points={s.points}
