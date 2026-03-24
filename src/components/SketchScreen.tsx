@@ -233,14 +233,16 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   // Dériver les IDs courants depuis tbState (source unique de vérité)
   const editingTextId = tbState.kind === 'editing' ? tbState.id : null;
+  const editingTextIdRef = useRef<string | null>(null);
+  editingTextIdRef.current = editingTextId;
   const selectedTextId = tbState.kind === 'selected' ? tbState.id : null;
 
   const exitEditing = useCallback(() => {
     // Guard : ignorer un blur arrivant moins de 300ms après la création
     // (touchend du Stage qui blur la textarea fraîchement créée)
     if (Date.now() - editingCreatedAtRef.current < 300) return;
+    const activeId = editingTextIdRef.current; // ref = toujours à jour, pas de stale closure
     setLayers(prev => {
-      const activeId = editingTextId;
       return prev
         // Supprimer les textboxes vides
         .filter(l => l.tool !== 'text' || l.id !== activeId || (l as TextLayer).text.trim() !== '')
@@ -258,7 +260,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     });
     setTbState({ kind: 'idle' });
     setContextPanel(null);
-  }, [editingTextId, setContextPanel]);
+  }, [setContextPanel]);
 
   const addTextBox = useCallback((x: number, y: number) => {
     const tl = makeTextLayer(uuidv4(), x, y);
@@ -319,14 +321,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
 
-    // En mode text : si on édite et qu'on clique sur fond → exit édition
-    if (editingTextId && toolState.activeTool === 'text') {
+    // En mode text : si on édite et qu'on clique ailleurs → exit édition
+    if (editingTextIdRef.current && toolState.activeTool === 'text') {
       exitEditing();
       return;
     }
 
     // Bloquer tout le reste si on édite (sauf text tool géré ci-dessus)
-    if (editingTextId) return;
+    if (editingTextIdRef.current) return;
 
     // Clic sur le fond (stage OU Rect A4) → sortir de l'édition texte (sécurité)
     const targetName = typeof (e.target as any)?.name === 'function'
@@ -389,7 +391,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (toolState.activeTool !== 'text') collapsePanel();
 
     // En mode draw, clic sur le fond → sortir de l'édition
-    if (e.target === stage && editingTextId) {
+    if (e.target === stage && editingTextIdRef.current) {
       exitEditing();
       return;
     }
@@ -418,13 +420,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
     }
 
     if (toolState.activeTool === 'pen' || toolState.activeTool === 'marker') {
-      if (editingTextId) exitEditing();
+      if (editingTextIdRef.current) exitEditing();
       const opacity = toolState.activeTool === 'marker' ? 0.4 : 1;
       const w = toolState.activeTool === 'marker' ? activeWidth * 4 : activeWidth;
       setCurrentStroke({ id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y] });
       isDrawing.current = true;
     }
-  }, [toolState, activeColor, activeWidth, editingTextId, exitEditing, addTextBox]);
+  }, [toolState, activeColor, activeWidth, exitEditing, addTextBox]);
 
   const eraseAt = useCallback((pos: { x: number; y: number }) => {
     setLayers(prev => prev.filter(layer => {
@@ -466,7 +468,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
-    if (editingTextId) return;
+    if (editingTextIdRef.current) return;
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
 
@@ -549,7 +551,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (isDrawing.current && currentStroke) {
       setCurrentStroke(prev => prev ? { ...prev, points: [...prev.points, pos.x, pos.y] } : null);
     }
-  }, [toolState, currentStroke, currentAirbrush, editingTextId, eraseAt]);
+  }, [toolState, currentStroke, currentAirbrush, eraseAt]);
 
   const handleMouseUp = useCallback(() => {
     // Lire avant reset : pinchRef non-null = un pinch était en cours
@@ -565,7 +567,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     }
     pendingTextboxRef.current = null;
 
-    if (editingTextId) return;
+    if (editingTextIdRef.current) return;
 
     if (isPanning.current) { isPanning.current = false; panStart.current = null; return; }
 
@@ -633,7 +635,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       setLayers(newL); pushUndo(newL);
       setCurrentStroke(null); setIsDirty(true);
     }
-  }, [toolState, selRect, layers, currentStroke, currentAirbrush, pushUndo, editingTextId, addTextBox]);
+  }, [toolState, selRect, layers, currentStroke, currentAirbrush, pushUndo, addTextBox]);
 
   const updateTextBox = useCallback((patch: Partial<TextBox>) => {
     setLayers(prev => prev.map(l => {
