@@ -140,6 +140,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   selectionRef.current = selection;
   const selRectStart = useRef<{ x: number; y: number } | null>(null);
   const isDraggingSelection = useRef(false);
+  const dragArmed = useRef(false); // sélectionné touché, en attente de confirmation par mouvement
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragPointerStart = useRef<{ x: number; y: number } | null>(null); // position écran pour seuil mouvement
   const dragLayerSnapshot = useRef<DrawLayer[]>([]);
@@ -352,8 +353,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
       const snapScreen = screenPos;
 
       if (alreadySelected) {
-        // Drag immédiat pour les objets déjà sélectionnés
-        isDraggingSelection.current = true;
+        // Armer le drag — confirmé seulement si le doigt bouge > seuil
+        dragArmed.current = true;
         dragStartPos.current = snapPos;
         dragPointerStart.current = snapScreen;
         dragLayerSnapshot.current = layers.map(l => ({ ...l }));
@@ -468,6 +469,15 @@ export function SketchScreen({ drawing, onBack }: Props) {
     }
 
     if (toolState.canvasMode === 'select') {
+      // Confirmer le drag armé si le doigt a bougé > seuil
+      if (dragArmed.current && dragPointerStart.current) {
+        const dx = screenPos.x - dragPointerStart.current.x;
+        const dy = screenPos.y - dragPointerStart.current.y;
+        if (Math.hypot(dx, dy) > 6) {
+          dragArmed.current = false;
+          isDraggingSelection.current = true;
+        }
+      }
       // Annuler le long-press si le doigt a bougé (scroll ou lasso)
       if (dragLongPressTimer.current && dragPointerStart.current) {
         const dx = screenPos.x - dragPointerStart.current.x;
@@ -561,6 +571,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
       if (dragLongPressTimer.current) {
         clearTimeout(dragLongPressTimer.current);
         dragLongPressTimer.current = null;
+      }
+      // Armé mais pas confirmé = tap, pas de déplacement
+      if (dragArmed.current) {
+        dragArmed.current = false;
+        dragStartPos.current = null;
+        dragPointerStart.current = null;
+        dragLayerSnapshot.current = [];
       }
       dragPointerStart.current = null;
       if (isDraggingSelection.current) {
