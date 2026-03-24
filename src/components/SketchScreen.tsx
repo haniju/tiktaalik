@@ -17,7 +17,7 @@ import { Topbar } from './Topbar';
 import { Drawingbar } from './Drawingbar';
 import { ContextToolbar } from './ContextToolbar';
 import { SelectionPanel } from './SelectionPanel';
-import { AirbrushShape } from './AirbrushLayer';
+import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
 import { ActionFABs } from './ActionFABs';
 
 // Version de l'application (source unique : package.json)
@@ -872,38 +872,34 @@ export function SketchScreen({ drawing, onBack }: Props) {
                 const abH = Math.max(...ys) + ab.radius - minY;
                 return (
                   <Group key={ab.id} onClick={selectItem} onTap={selectItem}>
+                    {/* Outline de sélection — cercles plus larges en dessous */}
+                    {isSelected && (
+                      <AirbrushOutline stroke={ab} color={isFocused ? '#e63946' : '#118ab2'} />
+                    )}
                     <AirbrushShape stroke={ab} />
                     {/* Zone de hit transparente — AirbrushShape a listening={false} */}
                     <Rect x={minX} y={minY} width={abW} height={abH} fill="rgba(0,0,0,0)" />
-                    {isSelected && <Rect x={minX} y={minY} width={abW} height={abH}
-                      stroke={isFocused ? '#e63946' : '#118ab2'}
-                      strokeWidth={1} dash={[4, 3]} fill="transparent" />}
                   </Group>
                 );
               } else {
                 const s = layer as Stroke;
-                // Bounding box pour le contour de sélection
-                const pts = s.points;
-                const xs = pts.filter((_, i) => i % 2 === 0);
-                const ys = pts.filter((_, i) => i % 2 === 1);
-                const minX = Math.min(...xs) - s.width / 2 - 4;
-                const minY = Math.min(...ys) - s.width / 2 - 4;
-                const maxX = Math.max(...xs) + s.width / 2 + 4;
-                const maxY = Math.max(...ys) + s.width / 2 + 4;
                 return (
                   <Group key={s.id} onClick={selectItem} onTap={selectItem}>
+                    {/* Outline de sélection — même tracé, plus épais, en dessous */}
+                    {isSelected && (
+                      <Line points={s.points}
+                        stroke={isFocused ? '#e63946' : '#118ab2'}
+                        strokeWidth={s.width + 6}
+                        lineCap="round" lineJoin="round" tension={0.3}
+                        opacity={0.55}
+                        listening={false}
+                      />
+                    )}
                     <Line points={s.points}
                       stroke={s.color}
                       strokeWidth={s.width} opacity={s.opacity}
                       lineCap="round" lineJoin="round" tension={0.3}
                     />
-                    {isSelected && <Rect
-                      x={minX} y={minY}
-                      width={maxX - minX} height={maxY - minY}
-                      stroke="#118ab2" strokeWidth={1.5}
-                      dash={[5, 3]} fill="rgba(17,138,178,0.05)"
-                      listening={false}
-                    />}
                   </Group>
                 );
               }

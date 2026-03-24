@@ -3,6 +3,33 @@ import { Shape } from 'react-konva';
 import Konva from 'konva';
 import { AirbrushStroke } from '../types';
 
+interface OutlineProps {
+  stroke: AirbrushStroke;
+  color: string;
+}
+
+export function AirbrushOutline({ stroke, color }: OutlineProps) {
+  const shapeRef = useRef<Konva.Shape>(null);
+
+  useEffect(() => {
+    shapeRef.current?.getLayer()?.batchDraw();
+  }, [stroke, color]);
+
+  const sceneFunc = (ctx: Konva.Context) => {
+    const raw = ctx._context;
+    raw.fillStyle = color;
+    raw.globalAlpha = 0.45;
+    for (const pt of stroke.points) {
+      raw.beginPath();
+      raw.arc(pt.x, pt.y, stroke.radius + 5, 0, Math.PI * 2);
+      raw.fill();
+    }
+    raw.globalAlpha = 1;
+  };
+
+  return <Shape ref={shapeRef} sceneFunc={sceneFunc} listening={false} />;
+}
+
 interface Props {
   stroke: AirbrushStroke;
 }
