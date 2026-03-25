@@ -25,19 +25,23 @@ To run a single test file: `npx vitest run src/utils/textboxUtils.test.ts`
 ### State & Persistence
 
 All data lives in `localStorage`:
-- `sketchpad_drawings` — serialized `Drawing[]` (layers, textBoxes, metadata)
-- `sketchpad_tool_state` — active tool settings across sessions
+- `sketchpad_drawings` — serialized `Drawing[]` (layers, background, metadata)
+- `sketchpad_tool_state` — active tool settings (colors, widths) across sessions
 
 Custom hooks handle state:
-- `useDrawingStorage` — CRUD for drawings in localStorage
-- `useToolState` — active tool, canvas mode, colors, widths per tool
-- `useDragToReorder` — drag-to-reorder in gallery
+- `useDrawingStorage` — CRUD for drawings in localStorage, with automatic migration of legacy formats
+- `useToolState` — active tool, canvas mode, colors, widths per tool (canvas background is per-Drawing, not here)
+- `useDragToReorder` — drag-to-reorder in SelectionPanel (long-press 350ms to drag, swipe to scroll)
 
 ### Canvas
 
-The canvas is a fixed A4 size (794×1123px) rendered via `react-konva`. Drawing data is a union type `DrawLayer = Stroke | AirbrushStroke`. Each drawing has independent `layers` (strokes) and `textBoxes` arrays.
+The canvas is a fixed A4 size (794×1123px) rendered via `react-konva`. Drawing data is a unified layer stack: `DrawLayer = Stroke | AirbrushStroke | TextLayer`. Each `Drawing` has a `layers` array (chronological order = z-index) and a `background` color.
 
 `AirbrushLayer.tsx` handles airbrush rendering separately from regular strokes due to the radial gradient compositing it requires.
+
+### Autosave
+
+SketchScreen uses a debounced autosave (4s after last mutation). Immediate save on: visibility change (app backgrounded), `beforeunload`, and return to gallery. Uses refs for the timer to avoid re-renders. Manual save button remains as fallback. Console logs `[autosave]` on each automatic save.
 
 ### Tools & Modes
 
@@ -59,8 +63,10 @@ This replaces the previous architecture that used three desynchronized state var
 ### Export
 
 `src/utils/export.ts` handles:
-- SVG export with proper stroke styles, airbrush radial gradients, and text rendering
-- Thumbnail generation for gallery previews
+- SVG export with stroke styles, airbrush radial gradients, text with word wrap, and canvas background color
+- Thumbnail generation for gallery previews (canvas 2D)
+- Both outputs are clipped to A4 bounds (clipPath in SVG, `ctx.clip()` in thumbnail) — no overflow
+- `wrapText()` utility in `textboxUtils.ts` is shared between canvas rendering, SVG export, and thumbnails
 
 ### App Version
 
@@ -85,9 +91,11 @@ The app version from `package.json` is injected at build time as the global `__A
 
 ## Known Issues & In Progress
 
-- Mobile tap bug on textboxes (being debugged via on-screen overlay)
 - ESLint shows ~16 errors: unused vars, `any` types, one empty catch block — cleanup in progress
 - `react-hooks/exhaustive-deps` rule referenced in code but plugin not installed
+- `DrawingSecondaryToolbar` component is defined but unused (dead code)
+- Resize handle Y-axis drift during active drag — deferred, handles reset correctly on pointer up
+- Playwright demo test stubs (`e2e/example.spec.ts`, `tests/example.spec.ts`) fail in Vitest — pre-existing, not real tests
 
 ## Do Not
 
@@ -95,15 +103,13 @@ The app version from `package.json` is injected at build time as the global `__A
 - Do not use `sudo` with npm
 - Do not introduce new `any` types
 - Do not break the TextBoxSelectionState state machine by adding separate boolean flags
+- Do not put `canvasBackground` back into `useToolState` — it is per-Drawing state
 
-## Active Bugs (v1.2.0)
+## Active Bugs (v1.3.0)
 
 ### Critical
 - [ ] Draw mode: secondary toolbar (DrawingSecondaryToolbar) does not open when selecting pen/marker/airbrush
-- [ ] Text mode: tapping canvas does not create a new textbox
 
 ### Select Mode
-- [ ] Horizontal scroll broken on groups with 5+ objects in SelectionPanel
 - [ ] Individual deselect/delete in level-2 selection not working
-- [ ] Stack reordering inconsistent (works once, then reverts on next object)
 - [ ] Cannot drag-move a selected object on canvas
