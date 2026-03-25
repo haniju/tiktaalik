@@ -12,6 +12,7 @@ import {
   nextSelectionState,
   exitState,
   estimateTextHeight,
+  findTextBoxAtPoint,
 } from '../utils/textboxUtils';
 import { Topbar } from './Topbar';
 import { Drawingbar } from './Drawingbar';
@@ -39,14 +40,22 @@ interface ResizeHandleProps {
   onDragEnd: () => void;
 }
 
+// Taille minimale du handle à l'écran (px) — garantit qu'il reste touchable même dézoomé
+const HANDLE_MIN_SCREEN_W = 16;
+const HANDLE_MIN_SCREEN_H = 32;
+
 // Handle de resize horizontal — milieu bord gauche ou droit
 function ResizeHandle({ cx, cy, tbX, tbY, side, stageRef, onMove, onDragEnd }: ResizeHandleProps) {
   const lockedScreenY = useRef<number | null>(null);
+  // Compenser le zoom : la taille en coordonnées canvas augmente quand on dézoome
+  const sc = stageRef.current?.scaleX() ?? 1;
+  const hw = Math.max(HANDLE_W, HANDLE_MIN_SCREEN_W / sc);
+  const hh = Math.max(HANDLE_H, HANDLE_MIN_SCREEN_H / sc);
 
   return (
     <Rect
-      x={cx - HANDLE_W / 2} y={cy - HANDLE_H / 2}
-      width={HANDLE_W} height={HANDLE_H}
+      x={cx - hw / 2} y={cy - hh / 2}
+      width={hw} height={hh}
       fill="#118ab2" opacity={0.85} cornerRadius={4}
       draggable
       dragBoundFunc={pos => ({
@@ -234,10 +243,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
     // Guard : ignorer un blur arrivant moins de 300ms après la création
     // (touchend du Stage qui blur la textarea fraîchement créée)
     if (Date.now() - editingCreatedAtRef.current < 300) return;
-    const activeId = editingTextIdRef.current; // ref = toujours à jour, pas de stale closure
     setLayers(prev =>
-      // Supprimer les textboxes vides
-      prev.filter(l => l.tool !== 'text' || l.id !== activeId || (l as TextLayer).text.trim() !== '')
+      // Supprimer toutes les textboxes vides (filet de sécurité — pas seulement la courante)
+      prev.filter(l => l.tool !== 'text' || (l as TextLayer).text.trim() !== '')
     );
     setTbState({ kind: 'idle' });
     setContextPanel(null);
@@ -255,11 +263,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [layers, pushUndo, setContextPanel]);
 
   const handleSetCanvasMode = useCallback((mode: CanvasMode) => {
+    if (tbStateRef.current.kind !== 'idle') exitEditing();
     setCanvasMode(mode);
-    // Désélectionner tout au changement de mode
     setSelection([]);
-    setTbState({ kind: 'idle' });
-  }, [setCanvasMode]);
+  }, [setCanvasMode, exitEditing]);
 
   // Ref pour ignorer le 1er touch d'un pinch
   const pinchPendingRef = useRef(false);
@@ -385,7 +392,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
     // Mode texte
     if (toolState.activeTool === 'text') {
-      // Si une textbox est en état sélectionné (niveau 1), détecter un tap dessus → armer le drag
       if (tbStateRef.current.kind === 'selected') {
         let node: Konva.Node | null = e.target;
         let hitId: string | null = null;
@@ -395,15 +401,28 @@ export function SketchScreen({ drawing, onBack }: Props) {
           node = node.getParent?.() ?? null;
         }
         if (hitId === tbStateRef.current.id) {
+          // Touch sur un enfant draggable (resize handle, border) → laisser son drag natif Konva
+          if (e.target.draggable()) {
+            return;
+          }
+          // Sinon armer le drag pour déplacer la textbox
           dragArmed.current = true;
           dragStartPos.current = pos;
           dragPointerStart.current = screenPos;
           dragLayerSnapshot.current = layers.map(l => ({ ...l }));
           dragSelectionRef.current = [hitId];
-          return; // pas de pendingTextboxRef
+          return;
         }
+        // Tap sur une autre textbox ou sur le fond → désélectionner (pas de création)
+        exitEditing();
+        if (hitId) {
+          // Tap sur une autre textbox → la sélectionner
+          setTbState({ kind: 'selected', id: hitId });
+          setContextPanel('text');
+        }
+        return;
       }
-      // Sinon mémoriser la position pour création au touchend (guard pinch)
+      // État idle → mémoriser la position pour création au touchend (guard pinch)
       pendingTextboxRef.current = { x: pos.x, y: pos.y };
       return;
     }
@@ -558,10 +577,32 @@ export function SketchScreen({ drawing, onBack }: Props) {
     pinchRef.current = null;
 
     // Créer la textbox si c'était un vrai tap (pas un pinch)
+    // Guard : vérifier qu'on ne tape pas sur une textbox existante (race condition touch :
+    // handleMouseUp se déclenche AVANT handleTap sur mobile)
     if (pendingTextboxRef.current && !wasPinch) {
       const { x, y } = pendingTextboxRef.current;
       pendingTextboxRef.current = null;
-      addTextBox(x, y);
+      const textLayers = layers.filter((l): l is TextLayer => l.tool === 'text');
+      const heights = new Map<string, number>(
+        textLayers.map(t => [
+          t.id,
+          textNodesRef.current.get(t.id)
+            ? Math.max(textNodesRef.current.get(t.id)!.height(), 20)
+            : estimateTextHeight(t),
+        ])
+      );
+      const hitTb = findTextBoxAtPoint(x, y, textLayers, heights);
+      if (hitTb) {
+        // Tap sur une textbox existante → appliquer la state machine, pas de création
+        const next = nextSelectionState(tbStateRef.current, x, y, textLayers, heights);
+        if (next.kind === 'editing' && tbStateRef.current.kind !== 'editing') {
+          editingCreatedAtRef.current = Date.now();
+        }
+        setTbState(next);
+        if (next.kind !== 'idle') setContextPanel('text');
+      } else {
+        addTextBox(x, y);
+      }
       return;
     }
     pendingTextboxRef.current = null;
@@ -714,9 +755,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
         <Drawingbar
           state={toolState}
           contextPanel={contextPanel}
-          onSelectDrawingTool={selectDrawingTool}
+          onSelectDrawingTool={t => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectDrawingTool(t); }}
           onSelectText={selectTextTool}
-          onSelectEraser={selectEraser}
+          onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
           onSelectBackground={selectBackground}
         />
 
