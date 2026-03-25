@@ -51,10 +51,13 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <defs>
+    <clipPath id="page"><rect width="${width}" height="${height}"/></clipPath>
     ${defs.join('\n    ')}
   </defs>
   <rect width="${width}" height="${height}" fill="${background}"/>
+  <g clip-path="url(#page)">
   ${elements.join('\n  ')}
+  </g>
 </svg>`;
 
   const blob = new Blob([svg], { type: 'image/svg+xml' });
@@ -74,6 +77,12 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Clipper au rectangle de la page — rien ne déborde
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, canvas.width, canvas.height);
+  ctx.clip();
 
   layers.forEach(layer => {
     ctx.globalAlpha = 1;
@@ -138,6 +147,6 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
     }
   });
 
-  ctx.globalAlpha = 1;
+  ctx.restore();
   return canvas.toDataURL('image/jpeg', 0.7);
 }
