@@ -1,4 +1,5 @@
 import { DrawLayer, Stroke, TextLayer } from '../types';
+import { wrapText } from './textboxUtils';
 
 export function exportSvg(layers: DrawLayer[], width: number, height: number, filename: string) {
   const defs: string[] = [];
@@ -20,7 +21,7 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
       const weight = tb.fontStyle.includes('bold') ? 'bold' : 'normal';
       const style = tb.fontStyle.includes('italic') ? 'italic' : 'normal';
       const decoration = tb.textDecoration || 'none';
-      const lines = tb.text.split('\n');
+      const lines = wrapText(tb.text, tb.width, tb.fontSize, tb.fontFamily, tb.fontStyle, tb.padding);
       const lineH = tb.fontSize * 1.4;
 
       if (tb.background) {
@@ -98,7 +99,7 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
       const style = tb.fontStyle.includes('italic') ? 'italic' : 'normal';
       const fontSize = tb.fontSize * scale;
       const lineH = fontSize * 1.4;
-      const lines = tb.text.split('\n');
+      const lines = wrapText(tb.text, tb.width, tb.fontSize, tb.fontFamily, tb.fontStyle, tb.padding);
 
       ctx.globalAlpha = tb.opacity;
 

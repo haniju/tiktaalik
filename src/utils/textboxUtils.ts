@@ -23,6 +23,47 @@ export function measureTextWidth(
 }
 
 /**
+ * Découpe un texte en lignes visuelles selon une largeur max (word wrap).
+ * Respecte les retours à la ligne explicites (\n) puis coupe les mots
+ * qui dépassent la largeur disponible.
+ */
+export function wrapText(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  fontFamily: string,
+  fontStyle: string,
+  padding = 0,
+): string[] {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  const weight = fontStyle.includes('bold') ? 'bold' : 'normal';
+  const style = fontStyle.includes('italic') ? 'italic' : 'normal';
+  ctx.font = `${style} ${weight} ${fontSize}px ${fontFamily}`;
+
+  const availableWidth = maxWidth - padding * 2;
+  const result: string[] = [];
+
+  for (const paragraph of text.split('\n')) {
+    if (paragraph === '') { result.push(''); continue; }
+    const words = paragraph.split(/(\s+)/); // garder les espaces
+    let line = '';
+    for (const word of words) {
+      const test = line + word;
+      if (ctx.measureText(test).width > availableWidth && line !== '') {
+        result.push(line);
+        line = word.trimStart(); // pas d'espace en début de nouvelle ligne
+      } else {
+        line = test;
+      }
+    }
+    if (line) result.push(line);
+  }
+
+  return result.length > 0 ? result : [''];
+}
+
+/**
  * Calcule la hauteur estimée d'une textbox depuis son contenu.
  * Utilisé comme fallback quand le nœud Konva n'est pas encore monté.
  */
