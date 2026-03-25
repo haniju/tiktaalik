@@ -151,6 +151,47 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [undoIndex, setUndoIndex] = useState(0);
   const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
+  // ─── Autosave ─────────────────────────────────────────────────────────────
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const layersRef = useRef(layers);
+  layersRef.current = layers;
+  const canvasBgRef = useRef(canvasBackground);
+  canvasBgRef.current = canvasBackground;
+  const drawingNameRef = useRef(drawingName);
+  drawingNameRef.current = drawingName;
+  const isDirtyRef = useRef(false);
+
+  const saveNow = useCallback(() => {
+    if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
+    if (!isDirtyRef.current) return;
+    const bg = canvasBgRef.current;
+    const thumb = generateThumbnail(layersRef.current, A4_WIDTH, A4_HEIGHT, bg);
+    storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, updatedAt: Date.now(), thumbnail: thumb });
+    isDirtyRef.current = false;
+    setIsDirty(false);
+    console.log('[autosave]', new Date().toLocaleTimeString());
+  }, [drawing, storage]);
+
+  const scheduleSave = useCallback(() => {
+    isDirtyRef.current = true;
+    scheduleSave();
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(saveNow, 4000);
+  }, [saveNow]);
+
+  // Save immédiat sur visibilitychange / beforeunload
+  useEffect(() => {
+    const onVisChange = () => { if (document.hidden) saveNow(); };
+    const onBeforeUnload = () => saveNow();
+    document.addEventListener('visibilitychange', onVisChange);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisChange);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+  }, [saveNow]);
+
   selectionRef.current = selection;
   const selRectStart = useRef<{ x: number; y: number } | null>(null);
   const isDraggingSelection = useRef(false);
@@ -217,7 +258,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const i = undoIndex - 1;
     setUndoIndex(i);
     setLayers(undoStack[i].layers);
-    setIsDirty(true);
+    scheduleSave();
   }, [undoIndex, undoStack]);
 
   const redo = useCallback(() => {
@@ -225,7 +266,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const i = undoIndex + 1;
     setUndoIndex(i);
     setLayers(undoStack[i].layers);
-    setIsDirty(true);
+    scheduleSave();
   }, [undoIndex, undoStack]);
 
   useEffect(() => {
@@ -264,7 +305,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     editingCreatedAtRef.current = Date.now();
     setTbState({ kind: 'editing', id: tl.id });
     setContextPanel('text');
-    setIsDirty(true);
+    scheduleSave();
   }, [layers, pushUndo, setContextPanel]);
 
   const handleSetCanvasMode = useCallback((mode: CanvasMode) => {
@@ -641,7 +682,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
       pushUndo(layers);
-      setIsDirty(true);
+      scheduleSave();
       return;
     }
 
@@ -670,7 +711,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       isDrawing.current = false; lastAirbrushPt.current = null;
       const newL = [...layers, currentAirbrush];
       setLayers(newL); pushUndo(newL);
-      setCurrentAirbrush(null); setIsDirty(true);
+      setCurrentAirbrush(null); scheduleSave();
       return;
     }
 
@@ -678,7 +719,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       isDrawing.current = false;
       const newL = [...layers, currentStroke];
       setLayers(newL); pushUndo(newL);
-      setCurrentStroke(null); setIsDirty(true);
+      setCurrentStroke(null); scheduleSave();
     }
   }, [toolState, selRect, layers, currentStroke, currentAirbrush, pushUndo, addTextBox]);
 
@@ -687,7 +728,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       if (l.tool !== 'text' || l.id !== editingTextId) return l;
       return { ...l, ...patch };
     }));
-    setIsDirty(true);
+    scheduleSave();
   }, [editingTextId]);
 
   const deleteItem = useCallback((id: string) => {
@@ -695,23 +736,21 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setLayers(newL);
     setSelection(prev => prev.filter(x => x !== id));
     if (tbState.kind !== 'idle' && tbState.id === id) setTbState({ kind: 'idle' });
-    pushUndo(newL); setIsDirty(true);
+    pushUndo(newL); scheduleSave();
   }, [layers, tbState, pushUndo]);
 
   const deleteSelected = useCallback(() => {
     const newL = layers.filter(l => !selection.includes(l.id));
     setLayers(newL);
     setSelection([]); setTbState({ kind: 'idle' });
-    pushUndo(newL); setIsDirty(true);
+    pushUndo(newL); scheduleSave();
   }, [layers, selection, pushUndo]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     setIsSaving(true);
-    try {
-      const thumbnail = generateThumbnail(layers, A4_WIDTH, A4_HEIGHT, canvasBackground);
-      storage.save({ ...drawing, name: drawingName, layers, background: canvasBackground, updatedAt: Date.now(), thumbnail });
-      setIsDirty(false);
-    } finally { setIsSaving(false); }
+    isDirtyRef.current = true; // force save même si déjà propre
+    saveNow();
+    setIsSaving(false);
   };
 
   const handleExportSvg = () => {
@@ -723,7 +762,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (newName && newName.trim()) {
       setDrawingName(newName.trim());
       storage.rename(drawing.id, newName.trim());
-      setIsDirty(true);
+      scheduleSave();
     }
   };
 
@@ -749,7 +788,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           drawingName={drawingName}
           canUndo={undoIndex > 0}
           canRedo={undoIndex < undoStack.length - 1}
-          onBack={() => { if (isDirty && !confirm('Quitter sans sauvegarder ?')) return; onBack(); }}
+          onBack={() => { saveNow(); onBack(); }}
           onUndo={undo}
           onRedo={redo}
           onExportSvg={handleExportSvg}
@@ -818,7 +857,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
               });
               setLayers(newLayers);
               pushUndo(newLayers);
-              setIsDirty(true);
+              scheduleSave();
             }}
           />
         )}
@@ -971,7 +1010,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                             ...l, x: (abs.x - sp.x) / sc - HANDLE_W, y: (abs.y - sp.y) / sc + BORDER_HIT / 2,
                           }));
                         }}
-                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
                       />
                       <Rect x={HANDLE_W} y={tbH - BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
                         fill="transparent" draggable
@@ -983,7 +1022,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                             ...l, x: (abs.x - sp.x) / sc - HANDLE_W, y: (abs.y - sp.y) / sc - tbH + BORDER_HIT / 2,
                           }));
                         }}
-                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
                       />
                       <Rect x={-BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
                         fill="transparent" draggable
@@ -995,7 +1034,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                             ...l, x: (abs.x - sp.x) / sc + BORDER_HIT / 2, y: (abs.y - sp.y) / sc - HANDLE_H,
                           }));
                         }}
-                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
                       />
                       <Rect x={tb.width - BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
                         fill="transparent" draggable
@@ -1007,7 +1046,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                             ...l, x: (abs.x - sp.x) / sc - tb.width + BORDER_HIT / 2, y: (abs.y - sp.y) / sc - HANDLE_H,
                           }));
                         }}
-                        onDragEnd={() => setIsDirty(true)} dragBoundFunc={p => p}
+                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
                       />
                     </>}
 
@@ -1015,14 +1054,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
                     {isTextSelected && !isEditing && <>
                       <ResizeHandle
                         cx={0} cy={tbH / 2} tbY={tb.y} stageRef={stageRef}
-                        onDragEnd={() => setIsDirty(true)}
+                        onDragEnd={() => scheduleSave()}
                         onMove={dx => setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
                           ...l, x: (l as TextLayer).x + dx, width: Math.max((l as TextLayer).width - dx, 60),
                         }))}
                       />
                       <ResizeHandle
                         cx={tb.width} cy={tbH / 2} tbY={tb.y} stageRef={stageRef}
-                        onDragEnd={() => setIsDirty(true)}
+                        onDragEnd={() => scheduleSave()}
                         onMove={dx => setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
                           ...l, width: Math.max((l as TextLayer).width + dx, 60),
                         }))}
