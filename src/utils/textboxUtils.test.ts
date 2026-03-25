@@ -71,13 +71,7 @@ describe('estimateTextHeight', () => {
 // ─── resolveTextBoxHeight ──────────────────────────────────────────────────
 
 describe('resolveTextBoxHeight', () => {
-  it('utilise manualHeight en priorité absolue', () => {
-    const tb = makeTb({ manualHeight: 300 });
-    expect(resolveTextBoxHeight(tb, 99)).toBe(300);
-    expect(resolveTextBoxHeight(tb)).toBe(300);
-  });
-
-  it('utilise konvaHeight si disponible et pas de manualHeight', () => {
+  it('utilise konvaHeight si disponible', () => {
     const tb = makeTb();
     expect(resolveTextBoxHeight(tb, 150)).toBe(150);
   });
@@ -87,7 +81,7 @@ describe('resolveTextBoxHeight', () => {
     expect(resolveTextBoxHeight(tb, 5)).toBe(20);
   });
 
-  it('fallback sur estimation si ni manualHeight ni konvaHeight', () => {
+  it('fallback sur estimation si pas de konvaHeight', () => {
     const tb = makeTb();
     const estimated = estimateTextHeight(tb);
     expect(resolveTextBoxHeight(tb)).toBe(estimated);

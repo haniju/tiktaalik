@@ -81,17 +81,6 @@ interface Props {
   onBack: () => void;
 }
 
-// Mesure la largeur naturelle d'un texte (fonction pure, pas de dépendances React)
-function measureTextWidth(text: string, fontSize: number, fontFamily: string, fontStyle: string): number {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-  const weight = fontStyle.includes('bold') ? 'bold' : 'normal';
-  const style = fontStyle.includes('italic') ? 'italic' : 'normal';
-  ctx.font = `${style} ${weight} ${fontSize}px ${fontFamily}`;
-  const lines = text.split('\n');
-  const maxLine = Math.max(...lines.map(l => ctx.measureText(l || ' ').width));
-  return Math.max(maxLine + 16, 80); // +16 padding, min 80
-}
 
 const makeTextLayer = (id: string, x: number, y: number): TextLayer => ({
   tool: 'text',
@@ -171,6 +160,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Hauteurs fixes des barres — le canvas est positionné absolument sous elles
   const TOPBAR_H = 48;
@@ -245,22 +235,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
     // (touchend du Stage qui blur la textarea fraîchement créée)
     if (Date.now() - editingCreatedAtRef.current < 300) return;
     const activeId = editingTextIdRef.current; // ref = toujours à jour, pas de stale closure
-    setLayers(prev => {
-      return prev
-        // Supprimer les textboxes vides
-        .filter(l => l.tool !== 'text' || l.id !== activeId || (l as TextLayer).text.trim() !== '')
-        .map(l => {
-          if (l.tool !== 'text' || l.id !== activeId) return l;
-          const t = l as TextLayer;
-          return {
-            ...t,
-            width: t.text.trim()
-              ? measureTextWidth(t.text, t.fontSize, t.fontFamily, t.fontStyle)
-              : t.width,
-            manualHeight: undefined,
-          };
-        });
-    });
+    setLayers(prev =>
+      // Supprimer les textboxes vides
+      prev.filter(l => l.tool !== 'text' || l.id !== activeId || (l as TextLayer).text.trim() !== '')
+    );
     setTbState({ kind: 'idle' });
     setContextPanel(null);
   }, [setContextPanel]);
@@ -847,7 +825,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                 const measuredH = konvaNode
                   ? Math.max(konvaNode.height(), 20)
                   : estimateTextHeight(tb);
-                const tbH = (isTextSelected || isEditing) && tb.manualHeight ? tb.manualHeight : measuredH;
+                const tbH = measuredH;
 
                 const handleTap = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
                   e.cancelBubble = true;
@@ -879,19 +857,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   if (tbState.kind === 'editing' && next.kind === 'selected' && next.id !== tbState.id) {
                     setLayers(prev => {
                       const prevId = tbState.id;
-                      return prev
-                        .filter(l => l.tool !== 'text' || l.id !== prevId || (l as TextLayer).text.trim() !== '')
-                        .map(l => {
-                          if (l.tool !== 'text' || l.id !== prevId) return l;
-                          const t = l as TextLayer;
-                          return {
-                            ...t,
-                            width: t.text.trim()
-                              ? measureTextWidth(t.text, t.fontSize, t.fontFamily, t.fontStyle)
-                              : t.width,
-                            manualHeight: undefined,
-                          };
-                        });
+                      return prev.filter(l => l.tool !== 'text' || l.id !== prevId || (l as TextLayer).text.trim() !== '');
                     });
                   }
 
@@ -905,13 +871,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
                       <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
                     )}
 
-                    <Text x={0} y={0} width={tb.width} height={tb.manualHeight}
+                    <Text x={0} y={0} width={tb.width}
                       ref={node => { if (node) textNodesRef.current.set(tb.id, node); else textNodesRef.current.delete(tb.id); }}
                       text={isEditing ? '' : tb.text}
                       fontSize={tb.fontSize} fontFamily={tb.fontFamily} fontStyle={tb.fontStyle}
                       textDecoration={tb.textDecoration} align={tb.align} verticalAlign={tb.verticalAlign}
                       fill={tb.color} opacity={tb.opacity} padding={tb.padding}
-                      wrap={isTextSelected || tb.manualHeight ? 'word' : 'none'}
+                      wrap="word"
                       listening={false}
                     />
 
@@ -1098,15 +1064,25 @@ export function SketchScreen({ drawing, onBack }: Props) {
         const stage = stageRef.current!;
         const sc = stage.scaleX();
         const sp = stage.position();
-        const tbH = Math.max(editingTextBox.fontSize * 1.4 * ((editingTextBox.text.split('\n').length) || 1) + editingTextBox.padding * 2, 40);
         // Coordonnées écran : décalage du canvas div (top = TOPBAR_H + DRAWINGBAR_H) + position Konva
         const screenLeft = editingTextBox.x * sc + sp.x;
         const screenTop = TOPBAR_H + DRAWINGBAR_H + editingTextBox.y * sc + sp.y;
+        const autoResizeTextarea = (el: HTMLTextAreaElement) => {
+          el.style.height = 'auto';
+          el.style.height = `${el.scrollHeight}px`;
+        };
         return (
           <textarea
+            ref={el => {
+              textareaRef.current = el;
+              if (el) autoResizeTextarea(el);
+            }}
             autoFocus
             value={editingTextBox.text}
-            onChange={e => updateTextBox({ text: e.target.value })}
+            onChange={e => {
+              updateTextBox({ text: e.target.value });
+              autoResizeTextarea(e.target);
+            }}
             onKeyDown={e => { if (e.key === 'Escape') exitEditing(); }}
             onBlur={e => {
               const related = e.relatedTarget as HTMLElement | null;
@@ -1125,7 +1101,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
               top: screenTop,
               width: editingTextBox.width * sc,
               minWidth: 80 * sc,
-              minHeight: tbH * sc,
+              minHeight: 40,
               height: 'auto',
               fontSize: editingTextBox.fontSize * sc,
               fontFamily: editingTextBox.fontFamily,
@@ -1143,6 +1119,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
               caretColor: editingTextBox.color,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
+              overflowY: 'hidden',
             }}
           />
         );

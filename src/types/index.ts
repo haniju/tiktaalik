@@ -36,7 +36,6 @@ export interface TextBox {
   x: number;
   y: number;
   width: number;
-  manualHeight?: number; // défini seulement si l'utilisateur a redimensionné
   text: string;
   fontSize: number;
   fontFamily: string;

@@ -33,7 +33,6 @@ export function estimateTextHeight(tb: TextBox): number {
 
 /**
  * Retourne la hauteur effective d'une textbox :
- * - manualHeight si défini (resize manuel)
  * - konvaHeight si disponible (mesure réelle Konva)
  * - sinon estimation
  */
@@ -41,7 +40,6 @@ export function resolveTextBoxHeight(
   tb: TextBox,
   konvaHeight?: number,
 ): number {
-  if (tb.manualHeight) return tb.manualHeight;
   if (konvaHeight !== undefined) return Math.max(konvaHeight, 20);
   return estimateTextHeight(tb);
 }
