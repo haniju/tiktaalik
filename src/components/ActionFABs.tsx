@@ -46,10 +46,11 @@ export function ActionFABs({ canvasMode, isDirty, isSaving, onSetMode, onSave }:
 const styles: Record<string, React.CSSProperties> = {
   root: {
     position: 'fixed',
-    left: 16,
-    bottom: 32,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    bottom: 16,
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
     gap: 10,
     zIndex: 100,
   },
