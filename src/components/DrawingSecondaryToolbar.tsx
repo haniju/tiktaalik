@@ -3,6 +3,7 @@ import { Icon } from './Icon';
 
 interface Props {
   state: ToolState;
+  canvasBackground: string;
   activeTool: Tool;
   openPanel: 'drawing' | 'text' | 'colorpicker' | null;
   onSelectDrawingTool: (tool: DrawingTool) => void;
@@ -17,7 +18,7 @@ const DRAWING_TOOLS: { id: DrawingTool; icon: string; label: string }[] = [
   { id: 'marker',   icon: 'brush',     label: 'Marker' },
 ];
 
-export function DrawingSecondaryToolbar({ state, activeTool, openPanel, onSelectDrawingTool, onSelectEraser, onSelectText, onToggleColorpicker }: Props) {
+export function DrawingSecondaryToolbar({ state, canvasBackground, activeTool, openPanel, onSelectDrawingTool, onSelectEraser, onSelectText, onToggleColorpicker }: Props) {
   return (
     <div style={styles.root}>
       {/* Texte */}
@@ -56,7 +57,7 @@ export function DrawingSecondaryToolbar({ state, activeTool, openPanel, onSelect
         <div style={{
           width: 22, height: 22, borderRadius: '50%',
           border: '2px solid #ccc',
-          background: state.canvasBackground === '#ffffff' ? '#fff' : state.canvasBackground,
+          background: canvasBackground === '#ffffff' ? '#fff' : canvasBackground,
         }} />
         {openPanel === 'colorpicker' && <div style={styles.dot} />}
       </button>

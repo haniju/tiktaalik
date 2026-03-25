@@ -8,6 +8,7 @@ import { TextBox } from '../types';
 interface Props {
   contextPanel: ContextPanel;
   state: ToolState;
+  canvasBackground: string;
   textBox: TextBox | null;
   onSetToolColor: (tool: DrawingTool, color: string) => void;
   onSetToolWidth: (tool: DrawingTool, width: number) => void;
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export function ContextToolbar({
-  contextPanel, state, textBox,
+  contextPanel, state, canvasBackground, textBox,
   onSetToolColor, onSetToolWidth, onSetBackground,
   onUpdateTextBox, onAddTextBox,
 }: Props) {
@@ -50,7 +51,7 @@ export function ContextToolbar({
 
       {contextPanel === 'background' && (
         <ColorPickerPanel
-          color={state.canvasBackground}
+          color={canvasBackground}
           onChange={onSetBackground}
         />
       )}

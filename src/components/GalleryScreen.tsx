@@ -13,6 +13,7 @@ function newDrawing(): Drawing {
     id: uuidv4(),
     name: 'Sans titre',
     layers: [],
+    background: '#ffffff',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

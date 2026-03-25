@@ -128,11 +128,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, collapsePanel,
-    setToolColor, setToolWidth, setCanvasBackground,
+    setToolColor, setToolWidth,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
   } = useToolState();
 
+  const [canvasBackground, setCanvasBackground] = useState(drawing.background ?? '#ffffff');
   const [stageSize, setStageSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
@@ -707,14 +708,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const thumbnail = generateThumbnail(layers, A4_WIDTH, A4_HEIGHT);
-      storage.save({ ...drawing, name: drawingName, layers, updatedAt: Date.now(), thumbnail });
+      const thumbnail = generateThumbnail(layers, A4_WIDTH, A4_HEIGHT, canvasBackground);
+      storage.save({ ...drawing, name: drawingName, layers, background: canvasBackground, updatedAt: Date.now(), thumbnail });
       setIsDirty(false);
     } finally { setIsSaving(false); }
   };
 
   const handleExportSvg = () => {
-    exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`);
+    exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`, canvasBackground);
   };
 
   const handleRename = () => {
@@ -758,6 +759,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
         <Drawingbar
           state={toolState}
+          canvasBackground={canvasBackground}
           contextPanel={contextPanel}
           onSelectDrawingTool={t => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectDrawingTool(t); }}
           onSelectText={selectTextTool}
@@ -768,6 +770,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
         <ContextToolbar
           contextPanel={contextPanel}
           state={toolState}
+          canvasBackground={canvasBackground}
           textBox={editingTextBox}
           onSetToolColor={setToolColor}
           onSetToolWidth={setToolWidth}
@@ -852,7 +855,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           }}
         >
           <Layer>
-            <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={toolState.canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
+            <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
 
             {/* Pile unifiée — ordre chronologique = z-index réel (tracés + textboxes) */}
             {layers.map(layer => {

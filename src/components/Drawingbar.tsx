@@ -4,6 +4,7 @@ import { Icon } from './Icon';
 
 interface Props {
   state: ToolState;
+  canvasBackground: string;
   contextPanel: ContextPanel;
   onSelectDrawingTool: (tool: DrawingTool) => void;
   onSelectText: () => void;
@@ -17,7 +18,7 @@ const DRAWING_TOOLS: { id: DrawingTool; icon: string }[] = [
   { id: 'marker',   icon: 'brush'     },
 ];
 
-export function Drawingbar({ state, contextPanel, onSelectDrawingTool, onSelectText, onSelectEraser, onSelectBackground }: Props) {
+export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDrawingTool, onSelectText, onSelectEraser, onSelectBackground }: Props) {
   const { activeTool, canvasMode } = state;
   const isDrawMode = canvasMode === 'draw';
 
@@ -63,7 +64,7 @@ export function Drawingbar({ state, contextPanel, onSelectDrawingTool, onSelectT
         <div style={{
           width: 22, height: 22, borderRadius: '50%',
           border: '2px solid #ccc',
-          background: state.canvasBackground,
+          background: canvasBackground,
         }} />
         {isBgActive && <div style={styles.underline} />}
       </button>

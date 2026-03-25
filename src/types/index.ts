@@ -7,7 +7,6 @@ export interface ToolState {
   canvasMode: CanvasMode;
   toolColors: Record<DrawingTool, string>;
   toolWidths: Record<DrawingTool, number>;
-  canvasBackground: string;
 }
 
 // Alias pour compatibilité avec le code existant
@@ -59,6 +58,7 @@ export interface Drawing {
   id: string;
   name: string;
   layers: DrawLayer[];
+  background: string; // couleur de fond du canvas (propre à chaque dessin)
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;

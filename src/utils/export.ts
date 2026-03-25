@@ -1,7 +1,7 @@
 import { DrawLayer, Stroke, TextLayer } from '../types';
 import { wrapText } from './textboxUtils';
 
-export function exportSvg(layers: DrawLayer[], width: number, height: number, filename: string) {
+export function exportSvg(layers: DrawLayer[], width: number, height: number, filename: string, background = '#ffffff') {
   const defs: string[] = [];
   const elements: string[] = [];
 
@@ -53,7 +53,7 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
   <defs>
     ${defs.join('\n    ')}
   </defs>
-  <rect width="${width}" height="${height}" fill="white"/>
+  <rect width="${width}" height="${height}" fill="${background}"/>
   ${elements.join('\n  ')}
 </svg>`;
 
@@ -66,13 +66,13 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
   URL.revokeObjectURL(url);
 }
 
-export function generateThumbnail(layers: DrawLayer[], width: number, height: number): string {
+export function generateThumbnail(layers: DrawLayer[], width: number, height: number, background = '#ffffff'): string {
   const scale = 200 / width;
   const canvas = document.createElement('canvas');
   canvas.width = 200;
   canvas.height = Math.round(height * scale);
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = background;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   layers.forEach(layer => {

@@ -23,7 +23,7 @@ function migrateDrawing(d: Drawing): Drawing {
     }
   }
 
-  return { ...d, layers, textBoxes: undefined };
+  return { ...d, layers, background: d.background ?? '#ffffff', textBoxes: undefined };
 }
 
 export function useDrawingStorage() {
