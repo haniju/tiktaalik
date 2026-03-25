@@ -139,6 +139,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const selectionRef = useRef<string[]>(selection);
   // ─── État textbox unifié — remplace editingTextId + selectedTextId + focusedId ───
   const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
+  const tbStateRef = useRef(tbState);
+  tbStateRef.current = tbState;
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [drawingName, setDrawingName] = useState(drawing.name);
@@ -153,6 +155,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragPointerStart = useRef<{ x: number; y: number } | null>(null); // position écran pour seuil mouvement
   const dragLayerSnapshot = useRef<DrawLayer[]>([]);
+  const dragSelectionRef = useRef<string[]>([]); // ids à déplacer (select mode = selectionRef, text mode = [tbState.id])
   const dragLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDrawing = useRef(false);
   const isErasing = useRef(false);
@@ -402,10 +405,27 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
-    // Mode texte — mémoriser la position pour création au touchend (guard pinch)
-    // On mémorise même si le tap est sur un tracé existant (pas uniquement sur le fond)
-    // handleTap des textboxes existantes annulera pendingTextboxRef si nécessaire
+    // Mode texte
     if (toolState.activeTool === 'text') {
+      // Si une textbox est en état sélectionné (niveau 1), détecter un tap dessus → armer le drag
+      if (tbStateRef.current.kind === 'selected') {
+        let node: Konva.Node | null = e.target;
+        let hitId: string | null = null;
+        while (node) {
+          const nid = node.id?.();
+          if (nid) { hitId = nid; break; }
+          node = node.getParent?.() ?? null;
+        }
+        if (hitId === tbStateRef.current.id) {
+          dragArmed.current = true;
+          dragStartPos.current = pos;
+          dragPointerStart.current = screenPos;
+          dragLayerSnapshot.current = layers.map(l => ({ ...l }));
+          dragSelectionRef.current = [hitId];
+          return; // pas de pendingTextboxRef
+        }
+      }
+      // Sinon mémoriser la position pour création au touchend (guard pinch)
       pendingTextboxRef.current = { x: pos.x, y: pos.y };
       return;
     }
@@ -478,47 +498,48 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
-    if (toolState.canvasMode === 'select') {
-      // Confirmer le drag armé si le doigt a bougé > seuil
-      if (dragArmed.current && dragPointerStart.current) {
-        const dx = screenPos.x - dragPointerStart.current.x;
-        const dy = screenPos.y - dragPointerStart.current.y;
-        if (Math.hypot(dx, dy) > 6) {
-          dragArmed.current = false;
-          isDraggingSelection.current = true;
-        }
+    // Drag handling — partagé entre select mode et text mode
+    if (dragArmed.current && dragPointerStart.current) {
+      const ddx = screenPos.x - dragPointerStart.current.x;
+      const ddy = screenPos.y - dragPointerStart.current.y;
+      if (Math.hypot(ddx, ddy) > 6) {
+        dragArmed.current = false;
+        isDraggingSelection.current = true;
       }
-      // Annuler le long-press si le doigt a bougé (scroll ou lasso)
-      if (dragLongPressTimer.current && dragPointerStart.current) {
-        const dx = screenPos.x - dragPointerStart.current.x;
-        const dy = screenPos.y - dragPointerStart.current.y;
-        if (Math.hypot(dx, dy) > 8) {
-          clearTimeout(dragLongPressTimer.current);
-          dragLongPressTimer.current = null;
-          dragPointerStart.current = null;
-        }
+    }
+    // Annuler le long-press si le doigt a bougé
+    if (dragLongPressTimer.current && dragPointerStart.current) {
+      const ddx = screenPos.x - dragPointerStart.current.x;
+      const ddy = screenPos.y - dragPointerStart.current.y;
+      if (Math.hypot(ddx, ddy) > 8) {
+        clearTimeout(dragLongPressTimer.current);
+        dragLongPressTimer.current = null;
+        dragPointerStart.current = null;
       }
+    }
+    if (isDraggingSelection.current && dragStartPos.current) {
+      const dx = pos.x - dragStartPos.current.x;
+      const dy = pos.y - dragStartPos.current.y;
+      const ids = dragSelectionRef.current.length > 0 ? dragSelectionRef.current : selectionRef.current;
+      const selSet = new Set(ids);
+      const newLayers = dragLayerSnapshot.current.map(layer => {
+        if (!selSet.has(layer.id)) return layer;
+        if (layer.tool === 'text') {
+          const tb = layer as TextLayer;
+          return { ...tb, x: tb.x + dx, y: tb.y + dy };
+        }
+        if (layer.tool === 'airbrush') {
+          const ab = layer as AirbrushStroke;
+          return { ...ab, points: ab.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
+        }
+        const s = layer as Stroke;
+        return { ...s, points: s.points.map((v, i) => i % 2 === 0 ? v + dx : v + dy) };
+      });
+      setLayers(newLayers);
+      return;
+    }
 
-      if (isDraggingSelection.current && dragStartPos.current) {
-        const dx = pos.x - dragStartPos.current.x;
-        const dy = pos.y - dragStartPos.current.y;
-        const selSet = new Set(selectionRef.current);
-        const newLayers = dragLayerSnapshot.current.map(layer => {
-          if (!selSet.has(layer.id)) return layer;
-          if (layer.tool === 'text') {
-            const tb = layer as TextLayer;
-            return { ...tb, x: tb.x + dx, y: tb.y + dy };
-          }
-          if (layer.tool === 'airbrush') {
-            const ab = layer as AirbrushStroke;
-            return { ...ab, points: ab.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
-          }
-          const s = layer as Stroke;
-          return { ...s, points: s.points.map((v, i) => i % 2 === 0 ? v + dx : v + dy) };
-        });
-        setLayers(newLayers);
-        return;
-      }
+    if (toolState.canvasMode === 'select') {
       if (selRectStart.current) {
         setSelRect({ x: Math.min(selRectStart.current.x, pos.x), y: Math.min(selRectStart.current.y, pos.y), w: Math.abs(pos.x - selRectStart.current.x), h: Math.abs(pos.y - selRectStart.current.y) });
       }
@@ -577,27 +598,27 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
-    if (toolState.canvasMode === 'select') {
-      if (dragLongPressTimer.current) {
-        clearTimeout(dragLongPressTimer.current);
-        dragLongPressTimer.current = null;
-      }
-      // Armé mais pas confirmé = tap, pas de déplacement
-      if (dragArmed.current) {
-        dragArmed.current = false;
-        dragStartPos.current = null;
-        dragPointerStart.current = null;
-        dragLayerSnapshot.current = [];
-      }
+    // Drag end — partagé entre select mode et text mode
+    if (dragLongPressTimer.current) {
+      clearTimeout(dragLongPressTimer.current);
+      dragLongPressTimer.current = null;
+    }
+    if (dragArmed.current) {
+      dragArmed.current = false;
+      dragStartPos.current = null;
       dragPointerStart.current = null;
-      if (isDraggingSelection.current) {
-        isDraggingSelection.current = false;
-        dragStartPos.current = null;
-        dragLayerSnapshot.current = [];
-        pushUndo(layers);
-        setIsDirty(true);
-        return;
-      }
+      dragLayerSnapshot.current = [];
+      dragSelectionRef.current = [];
+    }
+    dragPointerStart.current = null;
+    if (isDraggingSelection.current) {
+      isDraggingSelection.current = false;
+      dragStartPos.current = null;
+      dragLayerSnapshot.current = [];
+      dragSelectionRef.current = [];
+      pushUndo(layers);
+      setIsDirty(true);
+      return;
     }
 
     if (toolState.canvasMode === 'select' && selRectStart.current && selRect) {
