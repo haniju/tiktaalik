@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback } from 'react';
 
-const LONG_PRESS_MS = 500;
+const LONG_PRESS_MS = 350;
 const SCROLL_ZONE = 60;
 const SCROLL_MAX_SPEED = 10;
 
@@ -41,10 +41,14 @@ export function useDragToReorder<T>({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const pointerMovedRef = useRef(false);
+  const isManualScrolling = useRef(false);
+  const lastScrollX = useRef(0);
   const rafRef = useRef<number | null>(null);
   const pointerXRef = useRef(0);
   const pointerYRef = useRef(0);
   const activePointerId = useRef<number | null>(null);
+  // Ref pour stocker le cleanup des listeners document (pendant drag)
+  const docCleanupRef = useRef<(() => void) | null>(null);
 
   const startAutoScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -78,14 +82,13 @@ export function useDragToReorder<T>({
     const container = scrollContainerRef.current;
     if (!container) return itemsRef.current.length;
     const itemEls = Array.from(container.querySelectorAll('[data-drag-id]')) as HTMLElement[];
-    // IDs en train d'être draggés (principal + sélectionnés si principal est selected)
     const draggedIds = selectedIdsRef.current.includes(draggingId)
       ? selectedIdsRef.current
       : [draggingId];
 
     for (let i = 0; i < itemEls.length; i++) {
       const elId = itemEls[i].getAttribute('data-drag-id')!;
-      if (draggedIds.includes(elId)) continue; // ignorer les items draggés
+      if (draggedIds.includes(elId)) continue;
       const rect = itemEls[i].getBoundingClientRect();
       if (clientX < rect.left + rect.width / 2) {
         return itemsRef.current.findIndex(item => getId(item) === elId);
@@ -100,12 +103,9 @@ export function useDragToReorder<T>({
       ? selectedIdsRef.current
       : [draggingId];
 
-    // Séparer items draggés et non-draggés (en conservant leur ordre relatif)
     const dragged = currentItems.filter(i => draggedIds.includes(getId(i)));
     const rest = currentItems.filter(i => !draggedIds.includes(getId(i)));
 
-    // Calculer l'index d'insertion dans `rest`
-    // insertIndex est un index dans currentItems → trouver l'équivalent dans rest
     let insertInRest = rest.length;
     for (let i = 0; i < rest.length; i++) {
       const originalIdx = currentItems.findIndex(item => getId(item) === getId(rest[i]));
@@ -123,8 +123,11 @@ export function useDragToReorder<T>({
   const resetDrag = useCallback(() => {
     stopAutoScroll();
     cancelLongPress();
+    // Retirer les listeners document
+    if (docCleanupRef.current) { docCleanupRef.current(); docCleanupRef.current = null; }
     pointerStartRef.current = null;
     pointerMovedRef.current = false;
+    isManualScrolling.current = false;
     activePointerId.current = null;
     const reset = { draggingId: null, insertIndex: null, isDragging: false, pointerX: 0, pointerY: 0 };
     dragStateRef.current = reset;
@@ -139,19 +142,16 @@ export function useDragToReorder<T>({
       activePointerId.current = e.pointerId;
       pointerStartRef.current = { x: e.clientX, y: e.clientY };
       pointerMovedRef.current = false;
+      isManualScrolling.current = false;
       pointerXRef.current = e.clientX;
       pointerYRef.current = e.clientY;
-      // Ne pas capturer ici — ça bloquerait le scroll horizontal natif.
-      // On capture seulement si le long-press est confirmé.
-      const targetEl = e.currentTarget as HTMLElement;
-      const capturedPointerId = e.pointerId;
 
       // Démarrer le timer long press
       longPressTimerRef.current = setTimeout(() => {
         longPressTimerRef.current = null;
-        if (pointerMovedRef.current) return; // s'est déplacé avant → annuler
-        // Long press reconnu → capturer et démarrer le drag
-        targetEl.setPointerCapture(capturedPointerId);
+        if (pointerMovedRef.current) return;
+
+        // Long press reconnu → démarrer le drag
         const idx = itemsRef.current.findIndex(i => getId(i) === id);
         const state = {
           draggingId: id, insertIndex: idx, isDragging: true,
@@ -160,54 +160,90 @@ export function useDragToReorder<T>({
         dragStateRef.current = state;
         setDragState(state);
         startAutoScroll();
+
+        // Attacher les listeners sur document pour garantir le cleanup
+        const onDocMove = (ev: PointerEvent) => {
+          if (!ev.isPrimary) return;
+          pointerXRef.current = ev.clientX;
+          pointerYRef.current = ev.clientY;
+          const insertIndex = calcInsertIndex(ev.clientX, id);
+          const s = { ...dragStateRef.current, insertIndex, pointerX: ev.clientX, pointerY: ev.clientY };
+          dragStateRef.current = s;
+          setDragState(s);
+        };
+        const onDocUp = (ev: PointerEvent) => {
+          if (!ev.isPrimary) return;
+          if (dragStateRef.current.isDragging) {
+            const { draggingId, insertIndex } = dragStateRef.current;
+            if (draggingId !== null && insertIndex !== null) {
+              commitReorder(draggingId, insertIndex);
+            }
+          }
+          resetDrag();
+        };
+        const onDocCancel = () => resetDrag();
+
+        document.addEventListener('pointermove', onDocMove);
+        document.addEventListener('pointerup', onDocUp);
+        document.addEventListener('pointercancel', onDocCancel);
+        docCleanupRef.current = () => {
+          document.removeEventListener('pointermove', onDocMove);
+          document.removeEventListener('pointerup', onDocUp);
+          document.removeEventListener('pointercancel', onDocCancel);
+        };
       }, LONG_PRESS_MS);
     },
 
+    // Avant long-press : scroll manuel ou annulation
     onPointerMove: (e: React.PointerEvent) => {
       if (!e.isPrimary || activePointerId.current !== e.pointerId) return;
+      // Si le drag est actif, les listeners document gèrent le mouvement
+      if (dragStateRef.current.isDragging) return;
+
       pointerXRef.current = e.clientX;
       pointerYRef.current = e.clientY;
 
-      if (pointerStartRef.current) {
+      // Détecter mouvement → annuler long-press et basculer en scroll manuel
+      if (pointerStartRef.current && !pointerMovedRef.current) {
         const dx = Math.abs(e.clientX - pointerStartRef.current.x);
         const dy = Math.abs(e.clientY - pointerStartRef.current.y);
         if (dx > 8 || dy > 8) {
           pointerMovedRef.current = true;
-          cancelLongPress(); // mouvement → annule long press
+          cancelLongPress();
+          isManualScrolling.current = true;
+          lastScrollX.current = e.clientX;
         }
       }
 
-      if (!dragStateRef.current.isDragging) return;
-
-      const insertIndex = calcInsertIndex(e.clientX, id);
-      const state = { ...dragStateRef.current, insertIndex, pointerX: e.clientX, pointerY: e.clientY };
-      dragStateRef.current = state;
-      setDragState(state);
+      // Scroll manuel
+      if (isManualScrolling.current) {
+        const container = scrollContainerRef.current;
+        if (container) {
+          const deltaX = lastScrollX.current - e.clientX;
+          container.scrollLeft += deltaX;
+          lastScrollX.current = e.clientX;
+        }
+      }
     },
 
     onPointerUp: (e: React.PointerEvent) => {
       if (!e.isPrimary) return;
-      cancelLongPress();
+      // Si drag actif, le listener document gère le pointerup
+      if (dragStateRef.current.isDragging) return;
 
-      if (dragStateRef.current.isDragging) {
-        // Fin du drag → commit
-        const { draggingId, insertIndex } = dragStateRef.current;
-        if (draggingId !== null && insertIndex !== null) {
-          commitReorder(draggingId, insertIndex);
-        }
-      } else if (!pointerMovedRef.current) {
-        // Tap court sans drag → sélectionner/désélectionner
+      cancelLongPress();
+      if (!pointerMovedRef.current) {
         onSelectRef.current(id);
       }
-
       resetDrag();
     },
 
     onPointerCancel: () => {
+      if (dragStateRef.current.isDragging) return; // document gère
       cancelLongPress();
       resetDrag();
     },
-  }), [getId, startAutoScroll, cancelLongPress, calcInsertIndex, commitReorder, resetDrag]);
+  }), [getId, startAutoScroll, cancelLongPress, calcInsertIndex, commitReorder, resetDrag, scrollContainerRef]);
 
   return { dragState, getDragHandlers };
 }
