@@ -7,6 +7,7 @@ import {
   findTextBoxAtPoint,
   nextSelectionState,
   exitState,
+  isRectIntersecting,
   TextBoxSelectionState,
 } from '../utils/textboxUtils';
 import { TextBox } from '../types';
@@ -255,5 +256,36 @@ describe('exitState', () => {
 
   it('editing → idle', () => {
     expect(exitState({ kind: 'editing', id: 'tb1' })).toEqual({ kind: 'idle' });
+  });
+});
+
+// ─── isRectIntersecting ───────────────────────────────────────────────────
+
+describe('isRectIntersecting', () => {
+  const base = { x: 100, y: 100, w: 200, h: 100 };
+
+  it('chevauchement partiel → true', () => {
+    expect(isRectIntersecting(base, { x: 200, y: 150, w: 200, h: 100 })).toBe(true);
+  });
+
+  it('contenu dans l\'autre → true', () => {
+    expect(isRectIntersecting(base, { x: 120, y: 120, w: 50, h: 30 })).toBe(true);
+  });
+
+  it('séparés horizontalement → false', () => {
+    expect(isRectIntersecting(base, { x: 400, y: 100, w: 50, h: 50 })).toBe(false);
+  });
+
+  it('séparés verticalement → false', () => {
+    expect(isRectIntersecting(base, { x: 100, y: 300, w: 50, h: 50 })).toBe(false);
+  });
+
+  it('bords qui se touchent (pas d\'intersection) → false', () => {
+    // Bord droit de base (x=300) = bord gauche du second (x=300)
+    expect(isRectIntersecting(base, { x: 300, y: 100, w: 50, h: 50 })).toBe(false);
+  });
+
+  it('chevauchement par un coin → true', () => {
+    expect(isRectIntersecting(base, { x: 250, y: 150, w: 200, h: 200 })).toBe(true);
   });
 });

@@ -13,6 +13,7 @@ import {
   exitState,
   estimateTextHeight,
   findTextBoxAtPoint,
+  isRectIntersecting,
 } from '../utils/textboxUtils';
 import { Topbar } from './Topbar';
 import { Drawingbar } from './Drawingbar';
@@ -699,7 +700,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
         }).map(l => l.id);
         const selT = layers
           .filter((l): l is TextLayer => l.tool === 'text')
-          .filter(tb => tb.x >= selRect.x && tb.x <= selRect.x + selRect.w && tb.y >= selRect.y && tb.y <= selRect.y + selRect.h)
+          .filter(tb => {
+            const h = textNodesRef.current.get(tb.id)?.height() ?? estimateTextHeight(tb);
+            return isRectIntersecting(
+              { x: tb.x, y: tb.y, w: tb.width, h },
+              { x: selRect.x, y: selRect.y, w: selRect.w, h: selRect.h },
+            );
+          })
           .map(tb => tb.id);
         setSelection([...selIds, ...selT]);
       }
