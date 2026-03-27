@@ -84,10 +84,10 @@ function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: ResizeH
 
         if (side === 'left') {
           const newX = dragStartRef.current.tbX + dxCanvas;
-          const newWidth = Math.max(dragStartRef.current.tbWidth - dxCanvas, 60);
+          const newWidth = Math.max(dragStartRef.current.tbWidth - dxCanvas, 150);
           onMove(newX, newWidth);
         } else {
-          const newWidth = Math.max(dragStartRef.current.tbWidth + dxCanvas, 60);
+          const newWidth = Math.max(dragStartRef.current.tbWidth + dxCanvas, 150);
           onMove(dragStartRef.current.tbX, newWidth);
         }
       }}
@@ -111,7 +111,7 @@ interface Props {
 const makeTextLayer = (id: string, x: number, y: number): TextLayer => ({
   tool: 'text',
   id, x, y,
-  width: 200,
+  width: 340,
   text: '', fontSize: 24, fontFamily: 'Arial', fontStyle: 'normal',
   textDecoration: '', align: 'left', verticalAlign: 'top',
   color: '#000000', background: '', opacity: 1, padding: 8,
