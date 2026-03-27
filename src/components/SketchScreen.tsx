@@ -229,6 +229,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastTapRef = useRef<{ id: string; time: number } | null>(null);
 
   // Hauteurs fixes des barres — le canvas est positionné absolument sous elles
   const TOPBAR_H = 48;
@@ -953,6 +954,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   if (!isTextTool) return;
                   if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
 
+                  // Détection double tap (< 300ms sur la même textbox)
+                  const now = Date.now();
+                  const isDoubleTap = lastTapRef.current?.id === tb.id && now - lastTapRef.current.time < 300;
+                  lastTapRef.current = { id: tb.id, time: now };
+
                   const heights = new Map(
                     layers
                       .filter((l): l is TextLayer => l.tool === 'text')
@@ -967,12 +973,17 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   const stage = stageRef.current!;
                   const pos = stage.getRelativePointerPosition()!;
                   const textLayers = layers.filter((l): l is TextLayer => l.tool === 'text');
-                  const next = nextSelectionState(tbState, pos.x, pos.y, textLayers, heights);
+                  let next = nextSelectionState(tbState, pos.x, pos.y, textLayers, heights);
+
+                  // Double tap override : si résultat [selected], forcer [editing]
+                  if (isDoubleTap && next.kind === 'selected') {
+                    next = { kind: 'editing', id: next.id };
+                  }
 
                   if (next.kind === 'editing' && tbState.kind !== 'editing') {
                     editingCreatedAtRef.current = Date.now();
                   }
-                  if (tbState.kind === 'editing' && next.kind === 'selected' && next.id !== tbState.id) {
+                  if (tbState.kind === 'editing' && next.kind !== 'idle' && next.id !== tbState.id) {
                     setLayers(prev => {
                       const prevId = tbState.id;
                       return prev.filter(l => l.tool !== 'text' || l.id !== prevId || (l as TextLayer).text.trim() !== '');
