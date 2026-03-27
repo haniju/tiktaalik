@@ -257,6 +257,20 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setZoomPct(200);
   }, []); // stageRef/setZoomPct sont stables, le tableau vide est intentionnel
 
+  // Translate le Stage pour centrer (cx, cy) dans la zone visible — zoom inchangé
+  const centerViewOn = useCallback((cx: number, cy: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const sc = stage.scaleX();
+    const visibleCx = (stageSize.width / 2 - stage.x()) / sc;
+    const visibleCy = (canvasH / 2 - stage.y()) / sc;
+    const threshold = Math.min(stageSize.width, canvasH) * 0.2 / sc;
+    if (Math.hypot(cx - visibleCx, cy - visibleCy) < threshold) return;
+    const newX = stageSize.width / 2 - cx * sc;
+    const newY = canvasH / 2 - cy * sc;
+    stage.to({ x: newX, y: newY, duration: 0.15, easing: Konva.Easings.EaseOut });
+  }, [stageSize.width, canvasH]);
+
   const pushUndo = useCallback((l: DrawLayer[]) => {
     setUndoStack(prev => {
       const next = [...prev.slice(0, undoIndex + 1), { layers: l }];
@@ -314,9 +328,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
     pushUndo(newLayers);
     editingCreatedAtRef.current = Date.now();
     setTbState({ kind: 'editing', id: tl.id });
+    centerViewOn(x + 340 / 2, y + 20);
     setContextPanel('text');
     scheduleSave();
-  }, [layers, pushUndo, setContextPanel]);
+  }, [layers, pushUndo, setContextPanel, centerViewOn]);
 
   const handleSetCanvasMode = useCallback((mode: CanvasMode) => {
     if (tbStateRef.current.kind !== 'idle') exitEditing();
@@ -653,7 +668,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
           editingCreatedAtRef.current = Date.now();
         }
         setTbState(next);
-        if (next.kind !== 'idle') setContextPanel('text');
+        if (next.kind !== 'idle') {
+          const tbH = heights.get(hitTb.id) ?? estimateTextHeight(hitTb);
+          centerViewOn(hitTb.x + hitTb.width / 2, hitTb.y + tbH / 2);
+          setContextPanel('text');
+        }
       } else {
         addTextBox(x, y);
       }
@@ -735,7 +754,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       setLayers(newL); pushUndo(newL);
       setCurrentStroke(null); scheduleSave();
     }
-  }, [toolState, selRect, layers, currentStroke, currentAirbrush, pushUndo, addTextBox]);
+  }, [toolState, selRect, layers, currentStroke, currentAirbrush, pushUndo, addTextBox, centerViewOn]);
 
   const updateTextBox = useCallback((patch: Partial<TextBox>) => {
     setLayers(prev => prev.map(l => {
@@ -961,7 +980,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   }
 
                   setTbState(next);
-                  if (next.kind !== 'idle') setContextPanel('text');
+                  if (next.kind !== 'idle') {
+                    centerViewOn(tb.x + tb.width / 2, tb.y + tbH / 2);
+                    setContextPanel('text');
+                  }
                 };
 
                 return (
