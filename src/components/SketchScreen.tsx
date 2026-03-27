@@ -34,9 +34,10 @@ const DBTAP_MS = 300;  // fenêtre double-tap
 
 interface ResizeHandleProps {
   cx: number; cy: number;
-  tbY: number;
+  side: 'left' | 'right';
+  tb: { x: number; y: number; width: number };
   stageRef: React.RefObject<Konva.Stage>;
-  onMove: (dx: number) => void;
+  onMove: (newX: number, newWidth: number) => void;
   onDragEnd: () => void;
 }
 
@@ -46,12 +47,13 @@ const HANDLE_SCREEN_W = 30;
 const HANDLE_SCREEN_H = 36;
 
 // Handle de resize horizontal — milieu bord gauche ou droit
-function ResizeHandle({ cx, cy, tbY, stageRef, onMove, onDragEnd }: ResizeHandleProps) {
-  const lastCanvasX = useRef<number>(0);
-  const cyRef = useRef(cy);
-  const tbYRef = useRef(tbY);
-  cyRef.current = cy;
-  tbYRef.current = tbY;
+function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: ResizeHandleProps) {
+  const dragStartRef = useRef<{
+    pointerX: number;      // position écran (absolutePosition) au démarrage
+    lockedScreenY: number; // position Y écran verrouillée pour toute la durée du drag
+    tbX: number;           // tb.x au démarrage
+    tbWidth: number;       // tb.width au démarrage
+  } | null>(null);
   // Compenser le zoom : la taille en coordonnées canvas augmente quand on dézoome
   const sc = stageRef.current?.scaleX() ?? 1;
   const hw = HANDLE_SCREEN_W / sc;
@@ -65,22 +67,34 @@ function ResizeHandle({ cx, cy, tbY, stageRef, onMove, onDragEnd }: ResizeHandle
       draggable
       dragBoundFunc={pos => ({
         x: pos.x,
-        y: (tbYRef.current + cyRef.current) * stageRef.current!.scaleX() + stageRef.current!.y(),
+        y: dragStartRef.current?.lockedScreenY ?? pos.y,
       })}
       onDragStart={e => {
-        const stage = stageRef.current!;
-        const sp = stage.position(), s = stage.scaleX();
-        lastCanvasX.current = (e.target.absolutePosition().x - sp.x) / s;
+        dragStartRef.current = {
+          pointerX: e.target.absolutePosition().x,
+          lockedScreenY: e.target.absolutePosition().y,
+          tbX: tb.x,
+          tbWidth: tb.width,
+        };
       }}
       onDragMove={e => {
+        if (!dragStartRef.current) return;
         const stage = stageRef.current!;
-        const s = stage.scaleX(), sp = stage.position();
-        const canvasX = (e.target.absolutePosition().x - sp.x) / s;
-        const dx = canvasX - lastCanvasX.current;
-        lastCanvasX.current = canvasX;
-        onMove(dx);
+        const scl = stage.scaleX();
+        const abs = e.target.absolutePosition();
+        const dxCanvas = (abs.x - dragStartRef.current.pointerX) / scl;
+
+        if (side === 'left') {
+          const newX = dragStartRef.current.tbX + dxCanvas;
+          const newWidth = Math.max(dragStartRef.current.tbWidth - dxCanvas, 60);
+          onMove(newX, newWidth);
+        } else {
+          const newWidth = Math.max(dragStartRef.current.tbWidth + dxCanvas, 60);
+          onMove(dragStartRef.current.tbX, newWidth);
+        }
       }}
       onDragEnd={e => {
+        dragStartRef.current = null;
         e.target.position({ x: cx - hw / 2, y: cy - hh / 2 });
         onDragEnd();
       }}
@@ -1060,18 +1074,22 @@ export function SketchScreen({ drawing, onBack }: Props) {
                     {/* Handles resize milieu gauche et droit */}
                     {isTextSelected && !isEditing && <>
                       <ResizeHandle
-                        cx={0} cy={tbH / 2} tbY={tb.y} stageRef={stageRef}
+                        cx={0} cy={tbH / 2} side="left"
+                        tb={{ x: tb.x, y: tb.y, width: tb.width }}
+                        stageRef={stageRef}
                         onDragEnd={() => scheduleSave()}
-                        onMove={dx => setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
-                          ...l, x: (l as TextLayer).x + dx, width: Math.max((l as TextLayer).width - dx, 60),
-                        }))}
+                        onMove={(newX, newWidth) => setLayers(prev => prev.map(l =>
+                          l.id !== tb.id || l.tool !== 'text' ? l : { ...l, x: newX, width: newWidth },
+                        ))}
                       />
                       <ResizeHandle
-                        cx={tb.width} cy={tbH / 2} tbY={tb.y} stageRef={stageRef}
+                        cx={tb.width} cy={tbH / 2} side="right"
+                        tb={{ x: tb.x, y: tb.y, width: tb.width }}
+                        stageRef={stageRef}
                         onDragEnd={() => scheduleSave()}
-                        onMove={dx => setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
-                          ...l, width: Math.max((l as TextLayer).width + dx, 60),
-                        }))}
+                        onMove={(_, newWidth) => setLayers(prev => prev.map(l =>
+                          l.id !== tb.id || l.tool !== 'text' ? l : { ...l, width: newWidth },
+                        ))}
                       />
                     </>}
                   </Group>
