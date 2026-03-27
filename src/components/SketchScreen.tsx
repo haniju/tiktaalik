@@ -255,8 +255,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     });
     stage.batchDraw();
     setZoomPct(200);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // stageRef/setZoomPct sont stables, le tableau vide est intentionnel
 
   const pushUndo = useCallback((l: DrawLayer[]) => {
     setUndoStack(prev => {
