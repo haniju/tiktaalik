@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
-import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, TextLayer, DrawingTool, CanvasMode } from '../types';
+import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, TextLayer, CanvasMode } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { exportSvg, generateThumbnail } from '../utils/export';
@@ -10,7 +10,6 @@ import { AIRBRUSH_CONFIG } from '../utils/airbrushConfig';
 import {
   TextBoxSelectionState,
   nextSelectionState,
-  exitState,
   estimateTextHeight,
   findTextBoxAtPoint,
   isRectIntersecting,
@@ -30,7 +29,6 @@ const A4_HEIGHT = 1123;
 const HANDLE_W = 12;  // largeur du handle resize
 const HANDLE_H = 28;  // hauteur du handle resize
 const BORDER_HIT = 14; // épaisseur zone hit des bords pour drag
-const DBTAP_MS = 300;  // fenêtre double-tap
 
 interface ResizeHandleProps {
   cx: number; cy: number;
@@ -286,7 +284,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.shiftKey ? redo() : undo(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { if (e.shiftKey) { redo(); } else { undo(); } }
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
@@ -298,8 +296,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const editingTextId = tbState.kind === 'editing' ? tbState.id : null;
   const editingTextIdRef = useRef<string | null>(null);
   editingTextIdRef.current = editingTextId;
-  const selectedTextId = tbState.kind === 'selected' ? tbState.id : null;
-
   const exitEditing = useCallback(() => {
     // Guard : ignorer un blur arrivant moins de 300ms après la création
     // (touchend du Stage qui blur la textarea fraîchement créée)
@@ -380,9 +376,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (editingTextIdRef.current) return;
 
     // Clic sur le fond (stage OU Rect A4) → sortir de l'édition texte (sécurité)
-    const targetName = typeof (e.target as any)?.name === 'function'
-      ? (e.target as any).name()
-      : (e.target as any)?.name;
+    const targetName = (e.target as Konva.Node).name();
     const isBackground = e.target === stage || targetName === 'background-rect';
 
     if (toolState.canvasMode === 'move') {
@@ -796,8 +790,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const editingTextBox = editingTextId
     ? (layers.find(l => l.id === editingTextId && l.tool === 'text') as TextLayer | undefined) ?? null
     : null;
-  const activeDrawingTool: DrawingTool = ['airbrush', 'pen', 'marker'].includes(toolState.activeTool ?? '') ? toolState.activeTool as DrawingTool : 'pen';
-
   const barsRef = useRef<HTMLDivElement>(null);
 
   return (
