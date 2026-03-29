@@ -6,6 +6,7 @@ import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, TextLayer, CanvasM
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
+import { useUndoRedo } from '../hooks/useUndoRedo';
 import { exportSvg } from '../utils/export';
 import { AIRBRUSH_CONFIG } from '../utils/airbrushConfig';
 import {
@@ -101,8 +102,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [drawingName, setDrawingName] = useState(drawing.name);
-  const [undoStack, setUndoStack] = useState(() => [{ layers: migrateLayers(drawing) }]);
-  const [undoIndex, setUndoIndex] = useState(0);
   const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
@@ -182,37 +181,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
     stage.to({ x: newX, y: newY, duration: 0.15, easing: Konva.Easings.EaseOut });
   }, [stageSize.width, canvasH]);
 
-  const pushUndo = useCallback((l: DrawLayer[]) => {
-    setUndoStack(prev => {
-      const next = [...prev.slice(0, undoIndex + 1), { layers: l }];
-      setUndoIndex(next.length - 1);
-      return next;
-    });
-  }, [undoIndex]);
-
-  const undo = useCallback(() => {
-    if (undoIndex <= 0) return;
-    const i = undoIndex - 1;
-    setUndoIndex(i);
-    setLayers(undoStack[i].layers);
-    scheduleSave();
-  }, [undoIndex, undoStack]);
-
-  const redo = useCallback(() => {
-    if (undoIndex >= undoStack.length - 1) return;
-    const i = undoIndex + 1;
-    setUndoIndex(i);
-    setLayers(undoStack[i].layers);
-    scheduleSave();
-  }, [undoIndex, undoStack]);
-
-  useEffect(() => {
-    const fn = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { if (e.shiftKey) { redo(); } else { undo(); } }
-    };
-    window.addEventListener('keydown', fn);
-    return () => window.removeEventListener('keydown', fn);
-  }, [undo, redo]);
+  // ─── Undo / Redo ──────────────────────────────────────────────────────────
+  const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo({
+    initialLayers: migrateLayers(drawing),
+    setLayers,
+    scheduleSave,
+  });
 
   const editingCreatedAtRef = useRef<number>(0);
 
@@ -729,8 +703,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
       <div data-bars ref={barsRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50, background: '#fff' }}>
         <Topbar
           drawingName={drawingName}
-          canUndo={undoIndex > 0}
-          canRedo={undoIndex < undoStack.length - 1}
+          canUndo={canUndo}
+          canRedo={canRedo}
           onBack={() => { saveNow(); onBack(); }}
           onUndo={undo}
           onRedo={redo}
