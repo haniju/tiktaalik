@@ -78,7 +78,7 @@ This replaces the previous architecture that used three desynchronized state var
 
 ### EditingTextarea
 
-`EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Position is computed via `stage.container().getBoundingClientRect()` — **do not** use a hardcoded `topOffset` (TOPBAR_H + DRAWINGBAR_H), which breaks at different zoom levels and with mobile browser chrome changes.
+`EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Position is computed with `topOffset = TOPBAR_H + DRAWINGBAR_H` (passed as prop from SketchScreen) + Konva stage pan/scale — **do not** replace with `getBoundingClientRect()`, which is measured during React render and can capture a transitional layout value (keyboard animation, browser chrome change), causing visible offset drift.
 
 Known limitation: pinch zoom while the textarea is focused triggers `exitEditing` because the first touch finger hitting the canvas fires `handleMouseDown` → `exitEditing` before the second finger confirms the pinch.
 

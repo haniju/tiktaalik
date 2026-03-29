@@ -1054,6 +1054,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
         <EditingTextarea
           textBox={editingTextBox}
           stageRef={stageRef}
+          topOffset={TOPBAR_H + DRAWINGBAR_H}
           onUpdate={updateTextBox}
           onExit={exitEditing}
         />

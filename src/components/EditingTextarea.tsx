@@ -5,24 +5,23 @@ import { TextBox, TextLayer } from '../types';
 interface EditingTextareaProps {
   textBox: TextLayer;
   stageRef: React.RefObject<Konva.Stage>;
+  topOffset: number; // TOPBAR_H + DRAWINGBAR_H
   onUpdate: (patch: Partial<TextBox>) => void;
   onExit: () => void;
 }
 
 export const EditingTextarea = React.memo(function EditingTextarea(
-  { textBox, stageRef, onUpdate, onExit }: EditingTextareaProps
+  { textBox, stageRef, topOffset, onUpdate, onExit }: EditingTextareaProps
 ): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const stage = stageRef.current;
-  // getBoundingClientRect donne la position réelle du container Konva dans le viewport,
-  // indépendante du zoom browser, du chrome mobile ou du TOPBAR_H hardcodé
-  const containerRect = stage?.container().getBoundingClientRect() ?? { left: 0, top: 0 };
   const sc = stage?.scaleX() ?? 1;
   const sp = stage?.position() ?? { x: 0, y: 0 };
 
-  const screenLeft = containerRect.left + sp.x + textBox.x * sc;
-  const screenTop = containerRect.top + sp.y + textBox.y * sc;
+  // Coordonnées écran : décalage du canvas div (topOffset) + position Konva
+  const screenLeft = textBox.x * sc + sp.x;
+  const screenTop = topOffset + textBox.y * sc + sp.y;
 
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
