@@ -69,8 +69,10 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: 
         const dxCanvas = (abs.x - dragStartRef.current.pointerX) / scl;
 
         if (side === 'left') {
-          const newX = dragStartRef.current.tbX + dxCanvas;
           const newWidth = Math.max(dragStartRef.current.tbWidth - dxCanvas, 150);
+          // effectiveDx : déplacement réel du bord gauche — plafonné pour garder le bord droit fixe
+          const effectiveDx = dragStartRef.current.tbWidth - newWidth;
+          const newX = dragStartRef.current.tbX + effectiveDx;
           onMove(newX, newWidth);
         } else {
           const newWidth = Math.max(dragStartRef.current.tbWidth + dxCanvas, 150);
