@@ -805,12 +805,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   if (!isTextTool) return;
                   if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
 
-                  // Détection double tap (entre 80ms et 300ms sur la même textbox)
-                  // Borne basse 80ms : évite le double-fire onTap+onClick de Konva sur mobile
                   const now = Date.now();
                   const elapsed = lastTapRef.current?.id === tb.id ? now - lastTapRef.current.time : Infinity;
-                  const isDoubleTap = elapsed >= 80 && elapsed < 300;
+                  // < 80ms sur la même box = double-fire onTap+onClick Konva → ignorer le duplicat
+                  if (elapsed < 80) return;
                   lastTapRef.current = { id: tb.id, time: now };
+                  const isDoubleTap = elapsed < 300;
 
                   const heights = new Map(
                     layers
@@ -826,14 +826,15 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   const stage = stageRef.current!;
                   const pos = stage.getRelativePointerPosition()!;
                   const textLayers = layers.filter((l): l is TextLayer => l.tool === 'text');
-                  let next = nextSelectionState(tbState, pos.x, pos.y, textLayers, heights);
+                  // tbStateRef.current : évite la stale closure (tbState capturé au render peut être périmé)
+                  let next = nextSelectionState(tbStateRef.current, pos.x, pos.y, textLayers, heights);
 
                   // Double tap override : si résultat [selected], forcer [editing]
                   if (isDoubleTap && next.kind === 'selected') {
                     next = { kind: 'editing', id: next.id };
                   }
 
-                  if (next.kind === 'editing' && tbState.kind !== 'editing') {
+                  if (next.kind === 'editing' && tbStateRef.current.kind !== 'editing') {
                     editingCreatedAtRef.current = Date.now();
                   }
                   if (tbState.kind === 'editing' && next.kind !== 'idle' && next.id !== tbState.id) {
@@ -1053,7 +1054,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
         <EditingTextarea
           textBox={editingTextBox}
           stageRef={stageRef}
-          topOffset={TOPBAR_H + DRAWINGBAR_H}
           onUpdate={updateTextBox}
           onExit={exitEditing}
         />
