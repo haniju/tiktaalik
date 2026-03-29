@@ -5,7 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, TextLayer, CanvasMode } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
-import { exportSvg, generateThumbnail } from '../utils/export';
+import { useAutosave } from '../hooks/useAutosave';
+import { exportSvg } from '../utils/export';
 import { AIRBRUSH_CONFIG } from '../utils/airbrushConfig';
 import {
   TextBoxSelectionState,
@@ -105,50 +106,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const layersRef = useRef(layers);
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, drawingNameRef, isDirtyRef } = useAutosave({
+    drawing, storage, setIsDirty,
+  });
   layersRef.current = layers;
-  const canvasBgRef = useRef(canvasBackground);
   canvasBgRef.current = canvasBackground;
-  const drawingNameRef = useRef(drawingName);
   drawingNameRef.current = drawingName;
-  const isDirtyRef = useRef(false);
-
-  const saveNow = useCallback(() => {
-    if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
-    if (!isDirtyRef.current) return;
-    const bg = canvasBgRef.current;
-    const thumb = generateThumbnail(layersRef.current, A4_WIDTH, A4_HEIGHT, bg);
-    storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, updatedAt: Date.now(), thumbnail: thumb });
-    isDirtyRef.current = false;
-    setIsDirty(false);
-    console.log('[autosave]', new Date().toLocaleTimeString());
-  }, [drawing, storage]);
-
-  // Ref stable vers saveNow — évite que scheduleSave / useEffect recréent un timer
-  // à chaque render (storage instable → saveNow instable → useEffect cleanup cancel le timer)
-  const saveNowRef = useRef(saveNow);
-  saveNowRef.current = saveNow;
-
-  const scheduleSave = useCallback(() => {
-    isDirtyRef.current = true;
-    setIsDirty(true);
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => saveNowRef.current(), 4000);
-  }, []); // stable — lit saveNow via ref
-
-  // Save immédiat sur visibilitychange / beforeunload
-  useEffect(() => {
-    const onVisChange = () => { if (document.hidden) saveNowRef.current(); };
-    const onBeforeUnload = () => saveNowRef.current();
-    document.addEventListener('visibilitychange', onVisChange);
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisChange);
-      window.removeEventListener('beforeunload', onBeforeUnload);
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    };
-  }, []); // saveNowRef est stable — pointe toujours vers le saveNow courant
 
   selectionRef.current = selection;
   const selRectStart = useRef<{ x: number; y: number } | null>(null);
