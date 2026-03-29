@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
@@ -7,6 +7,7 @@ import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { useStageViewport } from '../hooks/useStageViewport';
 import { exportSvg } from '../utils/export';
 import { AIRBRUSH_CONFIG } from '../utils/airbrushConfig';
 import {
@@ -69,7 +70,6 @@ function migrateLayers(drawing: Drawing): DrawLayer[] {
 
 export function SketchScreen({ drawing, onBack }: Props) {
   const storage = useDrawingStorage();
-  const stageRef = useRef<Konva.Stage>(null);
 
   const {
     state: toolState, contextPanel, setContextPanel,
@@ -81,7 +81,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
   } = useToolState();
 
   const [canvasBackground, setCanvasBackground] = useState(drawing.background ?? '#ffffff');
-  const [stageSize, setStageSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [currentAirbrush, setCurrentAirbrush] = useState<AirbrushStroke | null>(null);
@@ -140,46 +139,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
   // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
   const dragJustEndedRef = useRef(false);
 
-  // Hauteurs fixes des barres — le canvas est positionné absolument sous elles
-  const TOPBAR_H = 48;
-  const DRAWINGBAR_H = 48;
-  // canvasH = hauteur totale moins les deux barres fixes (ContextToolbar et SelectionPanel flottent par-dessus)
-  const canvasH = stageSize.height - TOPBAR_H - DRAWINGBAR_H;
-
-  useEffect(() => {
-    const fn = () => setStageSize({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
-
-  const [zoomPct, setZoomPct] = useState(200);
-
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const sc = 2.0; // 200% par défaut
-    stage.scale({ x: sc, y: sc });
-    stage.position({
-      x: (stageSize.width - A4_WIDTH * sc) / 2,
-      y: (canvasH - A4_HEIGHT * sc) / 2,
-    });
-    stage.batchDraw();
-    setZoomPct(200);
-  }, []); // stageRef/setZoomPct sont stables, le tableau vide est intentionnel
-
-  // Translate le Stage pour centrer (cx, cy) dans la zone visible — zoom inchangé
-  const centerViewOn = useCallback((cx: number, cy: number) => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const sc = stage.scaleX();
-    const visibleCx = (stageSize.width / 2 - stage.x()) / sc;
-    const visibleCy = (canvasH / 2 - stage.y()) / sc;
-    const threshold = Math.min(stageSize.width, canvasH) * 0.2 / sc;
-    if (Math.hypot(cx - visibleCx, cy - visibleCy) < threshold) return;
-    const newX = stageSize.width / 2 - cx * sc;
-    const newY = canvasH / 2 - cy * sc;
-    stage.to({ x: newX, y: newY, duration: 0.15, easing: Konva.Easings.EaseOut });
-  }, [stageSize.width, canvasH]);
+  // ─── Viewport ─────────────────────────────────────────────────────────────
+  const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn } = useStageViewport();
 
   // ─── Undo / Redo ──────────────────────────────────────────────────────────
   const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo({
