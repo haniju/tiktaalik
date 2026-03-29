@@ -24,6 +24,8 @@ import { ActionFABs } from './ActionFABs';
 // Version de l'application (source unique : package.json)
 const APP_VERSION = __APP_VERSION__;
 
+const DEBUG = true;
+
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
 const HANDLE_W = 12;  // largeur du handle resize
@@ -157,6 +159,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
   const tbStateRef = useRef(tbState);
   tbStateRef.current = tbState;
+  const [lastAction, setLastAction] = useState<string>('—');
+  const setTbStateWithLog = useCallback((next: TextBoxSelectionState, source: string) => {
+    if (DEBUG) {
+      console.log(`[tbState] ${tbState.kind} → ${next.kind} (${source})`);
+      setLastAction(source);
+    }
+    setTbState(next);
+  }, [tbState.kind]);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [drawingName, setDrawingName] = useState(drawing.name);
@@ -318,9 +328,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
       // Supprimer toutes les textboxes vides (filet de sécurité — pas seulement la courante)
       prev.filter(l => l.tool !== 'text' || (l as TextLayer).text.trim() !== '')
     );
-    setTbState({ kind: 'idle' });
+    setTbStateWithLog({ kind: 'idle' }, 'exitEditing');
     setContextPanel(null);
-  }, [setContextPanel]);
+  }, [setContextPanel, setTbStateWithLog]);
 
   const addTextBox = useCallback((x: number, y: number) => {
     const tl = makeTextLayer(uuidv4(), x, y);
@@ -328,7 +338,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setLayers(newLayers);
     pushUndo(newLayers);
     editingCreatedAtRef.current = Date.now();
-    setTbState({ kind: 'editing', id: tl.id });
+    setTbStateWithLog({ kind: 'editing', id: tl.id }, 'addTextBox');
     centerViewOn(x + 340 / 2, y + 20);
     setContextPanel('text');
     scheduleSave();
@@ -487,7 +497,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
         exitEditing();
         if (hitId) {
           // Tap sur une autre textbox → la sélectionner
-          setTbState({ kind: 'selected', id: hitId });
+          setTbStateWithLog({ kind: 'selected', id: hitId }, 'handleMouseDown:otherTextbox');
           setContextPanel('text');
         }
         return;
@@ -668,7 +678,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
         if (next.kind === 'editing' && tbStateRef.current.kind !== 'editing') {
           editingCreatedAtRef.current = Date.now();
         }
-        setTbState(next);
+        setTbStateWithLog(next, 'handleMouseUp:tap');
         if (next.kind !== 'idle') {
           const tbH = heights.get(hitTb.id) ?? estimateTextHeight(hitTb);
           centerViewOn(hitTb.x + hitTb.width / 2, hitTb.y + tbH / 2);
@@ -769,16 +779,16 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const newL = layers.filter(l => l.id !== id);
     setLayers(newL);
     setSelection(prev => prev.filter(x => x !== id));
-    if (tbState.kind !== 'idle' && tbState.id === id) setTbState({ kind: 'idle' });
+    if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'deleteItem');
     pushUndo(newL); scheduleSave();
-  }, [layers, tbState, pushUndo]);
+  }, [layers, tbState, pushUndo, setTbStateWithLog]);
 
   const deleteSelected = useCallback(() => {
     const newL = layers.filter(l => !selection.includes(l.id));
     setLayers(newL);
-    setSelection([]); setTbState({ kind: 'idle' });
+    setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'deleteSelected');
     pushUndo(newL); scheduleSave();
-  }, [layers, selection, pushUndo]);
+  }, [layers, selection, pushUndo, setTbStateWithLog]);
 
   const handleSave = () => {
     setIsSaving(true);
@@ -863,16 +873,19 @@ export function SketchScreen({ drawing, onBack }: Props) {
             layers={layers}
             selection={selection}
             focusedId={tbState.kind !== 'idle' ? tbState.id : null}
-            onFocus={id => setTbState(prev =>
-              prev.kind !== 'idle' && prev.id === id ? { kind: 'idle' } : { kind: 'selected', id }
-            )}
+            onFocus={id => {
+              const next: TextBoxSelectionState = tbState.kind !== 'idle' && tbState.id === id
+                ? { kind: 'idle' }
+                : { kind: 'selected', id };
+              setTbStateWithLog(next, 'selectionPanel:focus');
+            }}
             onDeselect={id => {
               setSelection(prev => prev.filter(x => x !== id));
-              if (tbState.kind !== 'idle' && tbState.id === id) setTbState({ kind: 'idle' });
+              if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:deselect');
             }}
             onDeleteItem={deleteItem}
             onDeleteSelected={deleteSelected}
-            onClearSelection={() => { setSelection([]); setTbState({ kind: 'idle' }); }}
+            onClearSelection={() => { setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
             onReorderByIds={orderedIds => {
               // orderedIds est en ordre panel (z décroissant, top-of-stack en premier).
               // layers est en z croissant → inverser pour aligner les deux ordres.
@@ -990,7 +1003,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
                     });
                   }
 
-                  setTbState(next);
+                  setTbStateWithLog(next, 'handleTap:textbox');
                   if (next.kind !== 'idle') {
                     centerViewOn(tb.x + tb.width / 2, tb.y + tbH / 2);
                     setContextPanel('text');
@@ -1260,6 +1273,24 @@ export function SketchScreen({ drawing, onBack }: Props) {
           />
         );
       })()}
+
+      {DEBUG && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          background: 'rgba(0,0,0,0.82)',
+          color: '#0f0', fontFamily: 'monospace', fontSize: 11,
+          padding: '6px 10px', zIndex: 9999,
+          pointerEvents: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+        }}>
+          {`tbState=${tbState.kind}${tbState.kind !== 'idle' ? ` id=${(tbState as { kind: string; id: string }).id?.slice(0, 6)}` : ''}`}
+          {` | tool=${toolState.activeTool}`}
+          {` | mode=${toolState.canvasMode}`}
+          {` | zoom=${Math.round(zoomPct)}%`}
+          {` | layers=${layers.length}`}
+          {` | dirty=${isDirty ? '●' : '○'}`}
+          {` | action=${lastAction}`}
+        </div>
+      )}
 
       <ActionFABs
         canvasMode={toolState.canvasMode}
