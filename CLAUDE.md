@@ -32,6 +32,9 @@ Custom hooks handle state:
 - `useDrawingStorage` — CRUD for drawings in localStorage, with automatic migration of legacy formats
 - `useToolState` — active tool, canvas mode, colors, widths per tool (canvas background is per-Drawing, not here)
 - `useDragToReorder` — drag-to-reorder in SelectionPanel (long-press 350ms to drag, swipe to scroll)
+- `useAutosave` — debounced autosave timer, saveNow/scheduleSave, visibilitychange/beforeunload listeners
+- `useUndoRedo` — undoStack, pushUndo, undo/redo, Cmd+Z keyboard shortcut
+- `useStageViewport` — stageRef, stageSize, zoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn
 
 ### Canvas
 
@@ -41,7 +44,15 @@ The canvas is a fixed A4 size (794×1123px) rendered via `react-konva`. Drawing 
 
 ### Autosave
 
-SketchScreen uses a debounced autosave (4s after last mutation). Immediate save on: visibility change (app backgrounded), `beforeunload`, and return to gallery. Uses refs for the timer to avoid re-renders. Manual save button remains as fallback. Console logs `[autosave]` on each automatic save.
+Managed by `useAutosave` hook. Debounced 4s timer after each mutation (`scheduleSave`). Immediate save (`saveNow`) on: visibility change (app backgrounded), `beforeunload`, and return to gallery. Manual save button remains as fallback. Console logs `[autosave]` on each automatic save.
+
+**Key pattern — `saveNowRef`**: `useDrawingStorage` returns a new object on every render (not memoized), which would cause `saveNow` to be recreated every render, which would cancel the autosave timer on every render. Fix: `saveNowRef` is a stable ref always pointing to the current `saveNow`. The timer and event listeners read through this ref.
+
+### Viewport
+
+Managed by `useStageViewport` hook. Returns `stageRef` (Konva.Stage), `stageSize` (window resize listener), `zoomPct`/`setZoomPct`, `canvasH` (stageSize.height - TOPBAR_H - DRAWINGBAR_H), and `centerViewOn(cx, cy)` which translates the stage to center a canvas point in the visible area.
+
+`TOPBAR_H = 48`, `DRAWINGBAR_H = 48` are exported constants from `useStageViewport.ts`.
 
 ### Tools & Modes
 
@@ -59,6 +70,17 @@ TextBoxes follow four canonical states managed by a unified `TextBoxSelectionSta
 4. **dragging** — textbox being moved
 
 This replaces the previous architecture that used three desynchronized state variables. Any textbox-related work should respect this state machine.
+
+**Key pitfalls:**
+- Konva fires `onTap` then `onClick` for the same touch on mobile. Guard: `if (elapsed < 80ms) return` in `handleTap` to ignore the duplicate event.
+- `tbState` captured in JSX closures can be stale. Always use `tbStateRef.current` (not `tbState`) in `handleTap` when calling `nextSelectionState`.
+- Konva fires a synthetic `tap` after `touchend` even when a drag occurred. Guard: `dragJustEndedRef`.
+
+### EditingTextarea
+
+`EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Position is computed via `stage.container().getBoundingClientRect()` — **do not** use a hardcoded `topOffset` (TOPBAR_H + DRAWINGBAR_H), which breaks at different zoom levels and with mobile browser chrome changes.
+
+Known limitation: pinch zoom while the textarea is focused triggers `exitEditing` because the first touch finger hitting the canvas fires `handleMouseDown` → `exitEditing` before the second finger confirms the pinch.
 
 ### Export
 
@@ -94,8 +116,35 @@ The app version from `package.json` is injected at build time as the global `__A
 - ESLint shows ~16 errors: unused vars, `any` types, one empty catch block — cleanup in progress
 - `react-hooks/exhaustive-deps` rule referenced in code but plugin not installed
 - `DrawingSecondaryToolbar` component is defined but unused (dead code)
-- Resize handle Y-axis drift during active drag — deferred, handles reset correctly on pointer up
 - Playwright demo test stubs (`e2e/example.spec.ts`, `tests/example.spec.ts`) fail in Vitest — pre-existing, not real tests
+- Pinch zoom while textarea is focused exits editing (first touch fires handleMouseDown before second touch confirms pinch) — known limitation, deferred
+
+## Refactoring in Progress — branch `refactor/sketchscreen-decomp`
+
+Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines). Protocol: one step at a time, one commit per step, PO validation between steps.
+
+**Completed:**
+- Step 0: `DEBUG` overlay, `setTbStateWithLog` wrapper
+- Step 1: fix recursive `scheduleSave`
+- Step 2: extract `ResizeHandle` → `src/components/ResizeHandle.tsx`
+- Step 3: extract `useAutosave` → `src/hooks/useAutosave.ts`
+- Step 4: extract `useUndoRedo` → `src/hooks/useUndoRedo.ts`
+- Step 5: extract `useStageViewport` → `src/hooks/useStageViewport.ts`
+- Step 6: extract `EditingTextarea` → `src/components/EditingTextarea.tsx`
+
+**Bug fixes landed on this branch (not yet on main):**
+- `autosave`: saveNowRef pattern — timer no longer cancelled on every render
+- `ResizeHandle`: X clamping in dragBoundFunc (minimum width 150px enforced visually)
+- `ResizeHandle` left side: effectiveDx keeps right edge fixed at minimum
+- `handleMouseUp` → `handleTap`: dragJustEndedRef guards synthetic tap after drag
+- `handleTap`: onTap+onClick double-fire guard (elapsed < 80ms → early return)
+- `handleTap`: tbStateRef.current instead of stale tbState closure
+- `EditingTextarea`: getBoundingClientRect() for correct position at all zoom levels
+
+**Pending (steps 7–9):**
+- Step 7: extract `TextBoxKonva` component
+- Step 8: extract `DrawingLayer` component
+- Step 9 (highest risk): extract `useCanvasGestures` hook
 
 ## Do Not
 
@@ -113,3 +162,7 @@ The app version from `package.json` is injected at build time as the global `__A
 ### Select Mode
 - [ ] Individual deselect/delete in level-2 selection not working
 - [ ] Cannot drag-move a selected object on canvas
+
+### Text Tool (under investigation on refactor/sketchscreen-decomp)
+- [ ] Toolbar text panel blur guard (data-text-panel) ineffective on mobile — keyboard pushes toolbar off-screen when editing starts
+- [ ] double-tap reliability to be validated after fixes in steps 6 debug session
