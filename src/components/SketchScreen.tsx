@@ -24,6 +24,7 @@ import { SelectionPanel } from './SelectionPanel';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
 import { ActionFABs } from './ActionFABs';
 import { ResizeHandle } from './ResizeHandle';
+import { EditingTextarea } from './EditingTextarea';
 
 // Version de l'application (source unique : package.json)
 const APP_VERSION = __APP_VERSION__;
@@ -134,7 +135,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
   // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
   const dragJustEndedRef = useRef(false);
@@ -1049,70 +1049,15 @@ export function SketchScreen({ drawing, onBack }: Props) {
       </div>
 
       {/* Textarea édition texte — en position fixed pour ne pas être clippée par overflow:hidden du canvas div */}
-      {editingTextId && editingTextBox && stageRef.current && (() => {
-        const stage = stageRef.current!;
-        const sc = stage.scaleX();
-        const sp = stage.position();
-        // Coordonnées écran : décalage du canvas div (top = TOPBAR_H + DRAWINGBAR_H) + position Konva
-        const screenLeft = editingTextBox.x * sc + sp.x;
-        const screenTop = TOPBAR_H + DRAWINGBAR_H + editingTextBox.y * sc + sp.y;
-        const autoResizeTextarea = (el: HTMLTextAreaElement) => {
-          el.style.height = 'auto';
-          el.style.height = `${el.scrollHeight}px`;
-        };
-        return (
-          <textarea
-            ref={el => {
-              textareaRef.current = el;
-              if (el) autoResizeTextarea(el);
-            }}
-            autoFocus
-            value={editingTextBox.text}
-            onChange={e => {
-              updateTextBox({ text: e.target.value });
-              autoResizeTextarea(e.target);
-            }}
-            onKeyDown={e => { if (e.key === 'Escape') exitEditing(); }}
-            onBlur={e => {
-              const related = e.relatedTarget as HTMLElement | null;
-              // Ne pas sortir si le focus part vers les barres (topbar, drawingbar, contextToolbar, textPanel)
-              // ou vers les FABs
-              if (related && (
-                related.closest('[data-text-panel]') ||
-                related.closest('[data-bars]') ||
-                related.closest('[data-fabs]')
-              )) return;
-              exitEditing();
-            }}
-            style={{
-              position: 'fixed',
-              left: screenLeft,
-              top: screenTop,
-              width: editingTextBox.width * sc,
-              minWidth: 80 * sc,
-              minHeight: 40,
-              height: 'auto',
-              fontSize: editingTextBox.fontSize * sc,
-              fontFamily: editingTextBox.fontFamily,
-              fontWeight: editingTextBox.fontStyle.includes('bold') ? 'bold' : 'normal',
-              fontStyle: editingTextBox.fontStyle.includes('italic') ? 'italic' : 'normal',
-              textDecoration: editingTextBox.textDecoration,
-              textAlign: editingTextBox.align,
-              color: editingTextBox.color,
-              background: 'transparent',
-              opacity: editingTextBox.opacity,
-              padding: editingTextBox.padding,
-              border: '2px solid #e63946',
-              borderRadius: 4, resize: 'none', outline: 'none',
-              zIndex: 200, lineHeight: 1.4, boxSizing: 'border-box',
-              caretColor: editingTextBox.color,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              overflowY: 'hidden',
-            }}
-          />
-        );
-      })()}
+      {editingTextBox && (
+        <EditingTextarea
+          textBox={editingTextBox}
+          stageRef={stageRef}
+          topOffset={TOPBAR_H + DRAWINGBAR_H}
+          onUpdate={updateTextBox}
+          onExit={exitEditing}
+        />
+      )}
 
       {DEBUG && (
         <div style={{
