@@ -195,17 +195,22 @@ export function SketchScreen({ drawing, onBack }: Props) {
     console.log('[autosave]', new Date().toLocaleTimeString());
   }, [drawing, storage]);
 
+  // Ref stable vers saveNow — évite que scheduleSave / useEffect recréent un timer
+  // à chaque render (storage instable → saveNow instable → useEffect cleanup cancel le timer)
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+
   const scheduleSave = useCallback(() => {
     isDirtyRef.current = true;
     setIsDirty(true);
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(saveNow, 4000);
-  }, [saveNow]);
+    autosaveTimer.current = setTimeout(() => saveNowRef.current(), 4000);
+  }, []); // stable — lit saveNow via ref
 
   // Save immédiat sur visibilitychange / beforeunload
   useEffect(() => {
-    const onVisChange = () => { if (document.hidden) saveNow(); };
-    const onBeforeUnload = () => saveNow();
+    const onVisChange = () => { if (document.hidden) saveNowRef.current(); };
+    const onBeforeUnload = () => saveNowRef.current();
     document.addEventListener('visibilitychange', onVisChange);
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
@@ -213,7 +218,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       window.removeEventListener('beforeunload', onBeforeUnload);
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
-  }, [saveNow]);
+  }, []); // saveNowRef est stable — pointe toujours vers le saveNow courant
 
   selectionRef.current = selection;
   const selRectStart = useRef<{ x: number; y: number } | null>(null);
