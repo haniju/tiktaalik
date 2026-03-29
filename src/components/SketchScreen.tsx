@@ -197,6 +197,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   const scheduleSave = useCallback(() => {
     isDirtyRef.current = true;
+    setIsDirty(true);
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(saveNow, 4000);
   }, [saveNow]);
