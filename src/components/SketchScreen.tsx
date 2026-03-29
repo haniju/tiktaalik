@@ -805,9 +805,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   if (!isTextTool) return;
                   if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
 
-                  // Détection double tap (< 300ms sur la même textbox)
+                  // Détection double tap (entre 80ms et 300ms sur la même textbox)
+                  // Borne basse 80ms : évite le double-fire onTap+onClick de Konva sur mobile
                   const now = Date.now();
-                  const isDoubleTap = lastTapRef.current?.id === tb.id && now - lastTapRef.current.time < 300;
+                  const elapsed = lastTapRef.current?.id === tb.id ? now - lastTapRef.current.time : Infinity;
+                  const isDoubleTap = elapsed >= 80 && elapsed < 300;
                   lastTapRef.current = { id: tb.id, time: now };
 
                   const heights = new Map(
