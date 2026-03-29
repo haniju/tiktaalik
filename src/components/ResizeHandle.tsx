@@ -34,10 +34,25 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: 
       width={hw} height={hh}
       fill="#118ab2" opacity={0.85} cornerRadius={4}
       draggable
-      dragBoundFunc={pos => ({
-        x: pos.x,
-        y: dragStartRef.current?.lockedScreenY ?? pos.y,
-      })}
+      dragBoundFunc={pos => {
+        const start = dragStartRef.current;
+        const lockedY = start?.lockedScreenY ?? pos.y;
+        if (!start || !stageRef.current) return { x: pos.x, y: lockedY };
+        const stage = stageRef.current;
+        const scl = stage.scaleX();
+        const stageX = stage.x();
+        let clampedX = pos.x;
+        if (side === 'left') {
+          // Le handle gauche ne peut pas dépasser vers la droite au-delà de tbX + tbWidth - 150
+          const maxAbsX = stageX + (start.tbX + start.tbWidth - 150) * scl - HANDLE_SCREEN_W / 2;
+          clampedX = Math.min(pos.x, maxAbsX);
+        } else {
+          // Le handle droit ne peut pas aller en-dessous de tbX + 150
+          const minAbsX = stageX + (start.tbX + 150) * scl - HANDLE_SCREEN_W / 2;
+          clampedX = Math.max(pos.x, minAbsX);
+        }
+        return { x: clampedX, y: lockedY };
+      }}
       onDragStart={e => {
         dragStartRef.current = {
           pointerX: e.target.absolutePosition().x,

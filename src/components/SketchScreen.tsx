@@ -175,6 +175,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
+  // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
+  const dragJustEndedRef = useRef(false);
 
   // Hauteurs fixes des barres — le canvas est positionné absolument sous elles
   const TOPBAR_H = 48;
@@ -654,6 +656,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       dragStartPos.current = null;
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
+      dragJustEndedRef.current = true; // bloque le tap Konva synthétique post-drag
       pushUndo(layers);
       scheduleSave();
       return;
@@ -898,6 +901,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
                   e.cancelBubble = true;
                   // Annuler la création d'une nouvelle textbox — on interagit avec une existante
                   pendingTextboxRef.current = null;
+                  // Ignorer le tap synthétique Konva émis après un drag (touchend → tap)
+                  if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
                   if (toolState.canvasMode === 'select') { selectItem(); return; }
                   if (!isTextTool) return;
                   if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
