@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Line, Rect, Group } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
@@ -728,6 +728,19 @@ export function SketchScreen({ drawing, onBack }: Props) {
     ? (layers.find(l => l.id === editingTextId && l.tool === 'text') as TextLayer | undefined) ?? null
     : null;
   const barsRef = useRef<HTMLDivElement>(null);
+
+  // Compense vv.offsetTop sur les barres : quand Chrome ajuste le visual viewport (textarea
+  // qui grandit, TB en bas du canvas), position:fixed;top:0 passe au-dessus du visual viewport.
+  // On met à jour style.top = vv.offsetTop pour que les barres restent visibles.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      if (barsRef.current) barsRef.current.style.top = `${vv.offsetTop}px`;
+    };
+    vv.addEventListener('scroll', update);
+    return () => vv.removeEventListener('scroll', update);
+  }, []);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#f0f0f0' }}>

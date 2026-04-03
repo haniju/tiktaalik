@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Konva from 'konva';
 import { Rect, Text, Group } from 'react-konva';
 import { DrawLayer, TextLayer } from '../types';
@@ -26,6 +26,15 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
   tb, isEditing, isTextSelected, isSelected, isFocused,
   stageRef, textNodesRef, onTap, onLayerUpdate, onDragEnd,
 }: TextBoxKonvaProps): JSX.Element {
+  // Quand isEditing passe true→false, le nœud Konva vient de repasser à text={tb.text}
+  // mais height() est encore périmé (mesuré sur text=""). On force un re-render après commit.
+  const prevIsEditing = useRef(isEditing);
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    if (prevIsEditing.current && !isEditing) forceUpdate(n => n + 1);
+    prevIsEditing.current = isEditing;
+  }, [isEditing]);
+
   const konvaNode = textNodesRef.current.get(tb.id);
   const tbH = konvaNode ? Math.max(konvaNode.height(), 20) : estimateTextHeight(tb);
 

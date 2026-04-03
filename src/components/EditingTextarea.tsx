@@ -30,13 +30,14 @@ export const EditingTextarea = React.memo(function EditingTextarea(
     // Seulement quand le clavier est ouvert (vv.height < 70% de la hauteur totale)
     if (vv.height > window.innerHeight * 0.7) return;
     const sc = stage.scaleX();
-    // Hauteur réelle des barres mesurée dans le DOM (topbar + drawingbar + ContextToolbar ouverte)
-    const barsEl = document.querySelector('[data-bars]');
-    const barsBottom = barsEl ? barsEl.getBoundingClientRect().bottom : topOffset;
-    const availableH = vv.height - barsBottom;
+    // offsetHeight : hauteur intrinsèque des barres, indépendante de vv.offsetTop
+    const barsEl = document.querySelector('[data-bars]') as HTMLElement | null;
+    const barsHeight = barsEl ? barsEl.offsetHeight : topOffset;
+    const availableH = vv.height - barsHeight;
     if (availableH <= 0) return;
-    // Centrer la textbox dans la zone exploitable
-    const targetScreenTop = barsBottom + availableH / 2;
+    // targetScreenTop en coordonnées layout viewport (vv.offsetTop + barres + zone/2)
+    // Nécessaire car position:fixed se positionne dans le layout viewport, pas le visual
+    const targetScreenTop = vv.offsetTop + barsHeight + availableH / 2;
     const newY = targetScreenTop - topOffset - textBox.y * sc;
     stage.y(newY);
     stage.batchDraw();
@@ -48,12 +49,16 @@ export const EditingTextarea = React.memo(function EditingTextarea(
     adjustForKeyboard();
   }, [adjustForKeyboard]);
 
-  // Écouter l'ouverture du clavier virtuel
+  // Écouter l'ouverture du clavier et les décalages de viewport (vv.offsetTop)
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     vv.addEventListener('resize', adjustForKeyboard);
-    return () => vv.removeEventListener('resize', adjustForKeyboard);
+    vv.addEventListener('scroll', adjustForKeyboard);
+    return () => {
+      vv.removeEventListener('resize', adjustForKeyboard);
+      vv.removeEventListener('scroll', adjustForKeyboard);
+    };
   }, [adjustForKeyboard]);
 
   const stage = stageRef.current;
