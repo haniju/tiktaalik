@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
 import { TextBox, TextLayer } from '../types';
 
@@ -15,11 +15,46 @@ export const EditingTextarea = React.memo(function EditingTextarea(
 ): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // sp reflète la position du stage Konva — mis à jour quand le clavier virtuel s'ouvre
+  const [sp, setSp] = useState(() => {
+    const s = stageRef.current;
+    return { x: s?.x() ?? 0, y: s?.y() ?? 0 };
+  });
+
+  // Repositionne le stage pour que la textbox soit visible au-dessus du clavier
+  const adjustForKeyboard = useCallback(() => {
+    const stage = stageRef.current;
+    const vv = window.visualViewport;
+    if (!stage || !vv) return;
+    const sc = stage.scaleX();
+    // Position écran du haut de la textbox avec le stage actuel
+    const currentScreenTop = topOffset + textBox.y * sc + stage.y();
+    // Seulement re-pan si la textbox est trop proche ou derrière le clavier (< 80px de marge)
+    if (currentScreenTop < vv.height - 80) return;
+    // Placer le haut de la textbox à 8px sous les barres
+    const newY = 8 - textBox.y * sc;
+    stage.y(newY);
+    stage.batchDraw();
+    setSp({ x: stage.x(), y: newY });
+  }, [stageRef, textBox.y, topOffset]);
+
+  // Vérifier au montage si le clavier est déjà ouvert (passage editing → editing d'une autre box)
+  useEffect(() => {
+    adjustForKeyboard();
+  }, [adjustForKeyboard]);
+
+  // Écouter l'ouverture du clavier virtuel
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    vv.addEventListener('resize', adjustForKeyboard);
+    return () => vv.removeEventListener('resize', adjustForKeyboard);
+  }, [adjustForKeyboard]);
+
   const stage = stageRef.current;
   const sc = stage?.scaleX() ?? 1;
-  const sp = stage?.position() ?? { x: 0, y: 0 };
 
-  // Coordonnées écran : décalage du canvas div (topOffset) + position Konva
+  // Coordonnées écran : décalage du canvas div (topOffset) + position Konva (via sp state)
   const screenLeft = textBox.x * sc + sp.x;
   const screenTop = topOffset + textBox.y * sc + sp.y;
 

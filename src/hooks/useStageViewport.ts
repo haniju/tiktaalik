@@ -15,7 +15,7 @@ interface UseStageViewportReturn {
   canvasH: number;
   TOPBAR_H: number;
   DRAWINGBAR_H: number;
-  centerViewOn: (cx: number, cy: number) => void;
+  centerViewOn: (cx: number, cy: number, immediate?: boolean) => void;
 }
 
 export function useStageViewport(): UseStageViewportReturn {
@@ -46,7 +46,7 @@ export function useStageViewport(): UseStageViewportReturn {
   }, []); // stageRef/setZoomPct sont stables, le tableau vide est intentionnel
 
   // Translate le Stage pour centrer (cx, cy) dans la zone visible — zoom inchangé
-  const centerViewOn = useCallback((cx: number, cy: number) => {
+  const centerViewOn = useCallback((cx: number, cy: number, immediate = false) => {
     const stage = stageRef.current;
     if (!stage) return;
     const sc = stage.scaleX();
@@ -56,7 +56,12 @@ export function useStageViewport(): UseStageViewportReturn {
     if (Math.hypot(cx - visibleCx, cy - visibleCy) < threshold) return;
     const newX = stageSize.width / 2 - cx * sc;
     const newY = canvasH / 2 - cy * sc;
-    stage.to({ x: newX, y: newY, duration: 0.15, easing: Konva.Easings.EaseOut });
+    if (immediate) {
+      stage.position({ x: newX, y: newY });
+      stage.batchDraw();
+    } else {
+      stage.to({ x: newX, y: newY, duration: 0.15, easing: Konva.Easings.EaseOut });
+    }
   }, [stageSize.width, canvasH]);
 
   return { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn };

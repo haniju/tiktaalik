@@ -174,7 +174,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     pushUndo(newLayers);
     editingCreatedAtRef.current = Date.now();
     setTbStateWithLog({ kind: 'editing', id: tl.id }, 'addTextBox');
-    centerViewOn(x + 340 / 2, y + 20);
+    centerViewOn(x + 340 / 2, y + 20, true);
     setContextPanel('text');
     scheduleSave();
   }, [layers, pushUndo, setContextPanel, centerViewOn]);
@@ -661,7 +661,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#f0f0f0' }}>
 
       {/* Barres en haut — dans le flux normal */}
-      <div data-bars ref={barsRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50, background: '#fff' }}>
+      <div data-bars ref={barsRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: '#fff' }}>
         <Topbar
           drawingName={drawingName}
           canUndo={canUndo}
