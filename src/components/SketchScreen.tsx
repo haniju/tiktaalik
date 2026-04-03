@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback } from 'react';
 import Konva from 'konva';
-import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
+import { Stage, Layer, Line, Rect, Group } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
 import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, TextLayer, CanvasMode } from '../types';
 import { useToolState } from '../hooks/useToolState';
@@ -23,7 +23,7 @@ import { ContextToolbar } from './ContextToolbar';
 import { SelectionPanel } from './SelectionPanel';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
 import { ActionFABs } from './ActionFABs';
-import { ResizeHandle } from './ResizeHandle';
+import { TextBoxKonva } from './TextBoxKonva';
 import { EditingTextarea } from './EditingTextarea';
 
 // Version de l'application (source unique : package.json)
@@ -33,9 +33,6 @@ const DEBUG = true;
 
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
-const HANDLE_W = 12;  // largeur du handle resize
-const HANDLE_H = 28;  // hauteur du handle resize
-const BORDER_HIT = 14; // épaisseur zone hit des bords pour drag
 
 
 interface Props {
@@ -91,6 +88,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
   const tbStateRef = useRef(tbState);
   tbStateRef.current = tbState;
+  const toolStateRef = useRef(toolState);
+  toolStateRef.current = toolState;
   const [lastAction, setLastAction] = useState<string>('—');
   const setTbStateWithLog = useCallback((next: TextBoxSelectionState, source: string) => {
     if (DEBUG) {
@@ -99,6 +98,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
     }
     setTbState(next);
   }, [tbState.kind]);
+  const setTbStateWithLogRef = useRef(setTbStateWithLog);
+  setTbStateWithLogRef.current = setTbStateWithLog;
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [drawingName, setDrawingName] = useState(drawing.name);
@@ -141,6 +142,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   // ─── Viewport ─────────────────────────────────────────────────────────────
   const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn } = useStageViewport();
+  const centerViewOnRef = useRef(centerViewOn);
+  centerViewOnRef.current = centerViewOn;
 
   // ─── Undo / Redo ──────────────────────────────────────────────────────────
   const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo({
@@ -178,6 +181,60 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setContextPanel('text');
     scheduleSave();
   }, [layers, pushUndo, setContextPanel, centerViewOn]);
+
+  const handleTapById = useCallback((tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => {
+    e.cancelBubble = true;
+    pendingTextboxRef.current = null;
+    if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
+    const ts = toolStateRef.current;
+    if (ts.canvasMode === 'select') {
+      setSelection(prev => prev.includes(tbId) ? prev : [...prev, tbId]);
+      return;
+    }
+    if (ts.activeTool !== 'text') return;
+    if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
+
+    const now = Date.now();
+    const elapsed = lastTapRef.current?.id === tbId ? now - lastTapRef.current.time : Infinity;
+    if (elapsed < 80) return;
+    lastTapRef.current = { id: tbId, time: now };
+    const isDoubleTap = elapsed < 300;
+
+    const textLayers = layersRef.current.filter((l): l is TextLayer => l.tool === 'text');
+    const heights = new Map(
+      textLayers.map(t => [
+        t.id,
+        textNodesRef.current.get(t.id)
+          ? Math.max(textNodesRef.current.get(t.id)!.height(), 20)
+          : estimateTextHeight(t),
+      ])
+    );
+
+    const stage = stageRef.current!;
+    const pos = stage.getRelativePointerPosition()!;
+    let next = nextSelectionState(tbStateRef.current, pos.x, pos.y, textLayers, heights);
+
+    if (isDoubleTap && next.kind === 'selected') {
+      next = { kind: 'editing', id: next.id };
+    }
+
+    if (next.kind === 'editing' && tbStateRef.current.kind !== 'editing') {
+      editingCreatedAtRef.current = Date.now();
+    }
+    if (tbStateRef.current.kind === 'editing' && next.kind !== 'idle' && next.id !== tbStateRef.current.id) {
+      const prevId = tbStateRef.current.id;
+      setLayers(prev => prev.filter(l => l.tool !== 'text' || l.id !== prevId || (l as TextLayer).text.trim() !== ''));
+    }
+
+    setTbStateWithLogRef.current(next, 'handleTapById');
+    if (next.kind !== 'idle') {
+      const tb = textLayers.find(t => t.id === tbId);
+      if (tb) centerViewOnRef.current(tb.x + tb.width / 2, tb.y + tbH / 2);
+      setContextPanel('text');
+    }
+  }, [setLayers, setSelection, setContextPanel]);
+
+  const handleDragEnd = useCallback(() => scheduleSave(), [scheduleSave]);
 
   const handleSetCanvasMode = useCallback((mode: CanvasMode) => {
     if (tbStateRef.current.kind !== 'idle') exitEditing();
@@ -785,192 +842,19 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
               if (layer.tool === 'text') {
                 const tb = layer as TextLayer;
-                const isEditing = tbState.kind === 'editing' && tbState.id === tb.id;
-                const isTextSelected = tbState.kind === 'selected' && tbState.id === tb.id;
-                const isTextTool = toolState.activeTool === 'text';
-
-                const konvaNode = textNodesRef.current.get(tb.id);
-                const measuredH = konvaNode
-                  ? Math.max(konvaNode.height(), 20)
-                  : estimateTextHeight(tb);
-                const tbH = measuredH;
-
-                const handleTap = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-                  e.cancelBubble = true;
-                  // Annuler la création d'une nouvelle textbox — on interagit avec une existante
-                  pendingTextboxRef.current = null;
-                  // Ignorer le tap synthétique Konva émis après un drag (touchend → tap)
-                  if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
-                  if (toolState.canvasMode === 'select') { selectItem(); return; }
-                  if (!isTextTool) return;
-                  if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
-
-                  const now = Date.now();
-                  const elapsed = lastTapRef.current?.id === tb.id ? now - lastTapRef.current.time : Infinity;
-                  // < 80ms sur la même box = double-fire onTap+onClick Konva → ignorer le duplicat
-                  if (elapsed < 80) return;
-                  lastTapRef.current = { id: tb.id, time: now };
-                  const isDoubleTap = elapsed < 300;
-
-                  const heights = new Map(
-                    layers
-                      .filter((l): l is TextLayer => l.tool === 'text')
-                      .map(t => [
-                        t.id,
-                        textNodesRef.current.get(t.id)
-                          ? Math.max(textNodesRef.current.get(t.id)!.height(), 20)
-                          : estimateTextHeight(t),
-                      ])
-                  );
-
-                  const stage = stageRef.current!;
-                  const pos = stage.getRelativePointerPosition()!;
-                  const textLayers = layers.filter((l): l is TextLayer => l.tool === 'text');
-                  // tbStateRef.current : évite la stale closure (tbState capturé au render peut être périmé)
-                  let next = nextSelectionState(tbStateRef.current, pos.x, pos.y, textLayers, heights);
-
-                  // Double tap override : si résultat [selected], forcer [editing]
-                  if (isDoubleTap && next.kind === 'selected') {
-                    next = { kind: 'editing', id: next.id };
-                  }
-
-                  if (next.kind === 'editing' && tbStateRef.current.kind !== 'editing') {
-                    editingCreatedAtRef.current = Date.now();
-                  }
-                  if (tbState.kind === 'editing' && next.kind !== 'idle' && next.id !== tbState.id) {
-                    setLayers(prev => {
-                      const prevId = tbState.id;
-                      return prev.filter(l => l.tool !== 'text' || l.id !== prevId || (l as TextLayer).text.trim() !== '');
-                    });
-                  }
-
-                  setTbStateWithLog(next, 'handleTap:textbox');
-                  if (next.kind !== 'idle') {
-                    centerViewOn(tb.x + tb.width / 2, tb.y + tbH / 2);
-                    setContextPanel('text');
-                  }
-                };
-
                 return (
-                  <Group key={tb.id} id={tb.id} x={tb.x} y={tb.y}>
-                    {tb.background !== '' && (
-                      <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
-                    )}
-
-                    <Text x={0} y={0} width={tb.width}
-                      ref={node => { if (node) textNodesRef.current.set(tb.id, node); else textNodesRef.current.delete(tb.id); }}
-                      text={isEditing ? '' : tb.text}
-                      fontSize={tb.fontSize} fontFamily={tb.fontFamily} fontStyle={tb.fontStyle}
-                      textDecoration={tb.textDecoration} align={tb.align} verticalAlign={tb.verticalAlign}
-                      fill={tb.color} opacity={tb.opacity} padding={tb.padding}
-                      wrap="word"
-                      listening={false}
-                    />
-
-                    {/* Zone intérieure principale — tap / double-tap */}
-                    <Rect x={0} y={0} width={tb.width} height={tbH}
-                      fill="rgba(0,0,0,0)"
-                      onClick={handleTap}
-                      onTap={handleTap}
-                    />
-
-                    {/* Bordure select mode (canvas selection) */}
-                    {isSelected && !isTextSelected && !isEditing && (
-                      <Rect x={-2} y={-2} width={tb.width + 4} height={tbH + 4}
-                        stroke={isFocused ? '#e63946' : '#118ab2'}
-                        strokeWidth={1.5}
-                        dash={[5, 3]}
-                        fill="transparent"
-                        cornerRadius={3}
-                        listening={false}
-                      />
-                    )}
-
-                    {/* Bordure sélection text tool (pas en édition — la textarea a son propre border) */}
-                    {isTextSelected && !isEditing && (
-                      <Rect x={0} y={0} width={tb.width} height={tbH}
-                        stroke="#118ab2"
-                        strokeWidth={1.5}
-                        fill="transparent"
-                        dash={[5, 3]}
-                        listening={false}
-                      />
-                    )}
-
-                    {/* Bords draggables pour déplacer (seulement si sélectionnée) */}
-                    {isTextSelected && !isEditing && <>
-                      <Rect x={HANDLE_W} y={-BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
-                        fill="transparent" draggable
-                        onDragMove={e => {
-                          const stage = stageRef.current!;
-                          const sc = stage.scaleX(), sp = stage.position();
-                          const abs = e.target.absolutePosition();
-                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
-                            ...l, x: (abs.x - sp.x) / sc - HANDLE_W, y: (abs.y - sp.y) / sc + BORDER_HIT / 2,
-                          }));
-                        }}
-                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
-                      />
-                      <Rect x={HANDLE_W} y={tbH - BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
-                        fill="transparent" draggable
-                        onDragMove={e => {
-                          const stage = stageRef.current!;
-                          const sc = stage.scaleX(), sp = stage.position();
-                          const abs = e.target.absolutePosition();
-                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
-                            ...l, x: (abs.x - sp.x) / sc - HANDLE_W, y: (abs.y - sp.y) / sc - tbH + BORDER_HIT / 2,
-                          }));
-                        }}
-                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
-                      />
-                      <Rect x={-BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
-                        fill="transparent" draggable
-                        onDragMove={e => {
-                          const stage = stageRef.current!;
-                          const sc = stage.scaleX(), sp = stage.position();
-                          const abs = e.target.absolutePosition();
-                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
-                            ...l, x: (abs.x - sp.x) / sc + BORDER_HIT / 2, y: (abs.y - sp.y) / sc - HANDLE_H,
-                          }));
-                        }}
-                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
-                      />
-                      <Rect x={tb.width - BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
-                        fill="transparent" draggable
-                        onDragMove={e => {
-                          const stage = stageRef.current!;
-                          const sc = stage.scaleX(), sp = stage.position();
-                          const abs = e.target.absolutePosition();
-                          setLayers(prev => prev.map(l => l.id !== tb.id || l.tool !== 'text' ? l : {
-                            ...l, x: (abs.x - sp.x) / sc - tb.width + BORDER_HIT / 2, y: (abs.y - sp.y) / sc - HANDLE_H,
-                          }));
-                        }}
-                        onDragEnd={() => scheduleSave()} dragBoundFunc={p => p}
-                      />
-                    </>}
-
-                    {/* Handles resize milieu gauche et droit */}
-                    {isTextSelected && !isEditing && <>
-                      <ResizeHandle
-                        cx={0} cy={tbH / 2} side="left"
-                        tb={{ x: tb.x, y: tb.y, width: tb.width }}
-                        stageRef={stageRef}
-                        onDragEnd={() => scheduleSave()}
-                        onMove={(newX, newWidth) => setLayers(prev => prev.map(l =>
-                          l.id !== tb.id || l.tool !== 'text' ? l : { ...l, x: newX, width: newWidth },
-                        ))}
-                      />
-                      <ResizeHandle
-                        cx={tb.width} cy={tbH / 2} side="right"
-                        tb={{ x: tb.x, y: tb.y, width: tb.width }}
-                        stageRef={stageRef}
-                        onDragEnd={() => scheduleSave()}
-                        onMove={(_, newWidth) => setLayers(prev => prev.map(l =>
-                          l.id !== tb.id || l.tool !== 'text' ? l : { ...l, width: newWidth },
-                        ))}
-                      />
-                    </>}
-                  </Group>
+                  <TextBoxKonva
+                    key={tb.id} tb={tb}
+                    isEditing={tbState.kind === 'editing' && tbState.id === tb.id}
+                    isTextSelected={tbState.kind === 'selected' && tbState.id === tb.id}
+                    isSelected={isSelected}
+                    isFocused={isFocused}
+                    stageRef={stageRef}
+                    textNodesRef={textNodesRef}
+                    onTap={handleTapById}
+                    onLayerUpdate={setLayers}
+                    onDragEnd={handleDragEnd}
+                  />
                 );
               }
 
