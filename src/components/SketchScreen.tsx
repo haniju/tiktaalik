@@ -170,6 +170,21 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setContextPanel(null);
   }, [setContextPanel, setTbStateWithLog]);
 
+  const collapseEditingToSelected = useCallback(() => {
+    if (Date.now() - editingCreatedAtRef.current < 300) return;
+    const id = editingTextIdRef.current;
+    if (!id) return;
+    const layer = layersRef.current.find(l => l.id === id && l.tool === 'text') as TextLayer | undefined;
+    if (!layer || layer.text.trim() === '') {
+      // TB vide → cleanup + idle
+      setLayers(prev => prev.filter(l => l.tool !== 'text' || (l as TextLayer).text.trim() !== ''));
+      setTbStateWithLogRef.current({ kind: 'idle' }, 'collapseToSelected:empty');
+      setContextPanel(null);
+      return;
+    }
+    setTbStateWithLogRef.current({ kind: 'selected', id }, 'collapseToSelected');
+  }, [setLayers, setContextPanel]);
+
   const addTextBox = useCallback((x: number, y: number) => {
     const tl = makeTextLayer(uuidv4(), x, y);
     const newLayers = [...layers, tl];
@@ -283,9 +298,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
 
-    // En mode text : si on édite et qu'on clique ailleurs → exit édition
+    // En mode text : si on édite et qu'on tape sur le canvas → collapse vers selected
     if (editingTextIdRef.current && toolState.activeTool === 'text') {
-      exitEditing();
+      collapseEditingToSelected();
       return;
     }
 
@@ -941,6 +956,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           topOffset={TOPBAR_H + DRAWINGBAR_H}
           onUpdate={updateTextBox}
           onExit={exitEditing}
+          onBlurExit={collapseEditingToSelected}
         />
       )}
 

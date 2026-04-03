@@ -8,10 +8,11 @@ interface EditingTextareaProps {
   topOffset: number; // TOPBAR_H + DRAWINGBAR_H
   onUpdate: (patch: Partial<TextBox>) => void;
   onExit: () => void;
+  onBlurExit: () => void;
 }
 
 export const EditingTextarea = React.memo(function EditingTextarea(
-  { textBox, stageRef, topOffset, onUpdate, onExit }: EditingTextareaProps
+  { textBox, stageRef, topOffset, onUpdate, onExit, onBlurExit }: EditingTextareaProps
 ): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -89,7 +90,7 @@ export const EditingTextarea = React.memo(function EditingTextarea(
           related.closest('[data-bars]') ||
           related.closest('[data-fabs]')
         )) return;
-        onExit();
+        onBlurExit();
       }}
       style={{
         position: 'fixed',
