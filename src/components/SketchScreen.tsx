@@ -661,7 +661,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#f0f0f0' }}>
 
       {/* Barres en haut — dans le flux normal */}
-      <div data-bars ref={barsRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: '#fff' }}>
+      <div data-bars ref={barsRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 210, background: '#fff' }}>
         <Topbar
           drawingName={drawingName}
           canUndo={canUndo}

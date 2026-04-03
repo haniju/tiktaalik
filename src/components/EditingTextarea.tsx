@@ -21,18 +21,22 @@ export const EditingTextarea = React.memo(function EditingTextarea(
     return { x: s?.x() ?? 0, y: s?.y() ?? 0 };
   });
 
-  // Repositionne le stage pour que la textbox soit visible au-dessus du clavier
+  // Repositionne le stage pour centrer la textbox dans la zone exploitable (entre barres et clavier)
   const adjustForKeyboard = useCallback(() => {
     const stage = stageRef.current;
     const vv = window.visualViewport;
     if (!stage || !vv) return;
+    // Seulement quand le clavier est ouvert (vv.height < 70% de la hauteur totale)
+    if (vv.height > window.innerHeight * 0.7) return;
     const sc = stage.scaleX();
-    // Position écran du haut de la textbox avec le stage actuel
-    const currentScreenTop = topOffset + textBox.y * sc + stage.y();
-    // Seulement re-pan si la textbox est trop proche ou derrière le clavier (< 80px de marge)
-    if (currentScreenTop < vv.height - 80) return;
-    // Placer le haut de la textbox à 8px sous les barres
-    const newY = 8 - textBox.y * sc;
+    // Hauteur réelle des barres mesurée dans le DOM (topbar + drawingbar + ContextToolbar ouverte)
+    const barsEl = document.querySelector('[data-bars]');
+    const barsBottom = barsEl ? barsEl.getBoundingClientRect().bottom : topOffset;
+    const availableH = vv.height - barsBottom;
+    if (availableH <= 0) return;
+    // Centrer la textbox dans la zone exploitable
+    const targetScreenTop = barsBottom + availableH / 2;
+    const newY = targetScreenTop - topOffset - textBox.y * sc;
     stage.y(newY);
     stage.batchDraw();
     setSp({ x: stage.x(), y: newY });
