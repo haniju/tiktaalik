@@ -244,7 +244,18 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setTbStateWithLogRef.current(next, 'handleTapById');
     if (next.kind !== 'idle') {
       const tb = textLayers.find(t => t.id === tbId);
-      if (tb) centerViewOnRef.current(tb.x + tb.width / 2, tb.y + tbH / 2);
+      if (tb) {
+        if (next.kind === 'editing') {
+          const stage = stageRef.current;
+          if (stage) {
+            const sc = stage.scaleX();
+            stage.position({ x: 20 - tb.x * sc, y: 20 - tb.y * sc });
+            stage.batchDraw();
+          }
+        } else {
+          centerViewOnRef.current(tb.x + tb.width / 2, tb.y + tbH / 2);
+        }
+      }
       setContextPanel('text');
     }
   }, [setLayers, setSelection, setContextPanel]);
@@ -588,7 +599,16 @@ export function SketchScreen({ drawing, onBack }: Props) {
         setTbStateWithLog(next, 'handleMouseUp:tap');
         if (next.kind !== 'idle') {
           const tbH = heights.get(hitTb.id) ?? estimateTextHeight(hitTb);
-          centerViewOn(hitTb.x + hitTb.width / 2, hitTb.y + tbH / 2);
+          if (next.kind === 'editing') {
+            const stage = stageRef.current;
+            if (stage) {
+              const sc = stage.scaleX();
+              stage.position({ x: 20 - hitTb.x * sc, y: 20 - hitTb.y * sc });
+              stage.batchDraw();
+            }
+          } else {
+            centerViewOn(hitTb.x + hitTb.width / 2, hitTb.y + tbH / 2);
+          }
           setContextPanel('text');
         }
       } else {
