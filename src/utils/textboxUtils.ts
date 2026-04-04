@@ -1,4 +1,4 @@
-import { TextBox } from '../types';
+import { TextBox, TextLayer, Drawing, DrawLayer } from '../types';
 
 // ─── Dimensions ────────────────────────────────────────────────────────────
 
@@ -207,4 +207,30 @@ export function exitState(
 ): TextBoxSelectionState {
   if (current.kind === 'idle') return current;
   return { kind: 'idle' };
+}
+
+// ─── Factory & migration ────────────────────────────────────────────────────
+
+export const makeTextLayer = (id: string, x: number, y: number): TextLayer => ({
+  tool: 'text',
+  id, x, y,
+  width: 340,
+  text: '', fontSize: 24, fontFamily: 'Arial', fontStyle: 'normal',
+  textDecoration: '', align: 'left', verticalAlign: 'top',
+  color: '#000000', background: '', opacity: 1, padding: 8,
+});
+
+export function migrateLayers(drawing: Drawing): DrawLayer[] {
+  let layers: DrawLayer[] = drawing.layers ?? [
+    ...(drawing.strokes ?? []),
+    ...(drawing.airbrushStrokes ?? []),
+  ];
+  // Legacy textBoxes séparées (avant v1.3)
+  if (drawing.textBoxes && drawing.textBoxes.length > 0) {
+    const alreadyMigrated = layers.some(l => l.tool === 'text');
+    if (!alreadyMigrated) {
+      layers = [...layers, ...drawing.textBoxes.map(tb => ({ ...tb, tool: 'text' as const }))];
+    }
+  }
+  return layers;
 }
