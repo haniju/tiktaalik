@@ -3,13 +3,10 @@ import { Icon } from './Icon';
 
 interface Props {
   canvasMode: CanvasMode;
-  isDirty: boolean;
-  isSaving: boolean;
   onSetMode: (mode: CanvasMode) => void;
-  onSave: () => void;
 }
 
-export function ActionFABs({ canvasMode, isDirty, isSaving, onSetMode, onSave }: Props) {
+export function ActionFABs({ canvasMode, onSetMode }: Props) {
   return (
     <div data-fabs style={styles.root}>
       {/* Mode select */}
@@ -28,16 +25,6 @@ export function ActionFABs({ canvasMode, isDirty, isSaving, onSetMode, onSave }:
         title="Déplacer"
       >
         <Icon name="drag" size={20} style={{ opacity: canvasMode === 'move' ? 0.9 : 0.6 }} />
-      </button>
-
-      {/* Sauvegarde */}
-      <button
-        style={{ ...styles.fab, ...(isDirty ? styles.fabDirty : styles.fabClean) }}
-        onClick={onSave}
-        disabled={isSaving}
-        title="Sauvegarder"
-      >
-        <Icon name="save" size={20} />
       </button>
     </div>
   );
@@ -66,11 +53,5 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fabActive: {
     background: '#333',
-  },
-  fabDirty: {
-    background: '#e63946',
-  },
-  fabClean: {
-    background: '#aaa',
   },
 };

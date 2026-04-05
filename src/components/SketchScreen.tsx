@@ -400,10 +400,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
       <ActionFABs
         canvasMode={toolState.canvasMode}
-        isDirty={isDirty}
-        isSaving={isSaving}
         onSetMode={handleSetCanvasMode}
-        onSave={handleSave}
       />
     </div>
   );
