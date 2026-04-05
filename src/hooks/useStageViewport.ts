@@ -16,6 +16,7 @@ interface UseStageViewportReturn {
   TOPBAR_H: number;
   DRAWINGBAR_H: number;
   centerViewOn: (cx: number, cy: number, immediate?: boolean) => void;
+  zoomTo: (pct: number) => void;
 }
 
 export function useStageViewport(): UseStageViewportReturn {
@@ -64,5 +65,19 @@ export function useStageViewport(): UseStageViewportReturn {
     }
   }, [stageSize.width, canvasH]);
 
-  return { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn };
+  // Zoom centré sur le milieu de la zone canvas visible
+  const zoomTo = useCallback((pct: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const ns = pct / 100;
+    const sc = stage.scaleX();
+    const cx = (stageSize.width / 2 - stage.x()) / sc;
+    const cy = (canvasH / 2 - stage.y()) / sc;
+    stage.scale({ x: ns, y: ns });
+    stage.position({ x: stageSize.width / 2 - cx * ns, y: canvasH / 2 - cy * ns });
+    stage.batchDraw();
+    setZoomPct(Math.round(ns * 100));
+  }, [stageSize.width, canvasH]);
+
+  return { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn, zoomTo };
 }

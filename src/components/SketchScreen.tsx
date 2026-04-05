@@ -21,6 +21,7 @@ import { SelectionPanel } from './SelectionPanel';
 import { ActionFABs } from './ActionFABs';
 import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
+import { ZoomSlider } from './ZoomSlider';
 
 // Version de l'application (source unique : package.json)
 const APP_VERSION = __APP_VERSION__;
@@ -84,7 +85,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   selectionRef.current = selection;
 
   // ─── Viewport ─────────────────────────────────────────────────────────────
-  const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn } = useStageViewport();
+  const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn, zoomTo } = useStageViewport();
   const centerViewOnRef = useRef(centerViewOn);
   centerViewOnRef.current = centerViewOn;
 
@@ -352,17 +353,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
           />
         </Stage>
 
-        {/* Badge zoom */}
-        <div style={{
-          position: 'absolute', bottom: 12, right: 12,
-          background: 'rgba(0,0,0,0.55)', color: '#fff',
-          fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
-          padding: '4px 10px', borderRadius: 20,
-          pointerEvents: 'none', zIndex: 10,
-        }}>
-          {zoomPct} %
-        </div>
-
         {/* Badge version */}
         <div style={{
           position: 'absolute', top: 12, left: 12,
@@ -405,6 +395,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
           {` | action=${lastAction}`}
         </div>
       )}
+
+      <ZoomSlider value={zoomPct} onChange={zoomTo} />
 
       <ActionFABs
         canvasMode={toolState.canvasMode}

@@ -82,10 +82,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const lastAirbrushPt = useRef<{ x: number; y: number } | null>(null);
   const isPanning = useRef(false);
   const panStart = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
-  const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
   const pendingTextboxRef = useRef<{ x: number; y: number } | null>(null);
-  const pinchPendingRef = useRef(false);
-  const pinchPendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
   const dragJustEndedRef = useRef(false);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
@@ -116,35 +113,6 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
             activeColor, activeWidth } = p.current;
     const stage = stageRef.current!;
     const toolState = toolStateRef.current;
-
-    // Pinch zoom : 2 doigts détectés → ignorer le dessin
-    if (e.evt instanceof TouchEvent && e.evt.touches.length === 2) {
-      // Annuler tout ce qui aurait pu commencer avec le 1er doigt
-      pinchPendingRef.current = false;
-      if (pinchPendingTimerRef.current) { clearTimeout(pinchPendingTimerRef.current); pinchPendingTimerRef.current = null; }
-      const t1 = e.evt.touches[0], t2 = e.evt.touches[1];
-      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const midX = (t1.clientX + t2.clientX) / 2;
-      const midY = (t1.clientY + t2.clientY) / 2;
-      pinchRef.current = { dist, midX, midY };
-      isDrawing.current = false;
-      isErasing.current = false;
-      setCurrentStroke(null);
-      setCurrentAirbrush(null);
-      return;
-    }
-
-    // 1 seul doigt touch : marquer "pinch pending" pendant 80ms
-    // Si un 2ème doigt arrive dans ce délai, on ignore l'action du 1er doigt
-    if (e.evt instanceof TouchEvent && e.evt.touches.length === 1) {
-      pinchPendingRef.current = true;
-      if (pinchPendingTimerRef.current) clearTimeout(pinchPendingTimerRef.current);
-      pinchPendingTimerRef.current = setTimeout(() => {
-        pinchPendingRef.current = false;
-        pinchPendingTimerRef.current = null;
-      }, 80);
-      // On continue le traitement normal — si un 2ème doigt arrive il annulera via le guard ci-dessus
-    }
 
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
@@ -288,28 +256,6 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const stage = stageRef.current!;
     const toolState = toolStateRef.current;
 
-    // Pinch zoom en cours
-    if (pinchRef.current && e.evt instanceof TouchEvent && e.evt.touches.length === 2) {
-      const t1 = e.evt.touches[0], t2 = e.evt.touches[1];
-      const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const newMidX = (t1.clientX + t2.clientX) / 2;
-      const newMidY = (t1.clientY + t2.clientY) / 2;
-      const ratio = newDist / pinchRef.current.dist;
-      const os = stage.scaleX();
-      const ns = Math.max(0.2, Math.min(40, os * ratio));
-      // Point pivot = milieu des 2 doigts
-      const stageBox = stage.container().getBoundingClientRect();
-      const px = newMidX - stageBox.left;
-      const py = newMidY - stageBox.top;
-      const mpt = { x: (px - stage.x()) / os, y: (py - stage.y()) / os };
-      stage.scale({ x: ns, y: ns });
-      stage.position({ x: px - mpt.x * ns, y: py - mpt.y * ns });
-      stage.batchDraw();
-      setZoomPct(Math.round(ns * 100));
-      pinchRef.current = { dist: newDist, midX: newMidX, midY: newMidY };
-      return;
-    }
-
     if (editingTextIdRef.current) return;
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
@@ -403,14 +349,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
             setTbStateWithLogRef, centerViewOnRef, addTextBox, pushUndo, scheduleSave } = p.current;
     const toolState = toolStateRef.current;
 
-    // Lire avant reset : pinchRef non-null = un pinch était en cours
-    const wasPinch = pinchRef.current !== null;
-    pinchRef.current = null;
-
-    // Créer la textbox si c'était un vrai tap (pas un pinch)
+    // Créer la textbox si c'était un vrai tap.
     // Guard : vérifier qu'on ne tape pas sur une textbox existante (race condition touch :
     // handleMouseUp se déclenche AVANT handleTap sur mobile)
-    if (pendingTextboxRef.current && !wasPinch) {
+    if (pendingTextboxRef.current) {
       const { x, y } = pendingTextboxRef.current;
       pendingTextboxRef.current = null;
       const textLayers = layersRef.current.filter((l): l is TextLayer => l.tool === 'text');
@@ -557,8 +499,6 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       return;
     }
     if (ts.activeTool !== 'text') return;
-    if (pinchPendingRef.current && e.evt instanceof TouchEvent) return;
-
     const now = Date.now();
     const elapsed = lastTapRef.current?.id === tbId ? now - lastTapRef.current.time : Infinity;
     if (elapsed < 80) return;
