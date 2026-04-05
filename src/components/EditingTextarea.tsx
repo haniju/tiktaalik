@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef } from 'react';
 import Konva from 'konva';
 import { TextBox, TextLayer } from '../types';
 
@@ -16,57 +16,13 @@ export const EditingTextarea = React.memo(function EditingTextarea(
 ): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // sp reflète la position du stage Konva — mis à jour quand le clavier virtuel s'ouvre
-  const [sp, setSp] = useState(() => {
-    const s = stageRef.current;
-    return { x: s?.x() ?? 0, y: s?.y() ?? 0 };
-  });
-
-  // Repositionne le stage pour centrer la textbox dans la zone exploitable (entre barres et clavier)
-  const adjustForKeyboard = useCallback(() => {
-    const stage = stageRef.current;
-    const vv = window.visualViewport;
-    if (!stage || !vv) return;
-    // Seulement quand le clavier est ouvert (vv.height < 70% de la hauteur totale)
-    if (vv.height > window.innerHeight * 0.7) return;
-    const sc = stage.scaleX();
-    // offsetHeight : hauteur intrinsèque des barres, indépendante de vv.offsetTop
-    const barsEl = document.querySelector('[data-bars]') as HTMLElement | null;
-    const barsHeight = barsEl ? barsEl.offsetHeight : topOffset;
-    const availableH = vv.height - barsHeight;
-    if (availableH <= 0) return;
-    // targetScreenTop en coordonnées layout viewport (vv.offsetTop + barres + zone/2)
-    // Nécessaire car position:fixed se positionne dans le layout viewport, pas le visual
-    const targetScreenTop = vv.offsetTop + barsHeight + availableH / 2;
-    const newY = targetScreenTop - topOffset - textBox.y * sc;
-    stage.y(newY);
-    stage.batchDraw();
-    setSp({ x: stage.x(), y: newY });
-  }, [stageRef, textBox.y, topOffset]);
-
-  // Vérifier au montage si le clavier est déjà ouvert (passage editing → editing d'une autre box)
-  useEffect(() => {
-    adjustForKeyboard();
-  }, [adjustForKeyboard]);
-
-  // Écouter l'ouverture du clavier et les décalages de viewport (vv.offsetTop)
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    vv.addEventListener('resize', adjustForKeyboard);
-    vv.addEventListener('scroll', adjustForKeyboard);
-    return () => {
-      vv.removeEventListener('resize', adjustForKeyboard);
-      vv.removeEventListener('scroll', adjustForKeyboard);
-    };
-  }, [adjustForKeyboard]);
-
-  const stage = stageRef.current;
-  const sc = stage?.scaleX() ?? 1;
-
-  // Coordonnées écran : décalage du canvas div (topOffset) + position Konva (via sp state)
-  const screenLeft = textBox.x * sc + sp.x;
-  const screenTop = topOffset + textBox.y * sc + sp.y;
+  // Position stable : le stage a été repositionné avant le montage pour que
+  // le coin haut-gauche de la TB soit à (20px, 20px) dans le canvas div.
+  // → left = 20, top = topOffset + 20.
+  // Pas de state, pas de re-render de position → évite le blur Android (point 1)
+  // et le feedback loop vv.resize → setSp → re-render → vv.resize (point 2).
+  // Au exit editing le stage reste à cette position → TB reste en haut (point 4).
+  const sc = stageRef.current?.scaleX() ?? 1;
 
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -99,8 +55,8 @@ export const EditingTextarea = React.memo(function EditingTextarea(
       }}
       style={{
         position: 'fixed',
-        left: screenLeft,
-        top: screenTop,
+        left: 20,
+        top: topOffset + 20,
         width: textBox.width * sc,
         minWidth: 80 * sc,
         minHeight: 40,

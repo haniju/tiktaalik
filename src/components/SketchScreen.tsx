@@ -365,7 +365,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
         {/* Badge version */}
         <div style={{
-          position: 'absolute', bottom: 12, left: 12,
+          position: 'absolute', top: 12, left: 12,
           background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.7)',
           fontSize: 11, fontWeight: 500, letterSpacing: 0.2,
           padding: '4px 10px', borderRadius: 20,

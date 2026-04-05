@@ -14,3 +14,4 @@ deploy.sh
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+readme.txt
