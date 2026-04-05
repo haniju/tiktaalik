@@ -236,6 +236,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     if (toolState.activeTool === 'airbrush') {
       const radius = activeWidth * AIRBRUSH_CONFIG.radiusMultiplier;
       const ab: AirbrushStroke = { id: uuidv4(), tool: 'airbrush', color: activeColor, radius, centerOpacity: AIRBRUSH_CONFIG.centerOpacity, points: [{ x: pos.x, y: pos.y }] };
+      // Mise à jour directe du ref : handleMouseUp peut arriver avant le re-render (tap court)
+      currentAirbrushRef.current = ab;
       setCurrentAirbrush(ab);
       lastAirbrushPt.current = pos;
       isDrawing.current = true;
@@ -246,7 +248,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (editingTextIdRef.current) exitEditing();
       const opacity = toolState.activeTool === 'marker' ? 0.4 : 1;
       const w = toolState.activeTool === 'marker' ? activeWidth * 4 : activeWidth;
-      setCurrentStroke({ id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y] });
+      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y] };
+      // Mise à jour directe du ref : handleMouseUp peut arriver avant le re-render (tap court)
+      currentStrokeRef.current = stroke;
+      setCurrentStroke(stroke);
       isDrawing.current = true;
     }
   }, [eraseAt]);
