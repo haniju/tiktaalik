@@ -119,11 +119,11 @@ The app version from `package.json` is injected at build time as the global `__A
 - Playwright demo test stubs (`e2e/example.spec.ts`, `tests/example.spec.ts`) fail in Vitest — pre-existing, not real tests
 - Pinch zoom while textarea is focused exits editing (first touch fires handleMouseDown before second touch confirms pinch) — known limitation, deferred
 
-## Refactoring in Progress — branch `refactor/sketchscreen-decomp`
+## Refactoring Phase 1 — COMPLETE — branch `refactor/sketchscreen-decomp`
 
-Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines). Protocol: one step at a time, one commit per step, PO validation between steps.
+Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → 418 lines). Awaiting PO validation before merge to main.
 
-**Completed:**
+**All steps completed:**
 - Step 0: `DEBUG` overlay, `setTbStateWithLog` wrapper
 - Step 1: fix recursive `scheduleSave`
 - Step 2: extract `ResizeHandle` → `src/components/ResizeHandle.tsx`
@@ -131,6 +131,9 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines). Protocol: one step at a
 - Step 4: extract `useUndoRedo` → `src/hooks/useUndoRedo.ts`
 - Step 5: extract `useStageViewport` → `src/hooks/useStageViewport.ts`
 - Step 6: extract `EditingTextarea` → `src/components/EditingTextarea.tsx`
+- Step 7: extract `TextBoxKonva` → `src/components/TextBoxKonva.tsx`
+- Step 8: extract `DrawingLayer` → `src/components/DrawingLayer.tsx`; move `makeTextLayer`/`migrateLayers` to `textboxUtils.ts`
+- Step 9: extract `useCanvasGestures` → `src/hooks/useCanvasGestures.ts` (all gesture refs + handlers, paramsRef pattern)
 
 **Bug fixes landed on this branch (not yet on main):**
 - `autosave`: saveNowRef pattern — timer no longer cancelled on every render
@@ -139,12 +142,7 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines). Protocol: one step at a
 - `handleMouseUp` → `handleTap`: dragJustEndedRef guards synthetic tap after drag
 - `handleTap`: onTap+onClick double-fire guard (elapsed < 80ms → early return)
 - `handleTap`: tbStateRef.current instead of stale tbState closure
-- `EditingTextarea`: getBoundingClientRect() for correct position at all zoom levels
-
-**Pending (steps 7–9):**
-- Step 7: extract `TextBoxKonva` component
-- Step 8: extract `DrawingLayer` component
-- Step 9 (highest risk): extract `useCanvasGestures` hook
+- `EditingTextarea`: position fixe (left:20, top:topOffset+20) — supprime adjustForKeyboard et le feedback loop vv.resize
 
 ## Do Not
 
@@ -154,7 +152,7 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines). Protocol: one step at a
 - Do not break the TextBoxSelectionState state machine by adding separate boolean flags
 - Do not put `canvasBackground` back into `useToolState` — it is per-Drawing state
 
-## Active Bugs (v1.3.0)
+## Active Bugs (v1.4.0)
 
 ### Critical
 - [ ] Draw mode: secondary toolbar (DrawingSecondaryToolbar) does not open when selecting pen/marker/airbrush
@@ -163,6 +161,28 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines). Protocol: one step at a
 - [ ] Individual deselect/delete in level-2 selection not working
 - [ ] Cannot drag-move a selected object on canvas
 
-### Text Tool (under investigation on refactor/sketchscreen-decomp)
+### Text Tool
 - [ ] Toolbar text panel blur guard (data-text-panel) ineffective on mobile — keyboard pushes toolbar off-screen when editing starts
-- [ ] double-tap reliability to be validated after fixes in steps 6 debug session
+- [ ] TB content hidden behind keyboard when text exceeds visible area (point 3 — deferred)
+
+## Architecture cible — Phase 2 (ne pas implémenter avant décision explicite)
+
+### Librairie : Jotai + atomWithReducer
+`npm install jotai`
+
+### Deux machines d'état explicites à implémenter
+
+**textToolState** : `'inactive' | 'initial' | 'active'`
+- Actuellement écrasé dans `idle` de tbState
+- Chaque état du gesture map doit correspondre à un cas de cette machine
+
+**tbState** : `'idle' | 'not-selected' | 'selected' | 'editing'`
+- Actuellement `idle` couvre deux cas distincts
+- La distinction inactive/initial sera corrigée ici
+
+### Hooks cibles
+- `useTextToolState` avec `atomWithReducer`
+- `useDrawingLayers` avec `atom` Jotai
+
+### Référence
+Chaque ligne du gesture map spec correspond à une action nommée du reducer.
