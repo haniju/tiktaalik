@@ -249,7 +249,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (editingTextIdRef.current) exitEditing();
       const opacity = toolState.activeTool === 'marker' ? 0.4 : 1;
       const w = toolState.activeTool === 'marker' ? activeWidth * 4 : activeWidth;
-      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y] };
+      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x, pos.y] };
       // Mise à jour directe du ref : handleMouseUp peut arriver avant le re-render (tap court)
       currentStrokeRef.current = stroke;
       setCurrentStroke(stroke);
