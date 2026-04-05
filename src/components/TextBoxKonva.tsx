@@ -50,6 +50,7 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         fontSize={tb.fontSize} fontFamily={tb.fontFamily} fontStyle={tb.fontStyle}
         textDecoration={tb.textDecoration} align={tb.align} verticalAlign={tb.verticalAlign}
         fill={tb.color} opacity={tb.opacity} padding={tb.padding}
+        lineHeight={1.4}
         wrap="word"
         listening={false}
       />
