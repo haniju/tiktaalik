@@ -15,7 +15,7 @@ interface UseStageViewportReturn {
   canvasH: number;
   TOPBAR_H: number;
   DRAWINGBAR_H: number;
-  centerViewOn: (cx: number, cy: number, immediate?: boolean) => void;
+  centerViewOn: (cx: number, cy: number, immediate?: boolean, topOffsetPx?: number) => void;
   zoomTo: (pct: number) => void;
 }
 
@@ -47,16 +47,19 @@ export function useStageViewport(): UseStageViewportReturn {
   }, []); // stageRef/setZoomPct sont stables, le tableau vide est intentionnel
 
   // Translate le Stage pour centrer (cx, cy) dans la zone visible — zoom inchangé
-  const centerViewOn = useCallback((cx: number, cy: number, immediate = false) => {
+  // topOffsetPx : pixels supplémentaires occupés en haut (ex. text toolbar) à exclure du centre visible
+  const centerViewOn = useCallback((cx: number, cy: number, immediate = false, topOffsetPx = 0) => {
     const stage = stageRef.current;
     if (!stage) return;
     const sc = stage.scaleX();
+    const effectiveH = canvasH - topOffsetPx;
+    const centerY = topOffsetPx + effectiveH / 2;
     const visibleCx = (stageSize.width / 2 - stage.x()) / sc;
-    const visibleCy = (canvasH / 2 - stage.y()) / sc;
-    const threshold = Math.min(stageSize.width, canvasH) * 0.2 / sc;
+    const visibleCy = (centerY - stage.y()) / sc;
+    const threshold = Math.min(stageSize.width, effectiveH) * 0.2 / sc;
     if (Math.hypot(cx - visibleCx, cy - visibleCy) < threshold) return;
     const newX = stageSize.width / 2 - cx * sc;
-    const newY = canvasH / 2 - cy * sc;
+    const newY = centerY - cy * sc;
     if (immediate) {
       stage.position({ x: newX, y: newY });
       stage.batchDraw();

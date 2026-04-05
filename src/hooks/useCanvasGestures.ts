@@ -21,7 +21,8 @@ export interface UseCanvasGesturesParams {
   editingCreatedAtRef: React.MutableRefObject<number>;
   selectionRef: React.MutableRefObject<string[]>;
   setTbStateWithLogRef: React.MutableRefObject<(next: TextBoxSelectionState, source: string) => void>;
-  centerViewOnRef: React.MutableRefObject<(cx: number, cy: number, immediate?: boolean) => void>;
+  centerViewOnRef: React.MutableRefObject<(cx: number, cy: number, immediate?: boolean, topOffsetPx?: number) => void>;
+  barsRef: React.RefObject<HTMLDivElement>;
   setLayers: React.Dispatch<React.SetStateAction<DrawLayer[]>>;
   setSelection: React.Dispatch<React.SetStateAction<string[]>>;
   setContextPanel: React.Dispatch<React.SetStateAction<ContextPanel>>;
@@ -379,15 +380,12 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         setTbStateWithLogRef.current(next, 'handleMouseUp:tap');
         if (next.kind !== 'idle') {
           const tbH = heights.get(hitTb.id) ?? estimateTextHeight(hitTb);
-          if (next.kind === 'editing') {
-            const stage = stageRef.current;
-            if (stage) {
-              const sc = stage.scaleX();
-              stage.position({ x: 20 - hitTb.x * sc, y: 20 - hitTb.y * sc });
-              stage.batchDraw();
-            }
-          } else {
-            centerViewOnRef.current(hitTb.x + hitTb.width / 2, hitTb.y + tbH / 2);
+          const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
+          const stage = stageRef.current;
+          if (stage) {
+            const sc = stage.scaleX();
+            stage.position({ x: 20 - hitTb.x * sc, y: barsH + 20 - hitTb.y * sc });
+            stage.batchDraw();
           }
           setContextPanel('text');
         }
@@ -540,15 +538,12 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     if (next.kind !== 'idle') {
       const tb = textLayers.find(t => t.id === tbId);
       if (tb) {
-        if (next.kind === 'editing') {
-          const s = stageRef.current;
-          if (s) {
-            const sc = s.scaleX();
-            s.position({ x: 20 - tb.x * sc, y: 20 - tb.y * sc });
-            s.batchDraw();
-          }
-        } else {
-          centerViewOnRef.current(tb.x + tb.width / 2, tb.y + tbH / 2);
+        const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
+        const s = stageRef.current;
+        if (s) {
+          const sc = s.scaleX();
+          s.position({ x: 20 - tb.x * sc, y: barsH + 20 - tb.y * sc });
+          s.batchDraw();
         }
       }
       setContextPanel('text');
