@@ -1,12 +1,19 @@
 import { CanvasMode } from '../types';
 import { Icon } from './Icon';
 
+const MIN_ZOOM = 30;
+const MAX_ZOOM = 400;
+
 interface Props {
   canvasMode: CanvasMode;
+  zoomPct: number;
   onSetMode: (mode: CanvasMode) => void;
+  onZoomChange: (pct: number) => void;
 }
 
-export function ActionFABs({ canvasMode, onSetMode }: Props) {
+export function ActionFABs({ canvasMode, zoomPct, onSetMode, onZoomChange }: Props) {
+  const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomPct));
+
   return (
     <div data-fabs style={styles.root}>
       {/* Mode select */}
@@ -17,6 +24,15 @@ export function ActionFABs({ canvasMode, onSetMode }: Props) {
       >
         <Icon name="select" size={20} style={{ opacity: canvasMode === 'select' ? 0.9 : 0.6 }} />
       </button>
+
+      {/* Zoom slider */}
+      <div style={styles.zoomContainer}>
+        <span style={styles.zoomLabel}>{clamped}%</span>
+        <input type="range" min={MIN_ZOOM} max={MAX_ZOOM} step={5}
+          value={clamped}
+          onChange={e => onZoomChange(Number(e.target.value))}
+          style={styles.zoomSlider} />
+      </div>
 
       {/* Mode move */}
       <button
@@ -38,7 +54,8 @@ const styles: Record<string, React.CSSProperties> = {
     bottom: 16,
     display: 'flex',
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
     zIndex: 100,
   },
   fab: {
@@ -50,8 +67,30 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#fff',
     boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
     transition: 'background 0.15s',
+    flexShrink: 0,
   },
   fabActive: {
     background: '#333',
+  },
+  zoomContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    padding: '6px 12px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.13)',
+  },
+  zoomLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#444',
+    minWidth: 34,
+    textAlign: 'right' as const,
+  },
+  zoomSlider: {
+    width: 120,
+    cursor: 'pointer',
+    accentColor: '#118ab2',
   },
 };

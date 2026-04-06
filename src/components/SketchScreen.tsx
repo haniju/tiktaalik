@@ -21,7 +21,7 @@ import { SelectionPanel } from './SelectionPanel';
 import { ActionFABs } from './ActionFABs';
 import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
-import { ZoomSlider } from './ZoomSlider';
+
 
 // Version de l'application (source unique : package.json)
 const APP_VERSION = __APP_VERSION__;
@@ -411,11 +411,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
         </div>
       )}
 
-      <ZoomSlider value={zoomPct} onChange={zoomTo} />
-
       <ActionFABs
         canvasMode={toolState.canvasMode}
+        zoomPct={zoomPct}
         onSetMode={handleSetCanvasMode}
+        onZoomChange={zoomTo}
       />
     </div>
   );
