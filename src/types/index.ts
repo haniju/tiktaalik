@@ -8,6 +8,7 @@ export interface ToolState {
   toolColors: Record<DrawingTool, string>;
   toolWidths: Record<DrawingTool, number>;
   toolOpacities: Record<DrawingTool, number>;
+  airbrushEdgeOpacity: number;
 }
 
 // Alias pour compatibilité avec le code existant
@@ -28,6 +29,7 @@ export interface AirbrushStroke {
   color: string;
   radius: number;
   centerOpacity: number;
+  edgeOpacity: number;
   points: Array<{ x: number; y: number }>;
 }
 

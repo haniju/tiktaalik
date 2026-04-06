@@ -7,15 +7,17 @@ interface Props {
   color: string;
   width: number;
   opacity: number;
+  airbrushEdgeOpacity: number;
   onColorChange: (color: string) => void;
   onWidthChange: (width: number) => void;
   onOpacityChange: (opacity: number) => void;
+  onAirbrushEdgeOpacityChange: (opacity: number) => void;
 }
 
 const SIZES = [1, 2, 4, 7, 11, 18, 28];
 const PRESET_COLORS = ['#e63946', '#ff6b35', '#ffd166', '#06d6a0', '#118ab2', '#9b5de5'];
 
-export function DrawingPanel({ tool, color, width, opacity, onColorChange, onWidthChange, onOpacityChange }: Props) {
+export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity, onColorChange, onWidthChange, onOpacityChange, onAirbrushEdgeOpacityChange }: Props) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -50,7 +52,7 @@ export function DrawingPanel({ tool, color, width, opacity, onColorChange, onWid
         </button>
       </div>
 
-      {/* Opacité — affiché pour le marker */}
+      {/* Opacité — marker : 1 slider, airbrush : 2 sliders (centre + bord) */}
       {tool === 'marker' && (
         <div style={styles.opacityRow}>
           <span style={styles.opacityLabel}>Opacité</span>
@@ -61,6 +63,24 @@ export function DrawingPanel({ tool, color, width, opacity, onColorChange, onWid
           <span style={styles.opacityValue}>{Math.round(opacity * 100)}%</span>
         </div>
       )}
+      {tool === 'airbrush' && (<>
+        <div style={styles.opacityRow}>
+          <span style={styles.opacityLabel}>Centre</span>
+          <input type="range" min={5} max={100} step={5}
+            value={Math.round(opacity * 100)}
+            onChange={e => onOpacityChange(+e.target.value / 100)}
+            style={styles.opacitySlider} />
+          <span style={styles.opacityValue}>{Math.round(opacity * 100)}%</span>
+        </div>
+        <div style={styles.opacityRow}>
+          <span style={styles.opacityLabel}>Bord</span>
+          <input type="range" min={0} max={100} step={5}
+            value={Math.round(airbrushEdgeOpacity * 100)}
+            onChange={e => onAirbrushEdgeOpacityChange(+e.target.value / 100)}
+            style={styles.opacitySlider} />
+          <span style={styles.opacityValue}>{Math.round(airbrushEdgeOpacity * 100)}%</span>
+        </div>
+      </>)}
 
       {expanded && (
         <HslColorPicker color={color} onChange={onColorChange} />

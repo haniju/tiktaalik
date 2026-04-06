@@ -8,7 +8,8 @@ const DEFAULT_STATE: ToolState = {
   canvasMode: 'draw',
   toolColors: { airbrush: '#e63946', pen: '#000000', marker: '#2196f3' },
   toolWidths: { airbrush: 10, pen: 5, marker: 10 },
-  toolOpacities: { airbrush: 1, pen: 1, marker: 0.4 },
+  toolOpacities: { airbrush: 0.7, pen: 1, marker: 0.4 },
+  airbrushEdgeOpacity: 0,
 };
 
 function loadPersisted(): Partial<ToolState> {
@@ -24,6 +25,7 @@ function persist(state: ToolState) {
       toolColors: state.toolColors,
       toolWidths: state.toolWidths,
       toolOpacities: state.toolOpacities,
+      airbrushEdgeOpacity: state.airbrushEdgeOpacity,
     }));
   } catch {}
 }
@@ -37,6 +39,7 @@ export function useToolState() {
     toolColors: { ...DEFAULT_STATE.toolColors, ...persisted.toolColors },
     toolWidths: { ...DEFAULT_STATE.toolWidths, ...persisted.toolWidths },
     toolOpacities: { ...DEFAULT_STATE.toolOpacities, ...persisted.toolOpacities },
+    airbrushEdgeOpacity: persisted.airbrushEdgeOpacity ?? DEFAULT_STATE.airbrushEdgeOpacity,
   });
   const [contextPanel, setContextPanel] = useState<ContextPanel>(null);
 
@@ -116,6 +119,13 @@ export function useToolState() {
     });
   }, []);
 
+  const setAirbrushEdgeOpacity = useCallback((opacity: number) => {
+    setState(prev => {
+      const next = { ...prev, airbrushEdgeOpacity: opacity };
+      persist(next); return next;
+    });
+  }, []);
+
   const activeColor = state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool)
     ? state.toolColors[state.activeTool as DrawingTool] : '#000000';
   const activeWidth = state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool)
@@ -130,7 +140,7 @@ export function useToolState() {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, collapsePanel,
-    setToolColor, setToolWidth, setToolOpacity,
+    setToolColor, setToolWidth, setToolOpacity, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
     topbarMode, openPanel, setOpenPanel,
     setTopbarMode: setCanvasMode,

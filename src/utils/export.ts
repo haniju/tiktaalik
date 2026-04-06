@@ -11,7 +11,7 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
         const gradId = `ab_${li}_${pi}`;
         defs.push(`<radialGradient id="${gradId}" cx="50%" cy="50%" r="50%">
       <stop offset="0%" stop-color="${layer.color}" stop-opacity="${layer.centerOpacity}"/>
-      <stop offset="100%" stop-color="${layer.color}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="${layer.color}" stop-opacity="${layer.edgeOpacity ?? 0}"/>
     </radialGradient>`);
         elements.push(`<circle cx="${pt.x}" cy="${pt.y}" r="${layer.radius}" fill="url(#${gradId})"/>`);
       });
@@ -95,7 +95,7 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
         const radius = layer.radius * scale;
         const gradient = ctx.createRadialGradient(pt.x * scale, pt.y * scale, 0, pt.x * scale, pt.y * scale, radius);
         gradient.addColorStop(0, `rgba(${r},${g},${b},${layer.centerOpacity})`);
-        gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        gradient.addColorStop(1, `rgba(${r},${g},${b},${layer.edgeOpacity ?? 0})`);
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(pt.x * scale, pt.y * scale, radius, 0, Math.PI * 2);

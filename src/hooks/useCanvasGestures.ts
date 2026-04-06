@@ -236,7 +236,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (toolState.activeTool === 'airbrush') {
       const radius = activeWidth * AIRBRUSH_CONFIG.radiusMultiplier;
-      const ab: AirbrushStroke = { id: uuidv4(), tool: 'airbrush', color: activeColor, radius, centerOpacity: AIRBRUSH_CONFIG.centerOpacity, points: [{ x: pos.x, y: pos.y }] };
+      const ab: AirbrushStroke = { id: uuidv4(), tool: 'airbrush', color: activeColor, radius, centerOpacity: toolState.toolOpacities.airbrush, edgeOpacity: toolState.airbrushEdgeOpacity, points: [{ x: pos.x, y: pos.y }] };
       // Mise à jour directe du ref : handleMouseUp peut arriver avant le re-render (tap court)
       currentAirbrushRef.current = ab;
       setCurrentAirbrush(ab);

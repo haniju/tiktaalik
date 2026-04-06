@@ -50,7 +50,7 @@ export function AirbrushShape({ stroke }: Props) {
     for (const pt of stroke.points) {
       const gradient = raw.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, stroke.radius);
       gradient.addColorStop(0, `rgba(${r},${g},${b},${stroke.centerOpacity})`);
-      gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      gradient.addColorStop(1, `rgba(${r},${g},${b},${stroke.edgeOpacity ?? 0})`);
       raw.fillStyle = gradient;
       raw.beginPath();
       raw.arc(pt.x, pt.y, stroke.radius, 0, Math.PI * 2);

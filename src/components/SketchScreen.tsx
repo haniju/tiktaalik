@@ -45,7 +45,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, collapsePanel,
-    setToolColor, setToolWidth, setToolOpacity,
+    setToolColor, setToolWidth, setToolOpacity, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
   } = useToolState();
@@ -272,6 +272,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onSetToolColor={setToolColor}
           onSetToolWidth={setToolWidth}
           onSetToolOpacity={setToolOpacity}
+          onSetAirbrushEdgeOpacity={setAirbrushEdgeOpacity}
           onSetBackground={setCanvasBackground}
           onUpdateTextBox={updateTextBox}
           onAddTextBox={() => {
