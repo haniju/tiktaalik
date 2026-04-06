@@ -46,12 +46,20 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
   }, []);
 
   const handleInstall = async () => {
-    const prompt = deferredPrompt.current;
-    if (!prompt) return;
-    await prompt.prompt();
-    const { outcome } = await prompt.userChoice;
-    if (outcome === 'accepted') setShowInstall(false);
-    deferredPrompt.current = null;
+    const p = deferredPrompt.current;
+    if (!p) { setShowInstall(false); return; }
+    try {
+      await p.prompt();
+      const { outcome } = await p.userChoice;
+      deferredPrompt.current = null;
+      if (outcome === 'accepted') setShowInstall(false);
+      // Si dismissed, un nouveau beforeinstallprompt sera émis par le navigateur
+    } catch {
+      // Fallback vieux Chrome : ouvrir le menu "Ajouter à l'écran d'accueil"
+      deferredPrompt.current = null;
+      setShowInstall(false);
+      alert('Pour installer : ouvre le menu du navigateur (⋮) puis "Ajouter à l\'écran d\'accueil"');
+    }
   };
 
   const handleNew = () => { const d = newDrawing(); onNew(d); };
