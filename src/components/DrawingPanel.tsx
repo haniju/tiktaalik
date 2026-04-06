@@ -6,14 +6,16 @@ interface Props {
   tool: DrawingTool;
   color: string;
   width: number;
+  opacity: number;
   onColorChange: (color: string) => void;
   onWidthChange: (width: number) => void;
+  onOpacityChange: (opacity: number) => void;
 }
 
 const SIZES = [1, 2, 4, 7, 11, 18, 28];
 const PRESET_COLORS = ['#e63946', '#ff6b35', '#ffd166', '#06d6a0', '#118ab2', '#9b5de5'];
 
-export function DrawingPanel({ color, width, onColorChange, onWidthChange }: Props) {
+export function DrawingPanel({ tool, color, width, opacity, onColorChange, onWidthChange, onOpacityChange }: Props) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -48,6 +50,18 @@ export function DrawingPanel({ color, width, onColorChange, onWidthChange }: Pro
         </button>
       </div>
 
+      {/* Opacité — affiché pour le marker */}
+      {tool === 'marker' && (
+        <div style={styles.opacityRow}>
+          <span style={styles.opacityLabel}>Opacité</span>
+          <input type="range" min={10} max={100} step={5}
+            value={Math.round(opacity * 100)}
+            onChange={e => onOpacityChange(+e.target.value / 100)}
+            style={styles.opacitySlider} />
+          <span style={styles.opacityValue}>{Math.round(opacity * 100)}%</span>
+        </div>
+      )}
+
       {expanded && (
         <HslColorPicker color={color} onChange={onColorChange} />
       )}
@@ -61,6 +75,8 @@ const styles: Record<string, React.CSSProperties> = {
   sizeBtn: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 2px', flex: 1, height: 44 },
   colorBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: 4, flex: 1, display: 'flex', justifyContent: 'center' },
   chevronBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: '4px 4px', display: 'flex', alignItems: 'center' },
-  expandedRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderTop: '1px solid #f0f0f0' },
-  expandLabel: { fontSize: 13, color: '#555' },
+  opacityRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', borderTop: '1px solid #f0f0f0' },
+  opacityLabel: { fontSize: 12, color: '#666', flexShrink: 0 },
+  opacitySlider: { flex: 1, cursor: 'pointer', accentColor: '#118ab2' },
+  opacityValue: { fontSize: 11, color: '#888', width: 34, textAlign: 'right' as const, flexShrink: 0 },
 };

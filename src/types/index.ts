@@ -7,6 +7,7 @@ export interface ToolState {
   canvasMode: CanvasMode;
   toolColors: Record<DrawingTool, string>;
   toolWidths: Record<DrawingTool, number>;
+  toolOpacities: Record<DrawingTool, number>;
 }
 
 // Alias pour compatibilité avec le code existant

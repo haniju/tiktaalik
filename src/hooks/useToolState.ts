@@ -8,6 +8,7 @@ const DEFAULT_STATE: ToolState = {
   canvasMode: 'draw',
   toolColors: { airbrush: '#e63946', pen: '#000000', marker: '#2196f3' },
   toolWidths: { airbrush: 10, pen: 5, marker: 10 },
+  toolOpacities: { airbrush: 1, pen: 1, marker: 0.4 },
 };
 
 function loadPersisted(): Partial<ToolState> {
@@ -22,6 +23,7 @@ function persist(state: ToolState) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       toolColors: state.toolColors,
       toolWidths: state.toolWidths,
+      toolOpacities: state.toolOpacities,
     }));
   } catch {}
 }
@@ -34,6 +36,7 @@ export function useToolState() {
     ...DEFAULT_STATE,
     toolColors: { ...DEFAULT_STATE.toolColors, ...persisted.toolColors },
     toolWidths: { ...DEFAULT_STATE.toolWidths, ...persisted.toolWidths },
+    toolOpacities: { ...DEFAULT_STATE.toolOpacities, ...persisted.toolOpacities },
   });
   const [contextPanel, setContextPanel] = useState<ContextPanel>(null);
 
@@ -106,6 +109,13 @@ export function useToolState() {
     });
   }, []);
 
+  const setToolOpacity = useCallback((tool: DrawingTool, opacity: number) => {
+    setState(prev => {
+      const next = { ...prev, toolOpacities: { ...prev.toolOpacities, [tool]: opacity } };
+      persist(next); return next;
+    });
+  }, []);
+
   const activeColor = state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool)
     ? state.toolColors[state.activeTool as DrawingTool] : '#000000';
   const activeWidth = state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool)
@@ -120,7 +130,7 @@ export function useToolState() {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, collapsePanel,
-    setToolColor, setToolWidth,
+    setToolColor, setToolWidth, setToolOpacity,
     activeColor, activeWidth,
     topbarMode, openPanel, setOpenPanel,
     setTopbarMode: setCanvasMode,
