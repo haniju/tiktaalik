@@ -23,7 +23,7 @@ export function DrawingPanel({ color, width, onColorChange, onWidthChange }: Pro
         {SIZES.map(s => (
           <button key={s} style={styles.sizeBtn} onClick={() => onWidthChange(s)}>
             <div style={{
-              width: Math.min(s * 2.4, 36), height: Math.min(s * 2.4, 36),
+              width: 6 + Math.sqrt((s - 1) / 27) * 32, height: 6 + Math.sqrt((s - 1) / 27) * 32,
               borderRadius: '50%', background: color,
               border: width === s ? '2.5px solid #222' : '2px solid transparent',
               boxSizing: 'border-box',
@@ -44,7 +44,7 @@ export function DrawingPanel({ color, width, onColorChange, onWidthChange }: Pro
           </button>
         ))}
         <button style={styles.chevronBtn} onClick={() => setExpanded(p => !p)}>
-          <img src={expanded ? '/icons/less.svg' : '/icons/more.svg'} width={20} height={20} alt="" />
+          <img src={expanded ? '/icons/more.svg' : '/icons/less.svg'} width={20} height={20} alt="" />
         </button>
       </div>
 
