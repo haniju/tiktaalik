@@ -27,7 +27,7 @@ export function ContextToolbar({
   return (
     <div data-bars style={{
       ...styles.root,
-      maxHeight: visible ? 120 : 0,
+      maxHeight: visible ? 300 : 0,
       opacity: visible ? 1 : 0,
       pointerEvents: visible ? 'auto' : 'none',
     }}>

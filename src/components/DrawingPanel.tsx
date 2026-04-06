@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DrawingTool } from '../types';
+import { HslColorPicker } from './HslColorPicker';
 
 interface Props {
   tool: DrawingTool;
@@ -48,14 +49,7 @@ export function DrawingPanel({ color, width, onColorChange, onWidthChange }: Pro
       </div>
 
       {expanded && (
-        <div style={styles.expandedRow}>
-          <span style={styles.expandLabel}>Couleur personnalisée</span>
-          <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: color, border: '2px solid #e8e8e8' }} />
-            <input type="color" value={color} onChange={e => onColorChange(e.target.value)}
-              style={{ width: 36, height: 36, border: 'none', borderRadius: 8, cursor: 'pointer', padding: 0 }} />
-          </label>
-        </div>
+        <HslColorPicker color={color} onChange={onColorChange} />
       )}
     </div>
   );
