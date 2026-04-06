@@ -5,15 +5,17 @@ interface Props {
   drawingName: string;
   canUndo: boolean;
   canRedo: boolean;
+  debug: boolean;
   onBack: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onExportSvg: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onToggleDebug: () => void;
 }
 
-export function Topbar({ drawingName, canUndo, canRedo, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete }: Props) {
+export function Topbar({ drawingName, canUndo, canRedo, debug, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete, onToggleDebug }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +53,21 @@ export function Topbar({ drawingName, canUndo, canRedo, onBack, onUndo, onRedo, 
           <div style={styles.dropdown}>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onExportSvg(); }}>Exporter en SVG</button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onRename(); }}>Renommer</button>
+            <button style={styles.dropdownItem} onClick={() => { onToggleDebug(); }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                Debug
+                <span style={{
+                  display: 'inline-block', width: 36, height: 20, borderRadius: 10,
+                  background: debug ? '#118ab2' : '#ccc', position: 'relative', transition: 'background 0.2s',
+                }}>
+                  <span style={{
+                    position: 'absolute', top: 2, left: debug ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }} />
+                </span>
+              </span>
+            </button>
             <button style={{ ...styles.dropdownItem, color: '#e63946' }} onClick={() => { setMenuOpen(false); onDelete(); }}>Supprimer</button>
           </div>
         )}

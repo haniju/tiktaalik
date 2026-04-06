@@ -26,7 +26,7 @@ import { ZoomSlider } from './ZoomSlider';
 // Version de l'application (source unique : package.json)
 const APP_VERSION = __APP_VERSION__;
 
-const DEBUG = true;
+const DEBUG_DEFAULT = false;
 
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
@@ -50,6 +50,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     // compat (non utilisé directement dans ce composant)
   } = useToolState();
 
+  const [debug, setDebug] = useState(DEBUG_DEFAULT);
   const [canvasBackground, setCanvasBackground] = useState(drawing.background ?? '#ffffff');
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
@@ -62,7 +63,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   toolStateRef.current = toolState;
   const [lastAction, setLastAction] = useState<string>('—');
   const setTbStateWithLog = useCallback((next: TextBoxSelectionState, source: string) => {
-    if (DEBUG) {
+    if (debug) {
       console.log(`[tbState] ${tbState.kind} → ${next.kind} (${source})`);
       setLastAction(source);
     }
@@ -246,12 +247,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
           drawingName={drawingName}
           canUndo={canUndo}
           canRedo={canRedo}
+          debug={debug}
           onBack={() => { saveNow(); onBack(); }}
           onUndo={undo}
           onRedo={redo}
           onExportSvg={handleExportSvg}
           onRename={handleRename}
           onDelete={handleDeleteDrawing}
+          onToggleDebug={() => setDebug(d => !d)}
         />
 
         <Drawingbar
@@ -390,7 +393,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
         />
       )}
 
-      {DEBUG && (
+      {debug && (
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0,
           background: 'rgba(0,0,0,0.82)',
