@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Drawing } from '../types';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 interface Props {
   onOpen: (drawing: Drawing) => void;
@@ -24,8 +29,30 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
+  const [showInstall, setShowInstall] = useState(false);
 
   useEffect(() => { setDrawings(storage.getAll()); }, []);
+
+  // Capturer l'événement beforeinstallprompt pour le bouton install PWA
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      deferredPrompt.current = e as BeforeInstallPromptEvent;
+      setShowInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    const prompt = deferredPrompt.current;
+    if (!prompt) return;
+    await prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === 'accepted') setShowInstall(false);
+    deferredPrompt.current = null;
+  };
 
   const handleNew = () => { const d = newDrawing(); onNew(d); };
 
@@ -47,6 +74,9 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
     <div style={styles.root}>
       <div style={styles.topBar}>
         <span style={styles.title}>Mes dessins</span>
+        {showInstall && (
+          <button style={styles.installBtn} onClick={handleInstall}>Installer</button>
+        )}
         <button style={styles.newBtn} onClick={handleNew}>+ Nouveau</button>
       </div>
 
@@ -101,6 +131,7 @@ const styles: Record<string, React.CSSProperties> = {
   topBar: { display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #e8e8e8', padding: '12px 16px', gap: 8 },
   title: { flex: 1, fontSize: 18, fontWeight: 700, color: '#1a1a1a' },
   newBtn: { background: '#e63946', border: 'none', borderRadius: 10, padding: '8px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' },
+  installBtn: { background: '#118ab2', border: 'none', borderRadius: 10, padding: '8px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' },
   empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 },
   emptyText: { color: '#aaa', fontSize: 16 },
   newBtnLarge: { background: '#e63946', border: 'none', borderRadius: 12, padding: '12px 28px', color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer' },
