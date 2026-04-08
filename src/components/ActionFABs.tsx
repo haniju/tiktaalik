@@ -1,7 +1,7 @@
 import { CanvasMode } from '../types';
 import { Icon } from './Icon';
 
-const MIN_ZOOM = 30;
+const MIN_ZOOM = 10;
 const MAX_ZOOM = 400;
 
 interface Props {

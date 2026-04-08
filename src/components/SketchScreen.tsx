@@ -6,7 +6,7 @@ import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
 import { useUndoRedo } from '../hooks/useUndoRedo';
-import { useStageViewport } from '../hooks/useStageViewport';
+import { useStageViewport, clampStagePos } from '../hooks/useStageViewport';
 import { useCanvasGestures } from '../hooks/useCanvasGestures';
 import { exportSvg } from '../utils/export';
 import {
@@ -51,6 +51,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
   } = useToolState();
 
   const [debug, setDebug] = useState(DEBUG_DEFAULT);
+  const [pinchZoom, setPinchZoom] = useState(false);
+  const pinchZoomEnabledRef = useRef(pinchZoom);
+  pinchZoomEnabledRef.current = pinchZoom;
   const [canvasBackground, setCanvasBackground] = useState(drawing.background ?? '#ffffff');
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
@@ -144,7 +147,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const stage = stageRef.current;
     if (stage) {
       const sc = stage.scaleX();
-      stage.position({ x: 20 - x * sc, y: barsH + 20 - y * sc });
+      stage.position(clampStagePos({ x: 20 - x * sc, y: barsH + 20 - y * sc }, sc, stage.width(), stage.height()));
       stage.batchDraw();
     }
     setContextPanel('text');
@@ -169,6 +172,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setLayers, setSelection, setContextPanel, setZoomPct,
     exitEditing, collapseEditingToSelected, addTextBox, collapsePanel,
     pushUndo, scheduleSave,
+    pinchZoomEnabledRef,
     activeColor, activeWidth,
   });
 
@@ -248,6 +252,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           canUndo={canUndo}
           canRedo={canRedo}
           debug={debug}
+          pinchZoom={pinchZoom}
           onBack={() => { saveNow(); onBack(); }}
           onUndo={undo}
           onRedo={redo}
@@ -255,6 +260,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onRename={handleRename}
           onDelete={handleDeleteDrawing}
           onToggleDebug={() => setDebug(d => !d)}
+          onTogglePinchZoom={() => setPinchZoom(p => !p)}
         />
 
         <Drawingbar

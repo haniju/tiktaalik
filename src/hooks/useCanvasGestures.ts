@@ -3,6 +3,7 @@ import Konva from 'konva';
 import { v4 as uuidv4 } from 'uuid';
 import { DrawLayer, Stroke, AirbrushStroke, TextLayer, ToolState } from '../types';
 import { AIRBRUSH_CONFIG } from '../utils/airbrushConfig';
+import { clampStagePos } from './useStageViewport';
 import {
   TextBoxSelectionState,
   nextSelectionState,
@@ -33,6 +34,7 @@ export interface UseCanvasGesturesParams {
   collapsePanel: () => void;
   pushUndo: (layers: DrawLayer[]) => void;
   scheduleSave: () => void;
+  pinchZoomEnabledRef: React.MutableRefObject<boolean>;
   activeColor: string;
   activeWidth: number;
 }
@@ -87,6 +89,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
   const dragJustEndedRef = useRef(false);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
+  // Pinch zoom
+  const isPinching = useRef(false);
+  const lastPinchDist = useRef(0);
+  const pinchCenter = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
 
@@ -111,9 +117,29 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const { stageRef, toolStateRef, editingTextIdRef, tbStateRef, selectionRef,
             setSelection, setContextPanel, setTbStateWithLogRef,
             exitEditing, collapseEditingToSelected, collapsePanel,
+            pinchZoomEnabledRef,
             activeColor, activeWidth } = p.current;
     const stage = stageRef.current!;
     const toolState = toolStateRef.current;
+
+    // Pinch zoom — détection de deux doigts
+    const nativeEvt = e.evt;
+    if (pinchZoomEnabledRef.current && 'touches' in nativeEvt && nativeEvt.touches.length >= 2) {
+      e.evt.preventDefault();
+      const t1 = nativeEvt.touches[0], t2 = nativeEvt.touches[1];
+      lastPinchDist.current = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const stageBox = stage.container().getBoundingClientRect();
+      pinchCenter.current = {
+        x: (t1.clientX + t2.clientX) / 2 - stageBox.left,
+        y: (t1.clientY + t2.clientY) / 2 - stageBox.top,
+      };
+      isPinching.current = true;
+      // Annuler tout geste en cours
+      isDrawing.current = false;
+      isErasing.current = false;
+      isPanning.current = false;
+      return;
+    }
 
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
@@ -258,16 +284,42 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   }, [eraseAt]);
 
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const { stageRef, editingTextIdRef, toolStateRef, setZoomPct, setLayers, selectionRef } = p.current;
+    const { stageRef, editingTextIdRef, toolStateRef, setZoomPct, setLayers, selectionRef, pinchZoomEnabledRef } = p.current;
     const stage = stageRef.current!;
     const toolState = toolStateRef.current;
+
+    // Pinch zoom — gestion du mouvement à deux doigts
+    const nativeEvt = e.evt;
+    if (isPinching.current && pinchZoomEnabledRef.current && 'touches' in nativeEvt && nativeEvt.touches.length >= 2) {
+      e.evt.preventDefault();
+      const t1 = nativeEvt.touches[0], t2 = nativeEvt.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      if (lastPinchDist.current > 0) {
+        const os = stage.scaleX();
+        const ns = Math.max(0.2, Math.min(40, os * (dist / lastPinchDist.current)));
+        const center = pinchCenter.current;
+        const mpt = { x: (center.x - stage.x()) / os, y: (center.y - stage.y()) / os };
+        stage.scale({ x: ns, y: ns });
+        stage.position(clampStagePos({ x: center.x - mpt.x * ns, y: center.y - mpt.y * ns }, ns, stage.width(), stage.height()));
+        stage.batchDraw();
+        setZoomPct(Math.round(ns * 100));
+      }
+      lastPinchDist.current = dist;
+      const stageBox = stage.container().getBoundingClientRect();
+      pinchCenter.current = {
+        x: (t1.clientX + t2.clientX) / 2 - stageBox.left,
+        y: (t1.clientY + t2.clientY) / 2 - stageBox.top,
+      };
+      return;
+    }
 
     if (editingTextIdRef.current) return;
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
 
     if (toolState.canvasMode === 'move' && isPanning.current && panStart.current) {
-      stage.position({ x: panStart.current.sx + screenPos.x - panStart.current.x, y: panStart.current.sy + screenPos.y - panStart.current.y });
+      const raw = { x: panStart.current.sx + screenPos.x - panStart.current.x, y: panStart.current.sy + screenPos.y - panStart.current.y };
+      stage.position(clampStagePos(raw, stage.scaleX(), stage.width(), stage.height()));
       stage.batchDraw();
       return;
     }
@@ -350,6 +402,13 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   }, [eraseAt]);
 
   const handleMouseUp = useCallback(() => {
+    // Reset pinch zoom
+    if (isPinching.current) {
+      isPinching.current = false;
+      lastPinchDist.current = 0;
+      return;
+    }
+
     const { stageRef, tbStateRef, editingTextIdRef, editingCreatedAtRef,
             toolStateRef, layersRef, setLayers, setSelection, setContextPanel,
             setTbStateWithLogRef, centerViewOnRef, addTextBox, pushUndo, scheduleSave } = p.current;
@@ -485,7 +544,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const mpt = { x: (pt.x - stage.x()) / os, y: (pt.y - stage.y()) / os };
     const ns = Math.max(0.2, Math.min(40, os * (1 + (e.evt.deltaY > 0 ? -1 : 1) * 0.1)));
     stage.scale({ x: ns, y: ns });
-    stage.position({ x: pt.x - mpt.x * ns, y: pt.y - mpt.y * ns });
+    stage.position(clampStagePos({ x: pt.x - mpt.x * ns, y: pt.y - mpt.y * ns }, ns, stage.width(), stage.height()));
     stage.batchDraw();
     p.current.setZoomPct(Math.round(ns * 100));
   }, []);

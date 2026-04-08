@@ -215,7 +215,7 @@ export const makeTextLayer = (id: string, x: number, y: number): TextLayer => ({
   tool: 'text',
   id, x, y,
   width: 340,
-  text: '', fontSize: 24, fontFamily: 'Arial', fontStyle: 'normal',
+  text: '', fontSize: 12, fontFamily: 'Arial', fontStyle: 'normal',
   textDecoration: '', align: 'left', verticalAlign: 'top',
   color: '#000000', background: '', opacity: 1, padding: 8,
 });
