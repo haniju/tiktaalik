@@ -28,7 +28,7 @@ export function ActionFABs({ canvasMode, zoomPct, onSetMode, onZoomChange }: Pro
       {/* Zoom slider */}
       <div style={styles.zoomContainer}>
         <span style={styles.zoomLabel}>{clamped}%</span>
-        <input type="range" min={MIN_ZOOM} max={MAX_ZOOM} step={5}
+        <input type="range" className="app-slider" min={MIN_ZOOM} max={MAX_ZOOM} step={5}
           value={clamped}
           onChange={e => onZoomChange(Number(e.target.value))}
           style={styles.zoomSlider} />
@@ -90,7 +90,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   zoomSlider: {
     width: 120,
-    cursor: 'pointer',
-    accentColor: '#118ab2',
+    height: 32,
   },
 };

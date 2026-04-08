@@ -13,9 +13,9 @@ interface Props {
 }
 
 const DRAWING_TOOLS: { id: DrawingTool; icon: string }[] = [
-  { id: 'airbrush', icon: 'highlight' },
+  { id: 'airbrush', icon: 'spraypaint' },
   { id: 'pen',      icon: 'pen'       },
-  { id: 'marker',   icon: 'brush'     },
+  { id: 'marker',   icon: 'highlight' },
 ];
 
 export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDrawingTool, onSelectText, onSelectEraser, onSelectBackground }: Props) {

@@ -56,28 +56,25 @@ export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity,
       {tool === 'marker' && (
         <div style={styles.opacityRow}>
           <span style={styles.opacityLabel}>Opacité</span>
-          <input type="range" min={10} max={100} step={5}
+          <input type="range" className="app-slider" min={10} max={100} step={5}
             value={Math.round(opacity * 100)}
-            onChange={e => onOpacityChange(+e.target.value / 100)}
-            style={styles.opacitySlider} />
+            onChange={e => onOpacityChange(+e.target.value / 100)} />
           <span style={styles.opacityValue}>{Math.round(opacity * 100)}%</span>
         </div>
       )}
       {tool === 'airbrush' && (<>
         <div style={styles.opacityRow}>
           <span style={styles.opacityLabel}>Centre</span>
-          <input type="range" min={5} max={100} step={5}
+          <input type="range" className="app-slider" min={5} max={100} step={5}
             value={Math.round(opacity * 100)}
-            onChange={e => onOpacityChange(+e.target.value / 100)}
-            style={styles.opacitySlider} />
+            onChange={e => onOpacityChange(+e.target.value / 100)} />
           <span style={styles.opacityValue}>{Math.round(opacity * 100)}%</span>
         </div>
         <div style={styles.opacityRow}>
           <span style={styles.opacityLabel}>Bord</span>
-          <input type="range" min={0} max={100} step={5}
+          <input type="range" className="app-slider" min={0} max={100} step={5}
             value={Math.round(airbrushEdgeOpacity * 100)}
-            onChange={e => onAirbrushEdgeOpacityChange(+e.target.value / 100)}
-            style={styles.opacitySlider} />
+            onChange={e => onAirbrushEdgeOpacityChange(+e.target.value / 100)} />
           <span style={styles.opacityValue}>{Math.round(airbrushEdgeOpacity * 100)}%</span>
         </div>
       </>)}
@@ -95,8 +92,7 @@ const styles: Record<string, React.CSSProperties> = {
   sizeBtn: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 2px', flex: 1, height: 44 },
   colorBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: 4, flex: 1, display: 'flex', justifyContent: 'center' },
   chevronBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: '4px 4px', display: 'flex', alignItems: 'center' },
-  opacityRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', borderTop: '1px solid #f0f0f0' },
+  opacityRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 44, borderTop: '1px solid #f0f0f0' },
   opacityLabel: { fontSize: 12, color: '#666', flexShrink: 0 },
-  opacitySlider: { flex: 1, cursor: 'pointer', accentColor: '#118ab2' },
   opacityValue: { fontSize: 11, color: '#888', width: 34, textAlign: 'right' as const, flexShrink: 0 },
 };
