@@ -299,6 +299,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             const cy = ((overlap + canvasH) / 2 - sp.y) / sc;
             addTextBox(cx - 100, cy - 20);
           }}
+          onSwipeClose={collapsePanel}
         />
 
         {toolState.canvasMode === 'select' && selection.length > 0 && (

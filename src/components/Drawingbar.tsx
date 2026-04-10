@@ -28,6 +28,7 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
   const isDrawMode = canvasMode === 'draw';
   const touchStartY = useRef<number | null>(null);
   const touchTargetTool = useRef<string | null>(null);
+  const swipedRef = useRef(false);
 
   const isActive = (tool: Tool) => isDrawMode && activeTool === tool;
   const isBgActive = isDrawMode && contextPanel === 'background';
@@ -36,6 +37,7 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
     touchStartY.current = e.touches[0].clientY;
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]');
     touchTargetTool.current = el?.dataset.tool ?? null;
+    swipedRef.current = false;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -44,8 +46,13 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
     const target = touchTargetTool.current;
     touchStartY.current = null;
     touchTargetTool.current = null;
-    if (dy > SWIPE_THRESHOLD && target) onSwipeOpen(target);
-    else if (dy < -SWIPE_THRESHOLD) onSwipeClose();
+    if (dy > SWIPE_THRESHOLD && target) { swipedRef.current = true; onSwipeOpen(target); }
+    else if (dy < -SWIPE_THRESHOLD) { swipedRef.current = true; onSwipeClose(); }
+  };
+
+  const guardClick = (fn: () => void) => () => {
+    if (swipedRef.current) { swipedRef.current = false; return; }
+    fn();
   };
 
   return (
@@ -56,7 +63,7 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
         const toolColor = state.toolColors[id];
         return (
           <button key={id} data-tool={id} style={{ ...styles.btn, ...(active ? styles.btnActive : {}) }}
-            onClick={() => onSelectDrawingTool(id)}>
+            onClick={guardClick(() => onSelectDrawingTool(id))}>
             <div style={{ position: 'relative', display: 'inline-flex' }}>
               <Icon name={icon} size={22} />
               <div style={{
@@ -71,19 +78,19 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
       })}
 
       {/* Gomme */}
-      <button data-tool="eraser" style={{ ...styles.btn, ...(isActive('eraser') ? styles.btnActive : {}) }} onClick={onSelectEraser}>
+      <button data-tool="eraser" style={{ ...styles.btn, ...(isActive('eraser') ? styles.btnActive : {}) }} onClick={guardClick(onSelectEraser)}>
         <Icon name="eraser" size={22} />
         {isActive('eraser') && <div style={styles.underline} />}
       </button>
 
       {/* Texte */}
-      <button data-tool="text" style={{ ...styles.btn, ...(isActive('text') ? styles.btnActive : {}) }} onClick={onSelectText}>
+      <button data-tool="text" style={{ ...styles.btn, ...(isActive('text') ? styles.btnActive : {}) }} onClick={guardClick(onSelectText)}>
         <Icon name="text" size={22} />
         {isActive('text') && <div style={styles.underline} />}
       </button>
 
       {/* Fond canvas */}
-      <button data-tool="background" style={{ ...styles.btn, ...(isBgActive ? styles.btnActive : {}) }} onClick={onSelectBackground}>
+      <button data-tool="background" style={{ ...styles.btn, ...(isBgActive ? styles.btnActive : {}) }} onClick={guardClick(onSelectBackground)}>
         <div style={{
           width: 22, height: 22, borderRadius: '50%',
           border: '2px solid #ccc',
