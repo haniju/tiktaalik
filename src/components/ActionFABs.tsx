@@ -70,7 +70,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   fabActive: {
-    background: '#333',
+    background: 'linear-gradient(135deg, #118ab2, #06d6a0)',
   },
   zoomContainer: {
     display: 'flex',
