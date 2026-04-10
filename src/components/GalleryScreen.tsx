@@ -24,6 +24,21 @@ function newDrawing(): Drawing {
   };
 }
 
+const APP_VERSION = __APP_VERSION__;
+
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'à l\'instant';
+  if (mins < 60) return `il y a ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `il y a ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `il y a ${days}j`;
+  const months = Math.floor(days / 30);
+  return `il y a ${months} mois`;
+}
+
 export function GalleryScreen({ onOpen, onNew }: Props) {
   const storage = useDrawingStorage();
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -94,18 +109,18 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
           <button style={styles.newBtnLarge} onClick={handleNew}>Créer un dessin</button>
         </div>
       ) : (
-        <div style={styles.grid}>
+        <div style={styles.list}>
           {drawings.map(d => (
-            <div key={d.id} style={styles.card} onClick={() => onOpen(d)}>
+            <div key={d.id} style={styles.listItem} onClick={() => onOpen(d)}>
               {/* Vignette */}
-              <div style={styles.thumbnail}>
+              <div style={styles.thumb}>
                 {d.thumbnail
                   ? <img src={d.thumbnail} style={styles.thumbImg} alt={d.name} />
                   : <div style={styles.thumbEmpty} />
                 }
               </div>
 
-              {/* Nom / renommage */}
+              {/* Infos */}
               {renamingId === d.id ? (
                 <div style={styles.renameRow} onClick={e => e.stopPropagation()}>
                   <input
@@ -119,8 +134,15 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
                   <button style={styles.renameCancel} onClick={() => setRenamingId(null)}>✕</button>
                 </div>
               ) : (
-                <div style={styles.cardFooter}>
-                  <span style={styles.cardName}>{d.name}</span>
+                <div style={styles.itemInfo}>
+                  <span style={styles.itemName}>{d.name}</span>
+                  <span style={styles.itemTime}>{timeAgo(d.updatedAt)}</span>
+                </div>
+              )}
+
+              {/* Actions */}
+              {renamingId !== d.id && (
+                <div style={styles.itemActions}>
                   <button style={styles.iconBtn} onClick={e => { e.stopPropagation(); setRenamingId(d.id); setRenameValue(d.name); }} title="Renommer">✏️</button>
                   <button style={styles.iconBtn} onClick={e => { e.stopPropagation(); handleDelete(d.id); }} title="Supprimer">🗑️</button>
                 </div>
@@ -129,6 +151,8 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
           ))}
         </div>
       )}
+
+      <div style={styles.versionBadge}>v{APP_VERSION}</div>
     </div>
   );
 }
@@ -143,17 +167,19 @@ const styles: Record<string, React.CSSProperties> = {
   empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 },
   emptyText: { color: '#aaa', fontSize: 16 },
   newBtnLarge: { background: '#e63946', border: 'none', borderRadius: 12, padding: '12px 28px', color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer' },
-  grid: { flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 16, padding: 16, overflowY: 'auto', alignContent: 'start' },
-  card: { background: '#fff', borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: '1px solid #e8e8e8', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' },
-  // Hauteur fixe pour la vignette — évite le padding-trick qui fait déborder les absolute children sur le footer (bug mobile)
-  thumbnail: { position: 'relative', width: '100%', height: 120, flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
+  list: { flex: 1, overflowY: 'auto', padding: '8px 0' },
+  listItem: { display: 'flex', alignItems: 'center', height: 64, background: '#fff', borderBottom: '1px solid #f0f0f0', padding: '0 16px', gap: 12, cursor: 'pointer' },
+  thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', flexShrink: 0, position: 'relative', background: '#f8f8f8' },
   thumbImg: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' },
   thumbEmpty: { position: 'absolute', inset: 0, background: '#f0f0f0' },
-  cardFooter: { display: 'flex', alignItems: 'center', padding: '8px 10px', gap: 4, flexShrink: 0 },
-  cardName: { flex: 1, fontSize: 12, fontWeight: 600, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  itemInfo: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 2 },
+  itemName: { fontSize: 14, fontWeight: 600, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  itemTime: { fontSize: 11, color: '#999' },
+  itemActions: { display: 'flex', gap: 4, flexShrink: 0 },
   iconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '4px 6px', flexShrink: 0 },
-  renameRow: { display: 'flex', alignItems: 'center', padding: '6px 8px', gap: 4, flexShrink: 0 },
+  renameRow: { flex: 1, display: 'flex', alignItems: 'center', gap: 4 },
   renameInput: { flex: 1, border: '1px solid #e8e8e8', borderRadius: 6, padding: '4px 6px', fontSize: 12 },
   renameOk: { background: '#e63946', border: 'none', borderRadius: 6, color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 8px', cursor: 'pointer' },
   renameCancel: { background: 'none', border: 'none', fontSize: 12, cursor: 'pointer', color: '#aaa' },
+  versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0 },
 };
