@@ -42,8 +42,6 @@ function timeAgo(ts: number): string {
 export function GalleryScreen({ onOpen, onNew }: Props) {
   const storage = useDrawingStorage();
   const [drawings, setDrawings] = useState<Drawing[]>([]);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
 
@@ -79,19 +77,6 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
 
   const handleNew = () => { const d = newDrawing(); onNew(d); };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('Supprimer ce dessin ?')) return;
-    storage.remove(id);
-    setDrawings(storage.getAll());
-  };
-
-  const handleRename = (id: string) => {
-    if (!renameValue.trim()) return;
-    storage.rename(id, renameValue.trim());
-    setDrawings(storage.getAll());
-    setRenamingId(null);
-  };
-
 
   return (
     <div style={styles.root}>
@@ -109,44 +94,19 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
           <button style={styles.newBtnLarge} onClick={handleNew}>Créer un dessin</button>
         </div>
       ) : (
-        <div style={styles.list}>
+        <div style={styles.grid}>
           {drawings.map(d => (
-            <div key={d.id} style={styles.listItem} onClick={() => onOpen(d)}>
-              {/* Vignette */}
-              <div style={styles.thumb}>
+            <div key={d.id} style={styles.card} onClick={() => onOpen(d)}>
+              <div style={styles.thumbnail}>
                 {d.thumbnail
                   ? <img src={d.thumbnail} style={styles.thumbImg} alt={d.name} />
                   : <div style={styles.thumbEmpty} />
                 }
               </div>
-
-              {/* Infos */}
-              {renamingId === d.id ? (
-                <div style={styles.renameRow} onClick={e => e.stopPropagation()}>
-                  <input
-                    autoFocus
-                    style={styles.renameInput}
-                    value={renameValue}
-                    onChange={e => setRenameValue(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleRename(d.id); if (e.key === 'Escape') setRenamingId(null); }}
-                  />
-                  <button style={styles.renameOk} onClick={() => handleRename(d.id)}>OK</button>
-                  <button style={styles.renameCancel} onClick={() => setRenamingId(null)}>✕</button>
-                </div>
-              ) : (
-                <div style={styles.itemInfo}>
-                  <span style={styles.itemName}>{d.name}</span>
-                  <span style={styles.itemTime}>{timeAgo(d.updatedAt)}</span>
-                </div>
-              )}
-
-              {/* Actions */}
-              {renamingId !== d.id && (
-                <div style={styles.itemActions}>
-                  <button style={styles.iconBtn} onClick={e => { e.stopPropagation(); setRenamingId(d.id); setRenameValue(d.name); }} title="Renommer">✏️</button>
-                  <button style={styles.iconBtn} onClick={e => { e.stopPropagation(); handleDelete(d.id); }} title="Supprimer">🗑️</button>
-                </div>
-              )}
+              <div style={styles.cardFooter}>
+                <span style={styles.cardName}>{d.name}</span>
+                <span style={styles.cardTime}>{timeAgo(d.updatedAt)}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -167,19 +127,13 @@ const styles: Record<string, React.CSSProperties> = {
   empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 },
   emptyText: { color: '#aaa', fontSize: 16 },
   newBtnLarge: { background: '#e63946', border: 'none', borderRadius: 12, padding: '12px 28px', color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer' },
-  list: { flex: 1, overflowY: 'auto', padding: '8px 0' },
-  listItem: { display: 'flex', alignItems: 'center', height: 64, background: '#fff', borderBottom: '1px solid #f0f0f0', padding: '0 16px', gap: 12, cursor: 'pointer' },
-  thumb: { width: 44, height: 44, borderRadius: 8, overflow: 'hidden', flexShrink: 0, position: 'relative', background: '#f8f8f8' },
+  grid: { flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: 12, overflowY: 'auto', alignContent: 'start' },
+  card: { background: '#fff', borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: '1px solid #e8e8e8', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' },
+  thumbnail: { position: 'relative', width: '100%', height: 120, flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
   thumbImg: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' },
   thumbEmpty: { position: 'absolute', inset: 0, background: '#f0f0f0' },
-  itemInfo: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 2 },
-  itemName: { fontSize: 14, fontWeight: 600, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  itemTime: { fontSize: 11, color: '#999' },
-  itemActions: { display: 'flex', gap: 4, flexShrink: 0 },
-  iconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '4px 6px', flexShrink: 0 },
-  renameRow: { flex: 1, display: 'flex', alignItems: 'center', gap: 4 },
-  renameInput: { flex: 1, border: '1px solid #e8e8e8', borderRadius: 6, padding: '4px 6px', fontSize: 12 },
-  renameOk: { background: '#e63946', border: 'none', borderRadius: 6, color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 8px', cursor: 'pointer' },
-  renameCancel: { background: 'none', border: 'none', fontSize: 12, cursor: 'pointer', color: '#aaa' },
+  cardFooter: { display: 'flex', flexDirection: 'column', padding: '8px 10px', gap: 2 },
+  cardName: { fontSize: 13, fontWeight: 600, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cardTime: { fontSize: 11, color: '#999' },
   versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0 },
 };
