@@ -265,6 +265,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onSelectText={selectTextTool}
           onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
           onSelectBackground={selectBackground}
+          onSwipeOpen={() => {
+            if (contextPanel !== null) return;
+            const { activeTool } = toolState;
+            if (activeTool === 'text') setContextPanel('text');
+            else if (activeTool === 'eraser') return; // pas de panel pour la gomme
+            else if (activeTool && ['airbrush', 'pen', 'marker'].includes(activeTool)) setContextPanel('drawing');
+          }}
+          onSwipeClose={collapsePanel}
         />
 
         <ContextToolbar
