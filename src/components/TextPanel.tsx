@@ -6,10 +6,9 @@ const FONTS = ['Arial', 'Georgia', 'Courier New', 'Verdana', 'Times New Roman', 
 interface Props {
   textBox: TextBox | null;
   onChange: (patch: Partial<TextBox>) => void;
-  onAddTextBox: () => void;
 }
 
-export function TextPanel({ textBox, onChange, onAddTextBox }: Props) {
+export function TextPanel({ textBox, onChange }: Props) {
   const isBold   = textBox?.fontStyle.includes('bold') ?? false;
   const isItalic = textBox?.fontStyle.includes('italic') ?? false;
 
@@ -35,16 +34,14 @@ export function TextPanel({ textBox, onChange, onAddTextBox }: Props) {
           {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
 
-        <input type="number" value={textBox?.fontSize ?? 24} min={8} max={200} disabled={disabled}
-          onChange={e => onChange({ fontSize: Number(e.target.value) })}
+        <button disabled={disabled} style={{ ...styles.stepperBtn, ...(disabled ? styles.disabled : {}) }}
+          onClick={() => { const s = (textBox?.fontSize ?? 24); if (s > 8) onChange({ fontSize: s - 1 }); }}>−</button>
+        <input type="number" inputMode="numeric" value={textBox?.fontSize ?? 24} min={8} max={200} disabled={disabled}
+          onChange={e => { const v = Number(e.target.value); if (v >= 8 && v <= 200) onChange({ fontSize: v }); }}
           style={{ ...styles.sizeInput, ...(disabled ? styles.disabled : {}) }} />
+        <button disabled={disabled} style={{ ...styles.stepperBtn, ...(disabled ? styles.disabled : {}) }}
+          onClick={() => { const s = (textBox?.fontSize ?? 24); if (s < 200) onChange({ fontSize: s + 1 }); }}>+</button>
 
-        <div style={styles.divider} />
-
-        <button style={{ ...styles.newBtn }} onClick={onAddTextBox} title="Nouveau bloc de texte">
-          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-          <span style={{ fontSize: 11 }}>Nouveau texte</span>
-        </button>
       </div>
 
       <div style={{ ...styles.row, ...(disabled ? styles.rowDisabled : {}) }}>
@@ -87,10 +84,10 @@ const styles: Record<string, React.CSSProperties> = {
   btn: { background: 'none', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' },
   btnActive: { background: '#f0f0f0' },
   select: { border: '1px solid #e8e8e8', borderRadius: 6, padding: '4px 6px', fontSize: 12, background: '#f8f8f8', color: '#333', cursor: 'pointer' },
-  sizeInput: { width: 44, border: '1px solid #e8e8e8', borderRadius: 6, padding: '4px 6px', fontSize: 12, textAlign: 'center', color: '#333', background: '#f8f8f8' },
+  sizeInput: { width: 40, border: '1px solid #e8e8e8', borderRadius: 0, padding: '4px 2px', fontSize: 12, textAlign: 'center', color: '#333', background: '#f8f8f8', MozAppearance: 'textfield' },
+  stepperBtn: { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e8e8e8', background: '#f8f8f8', cursor: 'pointer', fontSize: 16, fontWeight: 600, color: '#333', flexShrink: 0 },
   colorLabel: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, cursor: 'pointer', padding: '4px 6px', position: 'relative' },
   hiddenPicker: { position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer', top: 0, left: 0 },
-  newBtn: { display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4, padding: '5px 10px', border: '1px solid #e8e8e8', borderRadius: 8, background: '#f8f8f8', cursor: 'pointer', color: '#333', fontWeight: 500, flexShrink: 0 },
   disabled: { opacity: 0.35, cursor: 'not-allowed', pointerEvents: 'none' as const },
   rowDisabled: { opacity: 0.35, pointerEvents: 'none' as const },
 };

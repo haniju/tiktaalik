@@ -30,7 +30,7 @@ All data lives in `localStorage`:
 
 Custom hooks handle state:
 - `useDrawingStorage` — CRUD for drawings in localStorage, with automatic migration of legacy formats
-- `useToolState` — active tool, canvas mode, colors, widths per tool (canvas background is per-Drawing, not here)
+- `useToolState` — active tool, canvas mode, colors, widths, opacities per tool (canvas background is per-Drawing, not here)
 - `useDragToReorder` — drag-to-reorder in SelectionPanel (long-press 350ms to drag, swipe to scroll)
 - `useAutosave` — debounced autosave timer, saveNow/scheduleSave, visibilitychange/beforeunload listeners
 - `useUndoRedo` — undoStack, pushUndo, undo/redo, Cmd+Z keyboard shortcut
@@ -38,7 +38,7 @@ Custom hooks handle state:
 
 ### Canvas
 
-The canvas is a fixed A4 size (794×1123px) rendered via `react-konva`. Drawing data is a unified layer stack: `DrawLayer = Stroke | AirbrushStroke | TextLayer`. Each `Drawing` has a `layers` array (chronological order = z-index) and a `background` color.
+The canvas is a fixed A4 size (794×1123px) rendered via `react-konva`. The navigable world is 3×3 A4 (one page of margin on each side). Drawing data is a unified layer stack: `DrawLayer = Stroke | AirbrushStroke | TextLayer`. Each `Drawing` has a `layers` array (chronological order = z-index) and a `background` color.
 
 `AirbrushLayer.tsx` handles airbrush rendering separately from regular strokes due to the radial gradient compositing it requires.
 
@@ -50,15 +50,21 @@ Managed by `useAutosave` hook. Debounced 4s timer after each mutation (`schedule
 
 ### Viewport
 
-Managed by `useStageViewport` hook. Returns `stageRef` (Konva.Stage), `stageSize` (window resize listener), `zoomPct`/`setZoomPct`, `canvasH` (stageSize.height - TOPBAR_H - DRAWINGBAR_H), and `centerViewOn(cx, cy)` which translates the stage to center a canvas point in the visible area.
+Managed by `useStageViewport` hook. Returns `stageRef` (Konva.Stage), `stageSize` (window resize listener), `zoomPct`/`setZoomPct`, `canvasH` (stageSize.height - TOPBAR_H - DRAWINGBAR_H), `centerViewOn(cx, cy)`, and `zoomTo(pct)`.
+
+Default zoom is 100%. Min zoom 10% (ActionFABs slider), max 400%. Pan/zoom is clamped to a 3×3 A4 world area via `clampStagePos()` (exported from `useStageViewport.ts`).
+
+Pinch-to-zoom (two-finger gesture) is available but disabled by default — toggle in the Topbar dropdown. Controlled via `pinchZoomEnabledRef` passed to `useCanvasGestures`.
 
 `TOPBAR_H = 48`, `DRAWINGBAR_H = 48` are exported constants from `useStageViewport.ts`.
 
 ### Tools & Modes
 
-- **CanvasMode**: `draw | select | move` — selected in `Topbar.tsx`
+- **CanvasMode**: `draw | select | move` — selected in `ActionFABs.tsx` (bottom bar)
 - **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
+- Per-tool opacity in `toolOpacities` (marker, airbrush center); airbrush edge opacity separate (`airbrushEdgeOpacity`)
+- Color selection: preset swatches + `HslColorPicker` (expandable in DrawingPanel)
 - `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode
 
 ### TextBox State Machine
@@ -78,7 +84,11 @@ This replaces the previous architecture that used three desynchronized state var
 
 ### EditingTextarea
 
-`EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Position is computed with `topOffset = TOPBAR_H + DRAWINGBAR_H` (passed as prop from SketchScreen) + Konva stage pan/scale — **do not** replace with `getBoundingClientRect()`, which is measured during React render and can capture a transitional layout value (keyboard animation, browser chrome change), causing visible offset drift.
+`EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Positioning depends on context:
+- **Web mobile**: fixed position (left:20, top:topOffset+20). The stage is repositioned before mount so the TB lands at this position. Avoids `getBoundingClientRect()` which captures transitional values during keyboard animation.
+- **PWA standalone**: uses `getBoundingClientRect()` on the stage container for true screen position, because the standalone viewport has no browser chrome changes.
+
+Detection via `window.matchMedia('(display-mode: standalone)')` at module load.
 
 Known limitation: pinch zoom while the textarea is focused triggers `exitEditing` because the first touch finger hitting the canvas fires `handleMouseDown` → `exitEditing` before the second finger confirms the pinch.
 
@@ -106,7 +116,7 @@ The app version from `package.json` is injected at build time as the global `__A
 - **Components**: Functional components only, no class components
 - **Exports**: Named exports preferred
 - **State**: React hooks (`useState`, `useRef`, `useCallback`), no external state library
-- **Styling**: CSS files co-located with components
+- **Styling**: Inline styles (no CSS files); global slider CSS injected via `<style>` in `App.tsx`
 - **No `any`**: Use proper types — existing `any` in the codebase is tech debt to fix
 - **Unused code**: Remove dead imports and variables, don't comment them out
 - **Commits**: Conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`)
@@ -115,25 +125,34 @@ The app version from `package.json` is injected at build time as the global `__A
 
 - ESLint shows ~16 errors: unused vars, `any` types, one empty catch block — cleanup in progress
 - `react-hooks/exhaustive-deps` rule referenced in code but plugin not installed
-- `DrawingSecondaryToolbar` component is defined but unused (dead code)
+- `DrawingSecondaryToolbar` a été supprimé et remplacé par `HslColorPicker`
 - Playwright demo test stubs (`e2e/example.spec.ts`, `tests/example.spec.ts`) fail in Vitest — pre-existing, not real tests
 - Pinch zoom while textarea is focused exits editing (first touch fires handleMouseDown before second touch confirms pinch) — known limitation, deferred
 
 ## Refactoring Phase 1 — COMPLETE — branch `refactor/sketchscreen-decomp`
 
-Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → 418 lines). Awaiting PO validation before merge to main.
+Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting PO validation before merge to main.
 
 **All steps completed:**
-- Step 0: `DEBUG` overlay, `setTbStateWithLog` wrapper
-- Step 1: fix recursive `scheduleSave`
-- Step 2: extract `ResizeHandle` → `src/components/ResizeHandle.tsx`
-- Step 3: extract `useAutosave` → `src/hooks/useAutosave.ts`
-- Step 4: extract `useUndoRedo` → `src/hooks/useUndoRedo.ts`
-- Step 5: extract `useStageViewport` → `src/hooks/useStageViewport.ts`
-- Step 6: extract `EditingTextarea` → `src/components/EditingTextarea.tsx`
-- Step 7: extract `TextBoxKonva` → `src/components/TextBoxKonva.tsx`
-- Step 8: extract `DrawingLayer` → `src/components/DrawingLayer.tsx`; move `makeTextLayer`/`migrateLayers` to `textboxUtils.ts`
-- Step 9: extract `useCanvasGestures` → `src/hooks/useCanvasGestures.ts` (all gesture refs + handlers, paramsRef pattern)
+- Step 0–9: see git history for details
+
+**Features added on this branch (v1.5.0 → v1.8.1):**
+- `HslColorPicker` replaces deleted `DrawingSecondaryToolbar`
+- Per-tool opacity sliders (marker, airbrush center/edge) with `toolOpacities` + `airbrushEdgeOpacity`
+- Debug overlay toggle in dropdown (off by default)
+- Zoom: initial 100%, min 10%, world clamped to 3×3 A4 (`clampStagePos`)
+- Pinch-to-zoom two-finger gesture (toggle in dropdown, off by default)
+- Toolbar icons: spraypaint (airbrush), highlight (marker)
+- Modernized slider design (global CSS `app-slider` in App.tsx)
+- PWA install button (GalleryScreen)
+- Zoom slider integrated into ActionFABs bottom bar
+- Inline rename: tap drawing title in Topbar to edit (replaces `prompt()`)
+- Swipe gestures on Drawingbar: swipe ↓ on any icon opens its panel + switches tool, swipe ↑ closes panel (also works on ContextToolbar surface). `data-tool` attributes on buttons, `guardClick` prevents click after swipe.
+- ContextToolbar slide animation (translateY) for open/close
+- GalleryScreen: list layout (scrollable, fixed 64px height items) with relative time since last edit (`timeAgo`)
+- ActionFABs: gradient background on active mode (blue→green)
+- TextPanel: font size stepper (+/−) buttons alongside input; "Nouveau texte" button removed
+- ColorPickerPanel: label removed, colors in flex grid matching DrawingPanel layout
 
 **Bug fixes landed on this branch (not yet on main):**
 - `autosave`: saveNowRef pattern — timer no longer cancelled on every render
@@ -142,7 +161,8 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → 418 lines). Awaiting 
 - `handleMouseUp` → `handleTap`: dragJustEndedRef guards synthetic tap after drag
 - `handleTap`: onTap+onClick double-fire guard (elapsed < 80ms → early return)
 - `handleTap`: tbStateRef.current instead of stale tbState closure
-- `EditingTextarea`: position fixe (left:20, top:topOffset+20) — supprime adjustForKeyboard et le feedback loop vv.resize
+- `EditingTextarea`: position fixe web (left:20, top:topOffset+20) + getBoundingClientRect en PWA standalone
+- HslColorPicker: thumb centrage fix (margin-top: -9px → 1px), restored white 22px thumb with border
 
 ## Do Not
 
@@ -151,19 +171,6 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → 418 lines). Awaiting 
 - Do not introduce new `any` types
 - Do not break the TextBoxSelectionState state machine by adding separate boolean flags
 - Do not put `canvasBackground` back into `useToolState` — it is per-Drawing state
-
-## Active Bugs (v1.4.0)
-
-### Critical
-- [ ] Draw mode: secondary toolbar (DrawingSecondaryToolbar) does not open when selecting pen/marker/airbrush
-
-### Select Mode
-- [ ] Individual deselect/delete in level-2 selection not working
-- [ ] Cannot drag-move a selected object on canvas
-
-### Text Tool
-- [ ] Toolbar text panel blur guard (data-text-panel) ineffective on mobile — keyboard pushes toolbar off-screen when editing starts
-- [ ] TB content hidden behind keyboard when text exceeds visible area (point 3 — deferred)
 
 ## Architecture cible — Phase 2 (ne pas implémenter avant décision explicite)
 

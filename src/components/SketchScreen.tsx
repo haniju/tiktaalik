@@ -288,17 +288,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onSetAirbrushEdgeOpacity={setAirbrushEdgeOpacity}
           onSetBackground={setCanvasBackground}
           onUpdateTextBox={updateTextBox}
-          onAddTextBox={() => {
-            // Créer au centre de la zone réellement visible (sous les barres flottantes)
-            const stage = stageRef.current;
-            if (!stage) return;
-            const sc = stage.scaleX(), sp = stage.position();
-            const barsH = barsRef.current?.offsetHeight ?? (TOPBAR_H + DRAWINGBAR_H);
-            const overlap = Math.max(0, barsH - (TOPBAR_H + DRAWINGBAR_H));
-            const cx = (stageSize.width / 2 - sp.x) / sc;
-            const cy = ((overlap + canvasH) / 2 - sp.y) / sc;
-            addTextBox(cx - 100, cy - 20);
-          }}
           onSwipeClose={collapsePanel}
         />
 
