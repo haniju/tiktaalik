@@ -88,6 +88,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const pendingTextboxRef = useRef<{ x: number; y: number } | null>(null);
   // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
   const dragJustEndedRef = useRef(false);
+  // Guard : empêche handleTapById de double-fire après que handleMouseUp a déjà consommé le tap
+  const mouseUpHandledTapRef = useRef(false);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
   // Pinch zoom
   const isPinching = useRef(false);
@@ -432,6 +434,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       const hitTb = findTextBoxAtPoint(x, y, textLayers, heights);
       if (hitTb) {
         // Tap sur une textbox existante → appliquer la state machine, pas de création
+        // Guard : empêcher handleTapById de re-traiter ce même tap
+        mouseUpHandledTapRef.current = true;
         const next = nextSelectionState(tbStateRef.current, x, y, textLayers, heights);
         if (next.kind === 'editing' && tbStateRef.current.kind !== 'editing') {
           editingCreatedAtRef.current = Date.now();
@@ -553,6 +557,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     e.cancelBubble = true;
     pendingTextboxRef.current = null;
     if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
+    if (mouseUpHandledTapRef.current) { mouseUpHandledTapRef.current = false; return; }
     const { toolStateRef, layersRef, tbStateRef, editingCreatedAtRef, stageRef,
             setLayers, setSelection, setContextPanel, setTbStateWithLogRef, centerViewOnRef } = p.current;
     const ts = toolStateRef.current;
