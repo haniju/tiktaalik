@@ -13,7 +13,7 @@ interface Props {
   onSelectText: () => void;
   onSelectEraser: () => void;
   onSelectBackground: () => void;
-  onSwipeOpen: () => void;
+  onSwipeOpen: (target: string) => void;
   onSwipeClose: () => void;
 }
 
@@ -27,19 +27,24 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
   const { activeTool, canvasMode } = state;
   const isDrawMode = canvasMode === 'draw';
   const touchStartY = useRef<number | null>(null);
+  const touchTargetTool = useRef<string | null>(null);
 
   const isActive = (tool: Tool) => isDrawMode && activeTool === tool;
   const isBgActive = isDrawMode && contextPanel === 'background';
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]');
+    touchTargetTool.current = el?.dataset.tool ?? null;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartY.current === null) return;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
+    const target = touchTargetTool.current;
     touchStartY.current = null;
-    if (dy > SWIPE_THRESHOLD) onSwipeOpen();
+    touchTargetTool.current = null;
+    if (dy > SWIPE_THRESHOLD && target) onSwipeOpen(target);
     else if (dy < -SWIPE_THRESHOLD) onSwipeClose();
   };
 
@@ -50,7 +55,7 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
         const active = isActive(id);
         const toolColor = state.toolColors[id];
         return (
-          <button key={id} style={{ ...styles.btn, ...(active ? styles.btnActive : {}) }}
+          <button key={id} data-tool={id} style={{ ...styles.btn, ...(active ? styles.btnActive : {}) }}
             onClick={() => onSelectDrawingTool(id)}>
             <div style={{ position: 'relative', display: 'inline-flex' }}>
               <Icon name={icon} size={22} />
@@ -66,19 +71,19 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
       })}
 
       {/* Gomme */}
-      <button style={{ ...styles.btn, ...(isActive('eraser') ? styles.btnActive : {}) }} onClick={onSelectEraser}>
+      <button data-tool="eraser" style={{ ...styles.btn, ...(isActive('eraser') ? styles.btnActive : {}) }} onClick={onSelectEraser}>
         <Icon name="eraser" size={22} />
         {isActive('eraser') && <div style={styles.underline} />}
       </button>
 
       {/* Texte */}
-      <button style={{ ...styles.btn, ...(isActive('text') ? styles.btnActive : {}) }} onClick={onSelectText}>
+      <button data-tool="text" style={{ ...styles.btn, ...(isActive('text') ? styles.btnActive : {}) }} onClick={onSelectText}>
         <Icon name="text" size={22} />
         {isActive('text') && <div style={styles.underline} />}
       </button>
 
       {/* Fond canvas */}
-      <button style={{ ...styles.btn, ...(isBgActive ? styles.btnActive : {}) }} onClick={onSelectBackground}>
+      <button data-tool="background" style={{ ...styles.btn, ...(isBgActive ? styles.btnActive : {}) }} onClick={onSelectBackground}>
         <div style={{
           width: 22, height: 22, borderRadius: '50%',
           border: '2px solid #ccc',

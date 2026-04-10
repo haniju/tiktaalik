@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Stage } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
-import { Drawing, DrawLayer, TextBox, TextLayer, CanvasMode } from '../types';
+import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, CanvasMode } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
@@ -265,12 +265,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onSelectText={selectTextTool}
           onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
           onSelectBackground={selectBackground}
-          onSwipeOpen={() => {
-            if (contextPanel !== null) return;
-            const { activeTool } = toolState;
-            if (activeTool === 'text') setContextPanel('text');
-            else if (activeTool === 'eraser') return; // pas de panel pour la gomme
-            else if (activeTool && ['airbrush', 'pen', 'marker'].includes(activeTool)) setContextPanel('drawing');
+          onSwipeOpen={(target) => {
+            if (target === 'eraser') return;
+            if (target === 'text') { selectTextTool(); setContextPanel('text'); }
+            else if (target === 'background') { selectBackground(); }
+            else if (['airbrush', 'pen', 'marker'].includes(target)) {
+              selectDrawingTool(target as DrawingTool);
+              setContextPanel('drawing');
+            }
           }}
           onSwipeClose={collapsePanel}
         />
