@@ -2,6 +2,9 @@ import React, { useRef } from 'react';
 import Konva from 'konva';
 import { TextBox, TextLayer } from '../types';
 
+const isPWA = window.matchMedia('(display-mode: standalone)').matches
+  || (navigator as unknown as { standalone?: boolean }).standalone === true;
+
 interface EditingTextareaProps {
   textBox: TextLayer;
   stageRef: React.RefObject<Konva.Stage>;
@@ -16,13 +19,22 @@ export const EditingTextarea = React.memo(function EditingTextarea(
 ): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Position stable : le stage a été repositionné avant le montage pour que
-  // le coin haut-gauche de la TB soit à (20px, 20px) dans le canvas div.
-  // → left = 20, top = topOffset + 20.
-  // Pas de state, pas de re-render de position → évite le blur Android (point 1)
-  // et le feedback loop vv.resize → setSp → re-render → vv.resize (point 2).
-  // Au exit editing le stage reste à cette position → TB reste en haut (point 4).
-  const sc = stageRef.current?.scaleX() ?? 1;
+  const stage = stageRef.current;
+  const sc = stage?.scaleX() ?? 1;
+
+  // En PWA standalone, le viewport n'a pas de barre d'adresse : getBoundingClientRect()
+  // donne la position réelle du container. En web mobile, on garde la position fixe (20, topOffset+20)
+  // car le stage a été repositionné avant le montage, et getBoundingClientRect() peut capturer
+  // des valeurs transitionnelles (keyboard animation, chrome mobile).
+  let posLeft = 20;
+  let posTop = topOffset + 20;
+
+  if (isPWA && stage) {
+    const rect = stage.container().getBoundingClientRect();
+    const sp = stage.position();
+    posLeft = rect.left + sp.x + textBox.x * sc;
+    posTop = rect.top + sp.y + textBox.y * sc;
+  }
 
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -55,8 +67,8 @@ export const EditingTextarea = React.memo(function EditingTextarea(
       }}
       style={{
         position: 'fixed',
-        left: 20,
-        top: topOffset + 20,
+        left: posLeft,
+        top: posTop,
         width: textBox.width * sc,
         minWidth: 80 * sc,
         minHeight: 40,
