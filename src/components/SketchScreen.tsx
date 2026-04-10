@@ -23,9 +23,6 @@ import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
 
 
-// Version de l'application (source unique : package.json)
-const APP_VERSION = __APP_VERSION__;
-
 const DEBUG_DEFAULT = false;
 
 const A4_WIDTH = 794;
@@ -210,13 +207,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
     exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`, canvasBackground);
   };
 
-  const handleRename = () => {
-    const newName = prompt('Nouveau nom :', drawingName);
-    if (newName && newName.trim()) {
-      setDrawingName(newName.trim());
-      storage.rename(drawing.id, newName.trim());
-      scheduleSave();
-    }
+  const handleRename = (newName: string) => {
+    setDrawingName(newName);
+    storage.rename(drawing.id, newName);
+    scheduleSave();
   };
 
   const handleDeleteDrawing = () => {
@@ -373,17 +367,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onDragEnd={handleDragEnd}
           />
         </Stage>
-
-        {/* Badge version */}
-        <div style={{
-          position: 'absolute', top: 12, left: 12,
-          background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.7)',
-          fontSize: 11, fontWeight: 500, letterSpacing: 0.2,
-          padding: '4px 10px', borderRadius: 20,
-          pointerEvents: 'none', zIndex: 10,
-        }}>
-          v{APP_VERSION}
-        </div>
 
       </div>
 

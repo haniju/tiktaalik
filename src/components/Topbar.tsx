@@ -11,7 +11,7 @@ interface Props {
   onUndo: () => void;
   onRedo: () => void;
   onExportSvg: () => void;
-  onRename: () => void;
+  onRename: (newName: string) => void;
   onDelete: () => void;
   onToggleDebug: () => void;
   onTogglePinchZoom: () => void;
@@ -19,6 +19,9 @@ interface Props {
 
 export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete, onToggleDebug, onTogglePinchZoom }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(drawingName);
+  const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,13 +33,44 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
+  const startEditing = () => {
+    setEditValue(drawingName);
+    setEditing(true);
+  };
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commitRename = () => {
+    setEditing(false);
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== drawingName) {
+      onRename(trimmed);
+    }
+  };
+
   return (
     <div style={styles.root}>
       <button style={styles.btn} onClick={onBack}>
         <Icon name="back" size={22} />
       </button>
 
-      <span style={styles.title}>{drawingName}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={e => setEditValue(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditing(false); }}
+          style={styles.titleInput}
+        />
+      ) : (
+        <span style={styles.title} onClick={startEditing}>{drawingName}</span>
+      )}
 
       <div style={styles.spacer} />
 
@@ -54,7 +88,7 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
         {menuOpen && (
           <div style={styles.dropdown}>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onExportSvg(); }}>Exporter en SVG</button>
-            <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onRename(); }}>Renommer</button>
+            <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); startEditing(); }}>Renommer</button>
             <button style={styles.dropdownItem} onClick={() => { onTogglePinchZoom(); }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 Zoom pinch
@@ -95,7 +129,8 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
 
 const styles: Record<string, React.CSSProperties> = {
   root: { display: 'flex', alignItems: 'center', height: 48, background: '#fff', borderBottom: '1px solid #e8e8e8', padding: '0 4px', flexShrink: 0, gap: 2 },
-  title: { fontSize: 14, color: '#555', fontWeight: 500, marginLeft: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 },
+  title: { fontSize: 14, color: '#555', fontWeight: 500, marginLeft: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160, cursor: 'pointer' },
+  titleInput: { fontSize: 14, color: '#555', fontWeight: 500, marginLeft: 4, maxWidth: 160, border: 'none', borderBottom: '2px solid #118ab2', outline: 'none', background: 'transparent', padding: '2px 0' },
   spacer: { flex: 1 },
   btn: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px', borderRadius: 8 },
   btnActive: { background: '#f0f0f0' },
