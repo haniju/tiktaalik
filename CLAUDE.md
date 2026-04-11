@@ -136,7 +136,7 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 **All steps completed:**
 - Step 0–9: see git history for details
 
-**Features added on this branch (v1.5.0 → v1.8.1):**
+**Features added on this branch (v1.5.0 → v1.8.3):**
 - `HslColorPicker` replaces deleted `DrawingSecondaryToolbar`
 - Per-tool opacity sliders (marker, airbrush center/edge) with `toolOpacities` + `airbrushEdgeOpacity`
 - Debug overlay toggle in dropdown (off by default)
@@ -145,11 +145,11 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 - Toolbar icons: spraypaint (airbrush), highlight (marker)
 - Modernized slider design (global CSS `app-slider` in App.tsx)
 - PWA install button (GalleryScreen)
-- Zoom slider integrated into ActionFABs bottom bar
+- Zoom slider integrated into ActionFABs bottom bar with +/− buttons and floating percentage label (5s timeout)
 - Inline rename: tap drawing title in Topbar to edit (replaces `prompt()`)
 - Swipe gestures on Drawingbar: swipe ↓ on any icon opens its panel + switches tool, swipe ↑ closes panel (also works on ContextToolbar surface). `data-tool` attributes on buttons, `guardClick` prevents click after swipe.
 - ContextToolbar slide animation (translateY) for open/close
-- GalleryScreen: list layout (scrollable, fixed 64px height items) with relative time since last edit (`timeAgo`)
+- GalleryScreen: mosaic 2-column layout with thumbnail + title + relative time (`timeAgo`), no inline action buttons
 - ActionFABs: gradient background on active mode (blue→green)
 - TextPanel: font size stepper (+/−) buttons alongside input; "Nouveau texte" button removed
 - ColorPickerPanel: label removed, colors in flex grid matching DrawingPanel layout
@@ -163,6 +163,7 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 - `handleTap`: tbStateRef.current instead of stale tbState closure
 - `EditingTextarea`: position fixe web (left:20, top:topOffset+20) + getBoundingClientRect en PWA standalone
 - HslColorPicker: thumb centrage fix (margin-top: -9px → 1px), restored white 22px thumb with border
+- TB double-fire idle→selected→editing: `mouseUpHandledTapRef` guard prevents `handleMouseUp` + `handleTapById` both firing on same touch
 
 ## Do Not
 

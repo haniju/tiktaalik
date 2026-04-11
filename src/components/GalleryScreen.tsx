@@ -105,6 +105,7 @@ export function GalleryScreen({ onOpen, onNew }: Props) {
               </div>
               <div style={styles.cardFooter}>
                 <span style={styles.cardName}>{d.name}</span>
+                <span style={styles.cardSep}>|</span>
                 <span style={styles.cardTime}>{timeAgo(d.updatedAt)}</span>
               </div>
             </div>
@@ -129,11 +130,12 @@ const styles: Record<string, React.CSSProperties> = {
   newBtnLarge: { background: '#e63946', border: 'none', borderRadius: 12, padding: '12px 28px', color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer' },
   grid: { flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, padding: 12, overflowY: 'auto', alignContent: 'start' },
   card: { background: '#fff', borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: '1px solid #e8e8e8', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' },
-  thumbnail: { position: 'relative', width: '100%', height: 120, flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
+  thumbnail: { position: 'relative', width: '100%', height: 300, flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
   thumbImg: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' },
   thumbEmpty: { position: 'absolute', inset: 0, background: '#f0f0f0' },
-  cardFooter: { display: 'flex', flexDirection: 'column', padding: '8px 10px', gap: 2 },
+  cardFooter: { display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '8px 10px', gap: 6 },
   cardName: { fontSize: 13, fontWeight: 600, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  cardTime: { fontSize: 11, color: '#999' },
+  cardSep: { fontSize: 12, color: '#ccc', flexShrink: 0 },
+  cardTime: { fontSize: 11, color: '#999', flexShrink: 0 },
   versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0 },
 };
