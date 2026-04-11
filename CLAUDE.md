@@ -149,7 +149,7 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 - Inline rename: tap drawing title in Topbar to edit (replaces `prompt()`)
 - Swipe gestures on Drawingbar: swipe ↓ on any icon opens its panel + switches tool, swipe ↑ closes panel (also works on ContextToolbar surface). `data-tool` attributes on buttons, `guardClick` prevents click after swipe.
 - ContextToolbar slide animation (translateY) for open/close
-- GalleryScreen: mosaic 2-column layout with thumbnail + title + relative time (`timeAgo`), no inline action buttons
+- GalleryScreen: mosaic 2-column layout with 300px thumbnails, title | timing inline row, scrollable grid
 - ActionFABs: gradient background on active mode (blue→green)
 - TextPanel: font size stepper (+/−) buttons alongside input; "Nouveau texte" button removed
 - ColorPickerPanel: label removed, colors in flex grid matching DrawingPanel layout
