@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Drawing } from './types';
-import { GalleryScreen } from './components/GalleryScreen';
+import { HomeScreen } from './components/HomeScreen';
 import { SketchScreen } from './components/SketchScreen';
 
 const SLIDER_CSS = `
@@ -49,7 +49,7 @@ const SLIDER_CSS = `
 }
 `;
 
-type Screen = 'gallery' | 'sketch';
+type Screen = 'home' | 'sketch';
 
 export default function App() {
   // Injecter le CSS des sliders une seule fois
@@ -62,20 +62,20 @@ export default function App() {
       document.head.appendChild(el);
     }
   }, []);
-  const [screen, setScreen] = useState<Screen>('gallery');
+  const [screen, setScreen] = useState<Screen>('home');
   const [currentDrawing, setCurrentDrawing] = useState<Drawing | null>(null);
 
   if (screen === 'sketch' && currentDrawing) {
     return (
       <SketchScreen
         drawing={currentDrawing}
-        onBack={() => setScreen('gallery')}
+        onBack={() => setScreen('home')}
       />
     );
   }
 
   return (
-    <GalleryScreen
+    <HomeScreen
       onOpen={drawing => { setCurrentDrawing(drawing); setScreen('sketch'); }}
       onNew={drawing => { setCurrentDrawing(drawing); setScreen('sketch'); }}
     />
