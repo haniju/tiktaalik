@@ -67,7 +67,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
 - Per-tool opacity in `toolOpacities` (marker, airbrush center); airbrush edge opacity separate (`airbrushEdgeOpacity`)
 - Color selection: `UnifiedColorPicker` component shared across all contexts (drawing, background, text) — preset swatches + expandable `HslColorPicker` (HSL sliders). Mode prop selects preset palette (vivid for drawing/text, neutral for background).
-- `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode
+- `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode. Swipe up to close. Hit area (60px invisible zone below toolbar) captures touch to prevent accidental strokes on canvas.
 
 ### TextBox State Machine
 
@@ -184,6 +184,7 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 - `useDrawingOrder` — new hook, `sketchpad_drawing_order` localStorage key (Option A: separate array of IDs)
 - Rename dialog (popup) and delete confirmation dialog on HomeScreen
 - Thumbnail resolution doubled (200px → 400px wide) for sharper vignettes
+- `ContextToolbar` — hit area 60px sous la toolbar (zone invisible, `position: absolute`, `zIndex: 10`) pour attraper le swipe up sans déclencher de trait sur le canvas
 
 ## Do Not
 
