@@ -3,7 +3,7 @@ import { ToolState, DrawingTool } from '../types';
 import { ContextPanel } from '../hooks/useToolState';
 import { DrawingPanel } from './DrawingPanel';
 import { TextPanel } from './TextPanel';
-import { ColorPickerPanel } from './ColorPickerPanel';
+import { UnifiedColorPicker } from './UnifiedColorPicker';
 import { TextBox } from '../types';
 
 const SWIPE_THRESHOLD = 30;
@@ -74,9 +74,10 @@ export function ContextToolbar({
         )}
 
         {contextPanel === 'background' && (
-          <ColorPickerPanel
+          <UnifiedColorPicker
             color={canvasBackground}
             onChange={onSetBackground}
+            mode="background"
           />
         )}
       </div>

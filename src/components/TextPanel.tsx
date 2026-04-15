@@ -1,5 +1,6 @@
 import { TextBox } from '../types';
 import { Icon } from './Icon';
+import { UnifiedColorPicker } from './UnifiedColorPicker';
 
 const FONTS = ['Arial', 'Georgia', 'Courier New', 'Verdana', 'Times New Roman', 'Trebuchet MS'];
 
@@ -45,13 +46,6 @@ export function TextPanel({ textBox, onChange }: Props) {
       </div>
 
       <div style={{ ...styles.row, ...(disabled ? styles.rowDisabled : {}) }}>
-        <label style={{ ...styles.colorLabel, pointerEvents: disabled ? 'none' : 'auto' }} title="Couleur du texte">
-          <Icon name="text_color" size={22} />
-          <div style={{ width: 18, height: 3, background: textBox?.color ?? '#ccc', borderRadius: 2 }} />
-          <input type="color" value={textBox?.color ?? '#000000'} disabled={disabled}
-            onChange={e => onChange({ color: e.target.value })} style={styles.hiddenPicker} />
-        </label>
-
         <button disabled={disabled} style={{ ...styles.btn, ...(isBold ? styles.btnActive : {}), ...(disabled ? styles.disabled : {}) }} onClick={toggleBold}>
           <Icon name="text_bold" size={20} />
         </button>
@@ -73,6 +67,14 @@ export function TextPanel({ textBox, onChange }: Props) {
           </button>
         ))}
       </div>
+
+      {!disabled && (
+        <UnifiedColorPicker
+          color={textBox?.color ?? '#000000'}
+          onChange={c => onChange({ color: c })}
+          mode="text"
+        />
+      )}
     </div>
   );
 }
@@ -86,8 +88,6 @@ const styles: Record<string, React.CSSProperties> = {
   select: { border: '1px solid #e8e8e8', borderRadius: 6, padding: '4px 6px', fontSize: 12, background: '#f8f8f8', color: '#333', cursor: 'pointer' },
   sizeInput: { width: 40, border: '1px solid #e8e8e8', borderRadius: 0, padding: '4px 2px', fontSize: 12, textAlign: 'center', color: '#333', background: '#f8f8f8', MozAppearance: 'textfield' },
   stepperBtn: { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e8e8e8', background: '#f8f8f8', cursor: 'pointer', fontSize: 16, fontWeight: 600, color: '#333', flexShrink: 0 },
-  colorLabel: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, cursor: 'pointer', padding: '4px 6px', position: 'relative' },
-  hiddenPicker: { position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer', top: 0, left: 0 },
   disabled: { opacity: 0.35, cursor: 'not-allowed', pointerEvents: 'none' as const },
   rowDisabled: { opacity: 0.35, pointerEvents: 'none' as const },
 };
