@@ -8,6 +8,7 @@ export interface DragState {
   draggingId: string | null;       // item "principal" du drag
   insertIndex: number | null;      // position d'insertion dans la liste complète
   isDragging: boolean;
+  longPressReady: boolean;         // long-press déclenché, en attente de mouvement ou release
   pointerX: number;                // position courante du doigt (pour "suit le doigt")
   pointerY: number;
 }
@@ -18,15 +19,19 @@ interface UseDragToReorderProps<T> {
   selectedIds: string[];           // ids en "selected mode"
   onReorder: (newItems: T[]) => void;
   onSelect: (id: string) => void;  // tap court → sélectionne/désélectionne
+  onLongPressRelease?: (id: string) => void; // long-press sans drag → sélection
   scrollContainerRef: React.RefObject<HTMLElement>;
+  layout?: 'horizontal' | 'grid'; // défaut: 'horizontal'
 }
 
+const INITIAL_STATE: DragState = {
+  draggingId: null, insertIndex: null, isDragging: false, longPressReady: false, pointerX: 0, pointerY: 0,
+};
+
 export function useDragToReorder<T>({
-  items, getId, selectedIds, onReorder, onSelect, scrollContainerRef,
+  items, getId, selectedIds, onReorder, onSelect, onLongPressRelease, scrollContainerRef, layout = 'horizontal',
 }: UseDragToReorderProps<T>) {
-  const [dragState, setDragState] = useState<DragState>({
-    draggingId: null, insertIndex: null, isDragging: false, pointerX: 0, pointerY: 0,
-  });
+  const [dragState, setDragState] = useState<DragState>({ ...INITIAL_STATE });
 
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -36,35 +41,49 @@ export function useDragToReorder<T>({
   onReorderRef.current = onReorder;
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const onLongPressReleaseRef = useRef(onLongPressRelease);
+  onLongPressReleaseRef.current = onLongPressRelease;
 
-  const dragStateRef = useRef<DragState>({ draggingId: null, insertIndex: null, isDragging: false, pointerX: 0, pointerY: 0 });
+  const dragStateRef = useRef<DragState>({ ...INITIAL_STATE });
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const pointerMovedRef = useRef(false);
+  const longPressReadyRef = useRef(false);
+  const longPressIdRef = useRef<string | null>(null);
   const isManualScrolling = useRef(false);
-  const lastScrollX = useRef(0);
+  const lastScrollPos = useRef(0); // X pour horizontal, Y pour grid
   const rafRef = useRef<number | null>(null);
   const pointerXRef = useRef(0);
   const pointerYRef = useRef(0);
   const activePointerId = useRef<number | null>(null);
-  // Ref pour stocker le cleanup des listeners document (pendant drag)
   const docCleanupRef = useRef<(() => void) | null>(null);
+
+  const isGrid = layout === 'grid';
 
   const startAutoScroll = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const tick = () => {
       const rect = container.getBoundingClientRect();
-      const relX = pointerXRef.current - rect.left;
-      const w = rect.width;
-      let speed = 0;
-      if (relX < SCROLL_ZONE) speed = -SCROLL_MAX_SPEED * (1 - relX / SCROLL_ZONE);
-      else if (relX > w - SCROLL_ZONE) speed = SCROLL_MAX_SPEED * (1 - (w - relX) / SCROLL_ZONE);
-      if (speed !== 0) container.scrollLeft += speed;
+      if (isGrid) {
+        const relY = pointerYRef.current - rect.top;
+        const h = rect.height;
+        let speed = 0;
+        if (relY < SCROLL_ZONE) speed = -SCROLL_MAX_SPEED * (1 - relY / SCROLL_ZONE);
+        else if (relY > h - SCROLL_ZONE) speed = SCROLL_MAX_SPEED * (1 - (h - relY) / SCROLL_ZONE);
+        if (speed !== 0) container.scrollTop += speed;
+      } else {
+        const relX = pointerXRef.current - rect.left;
+        const w = rect.width;
+        let speed = 0;
+        if (relX < SCROLL_ZONE) speed = -SCROLL_MAX_SPEED * (1 - relX / SCROLL_ZONE);
+        else if (relX > w - SCROLL_ZONE) speed = SCROLL_MAX_SPEED * (1 - (w - relX) / SCROLL_ZONE);
+        if (speed !== 0) container.scrollLeft += speed;
+      }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [scrollContainerRef]);
+  }, [scrollContainerRef, isGrid]);
 
   const stopAutoScroll = useCallback(() => {
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
@@ -77,8 +96,8 @@ export function useDragToReorder<T>({
     }
   }, []);
 
-  // Calcule l'index d'insertion dans la liste complète selon clientX
-  const calcInsertIndex = useCallback((clientX: number, draggingId: string): number => {
+  // Calcule l'index d'insertion selon la position du pointeur
+  const calcInsertIndex = useCallback((clientX: number, clientY: number, draggingId: string): number => {
     const container = scrollContainerRef.current;
     if (!container) return itemsRef.current.length;
     const itemEls = Array.from(container.querySelectorAll('[data-drag-id]')) as HTMLElement[];
@@ -86,16 +105,39 @@ export function useDragToReorder<T>({
       ? selectedIdsRef.current
       : [draggingId];
 
-    for (let i = 0; i < itemEls.length; i++) {
-      const elId = itemEls[i].getAttribute('data-drag-id')!;
-      if (draggedIds.includes(elId)) continue;
-      const rect = itemEls[i].getBoundingClientRect();
-      if (clientX < rect.left + rect.width / 2) {
-        return itemsRef.current.findIndex(item => getId(item) === elId);
+    if (isGrid) {
+      // 2D : trouver l'élément le plus proche par row puis column
+      for (let i = 0; i < itemEls.length; i++) {
+        const elId = itemEls[i].getAttribute('data-drag-id')!;
+        if (draggedIds.includes(elId)) continue;
+        const rect = itemEls[i].getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const midX = rect.left + rect.width / 2;
+        // Si le pointeur est au-dessus du milieu vertical de cet élément,
+        // ou sur la même ligne et avant le milieu horizontal
+        if (clientY < midY - rect.height / 4) {
+          // Au-dessus de cette row
+          return itemsRef.current.findIndex(item => getId(item) === elId);
+        }
+        if (clientY < midY + rect.height / 4 && clientX < midX) {
+          // Même row, avant cet élément
+          return itemsRef.current.findIndex(item => getId(item) === elId);
+        }
       }
+      return itemsRef.current.length;
+    } else {
+      // 1D horizontal (comportement original)
+      for (let i = 0; i < itemEls.length; i++) {
+        const elId = itemEls[i].getAttribute('data-drag-id')!;
+        if (draggedIds.includes(elId)) continue;
+        const rect = itemEls[i].getBoundingClientRect();
+        if (clientX < rect.left + rect.width / 2) {
+          return itemsRef.current.findIndex(item => getId(item) === elId);
+        }
+      }
+      return itemsRef.current.length;
     }
-    return itemsRef.current.length;
-  }, [scrollContainerRef, getId]);
+  }, [scrollContainerRef, getId, isGrid]);
 
   const commitReorder = useCallback((draggingId: string, insertIndex: number) => {
     const currentItems = itemsRef.current;
@@ -123,16 +165,59 @@ export function useDragToReorder<T>({
   const resetDrag = useCallback(() => {
     stopAutoScroll();
     cancelLongPress();
-    // Retirer les listeners document
     if (docCleanupRef.current) { docCleanupRef.current(); docCleanupRef.current = null; }
     pointerStartRef.current = null;
     pointerMovedRef.current = false;
+    longPressReadyRef.current = false;
+    longPressIdRef.current = null;
     isManualScrolling.current = false;
     activePointerId.current = null;
-    const reset = { draggingId: null, insertIndex: null, isDragging: false, pointerX: 0, pointerY: 0 };
+    const reset = { ...INITIAL_STATE };
     dragStateRef.current = reset;
     setDragState(reset);
   }, [stopAutoScroll, cancelLongPress]);
+
+  // Démarre le drag effectif (appelé depuis le timer ou depuis le premier move après longPressReady)
+  const enterDragMode = useCallback((id: string) => {
+    const idx = itemsRef.current.findIndex(i => getId(i) === id);
+    const state: DragState = {
+      draggingId: id, insertIndex: idx, isDragging: true, longPressReady: false,
+      pointerX: pointerXRef.current, pointerY: pointerYRef.current,
+    };
+    dragStateRef.current = state;
+    setDragState(state);
+    startAutoScroll();
+
+    const onDocMove = (ev: PointerEvent) => {
+      if (!ev.isPrimary) return;
+      pointerXRef.current = ev.clientX;
+      pointerYRef.current = ev.clientY;
+      const insertIndex = calcInsertIndex(ev.clientX, ev.clientY, id);
+      const s = { ...dragStateRef.current, insertIndex, pointerX: ev.clientX, pointerY: ev.clientY };
+      dragStateRef.current = s;
+      setDragState(s);
+    };
+    const onDocUp = (ev: PointerEvent) => {
+      if (!ev.isPrimary) return;
+      if (dragStateRef.current.isDragging) {
+        const { draggingId, insertIndex } = dragStateRef.current;
+        if (draggingId !== null && insertIndex !== null) {
+          commitReorder(draggingId, insertIndex);
+        }
+      }
+      resetDrag();
+    };
+    const onDocCancel = () => resetDrag();
+
+    document.addEventListener('pointermove', onDocMove);
+    document.addEventListener('pointerup', onDocUp);
+    document.addEventListener('pointercancel', onDocCancel);
+    docCleanupRef.current = () => {
+      document.removeEventListener('pointermove', onDocMove);
+      document.removeEventListener('pointerup', onDocUp);
+      document.removeEventListener('pointercancel', onDocCancel);
+    };
+  }, [getId, startAutoScroll, calcInsertIndex, commitReorder, resetDrag]);
 
   const getDragHandlers = useCallback((id: string) => ({
     'data-drag-id': id,
@@ -142,66 +227,46 @@ export function useDragToReorder<T>({
       activePointerId.current = e.pointerId;
       pointerStartRef.current = { x: e.clientX, y: e.clientY };
       pointerMovedRef.current = false;
+      longPressReadyRef.current = false;
+      longPressIdRef.current = null;
       isManualScrolling.current = false;
       pointerXRef.current = e.clientX;
       pointerYRef.current = e.clientY;
 
-      // Démarrer le timer long press
       longPressTimerRef.current = setTimeout(() => {
         longPressTimerRef.current = null;
         if (pointerMovedRef.current) return;
 
-        // Long press reconnu → démarrer le drag
-        const idx = itemsRef.current.findIndex(i => getId(i) === id);
-        const state = {
-          draggingId: id, insertIndex: idx, isDragging: true,
-          pointerX: pointerXRef.current, pointerY: pointerYRef.current,
-        };
-        dragStateRef.current = state;
-        setDragState(state);
-        startAutoScroll();
-
-        // Attacher les listeners sur document pour garantir le cleanup
-        const onDocMove = (ev: PointerEvent) => {
-          if (!ev.isPrimary) return;
-          pointerXRef.current = ev.clientX;
-          pointerYRef.current = ev.clientY;
-          const insertIndex = calcInsertIndex(ev.clientX, id);
-          const s = { ...dragStateRef.current, insertIndex, pointerX: ev.clientX, pointerY: ev.clientY };
-          dragStateRef.current = s;
-          setDragState(s);
-        };
-        const onDocUp = (ev: PointerEvent) => {
-          if (!ev.isPrimary) return;
-          if (dragStateRef.current.isDragging) {
-            const { draggingId, insertIndex } = dragStateRef.current;
-            if (draggingId !== null && insertIndex !== null) {
-              commitReorder(draggingId, insertIndex);
-            }
-          }
-          resetDrag();
-        };
-        const onDocCancel = () => resetDrag();
-
-        document.addEventListener('pointermove', onDocMove);
-        document.addEventListener('pointerup', onDocUp);
-        document.addEventListener('pointercancel', onDocCancel);
-        docCleanupRef.current = () => {
-          document.removeEventListener('pointermove', onDocMove);
-          document.removeEventListener('pointerup', onDocUp);
-          document.removeEventListener('pointercancel', onDocCancel);
-        };
+        if (onLongPressReleaseRef.current) {
+          // Mode deux phases : longPressReady, en attente de move (→ drag) ou release (→ select)
+          longPressReadyRef.current = true;
+          longPressIdRef.current = id;
+          navigator.vibrate?.(50);
+          const state: DragState = {
+            ...dragStateRef.current, longPressReady: true, draggingId: id,
+            pointerX: pointerXRef.current, pointerY: pointerYRef.current,
+          };
+          dragStateRef.current = state;
+          setDragState(state);
+        } else {
+          // Mode direct (comportement original) : long-press → drag immédiat
+          enterDragMode(id);
+        }
       }, LONG_PRESS_MS);
     },
 
-    // Avant long-press : scroll manuel ou annulation
     onPointerMove: (e: React.PointerEvent) => {
       if (!e.isPrimary || activePointerId.current !== e.pointerId) return;
-      // Si le drag est actif, les listeners document gèrent le mouvement
       if (dragStateRef.current.isDragging) return;
 
       pointerXRef.current = e.clientX;
       pointerYRef.current = e.clientY;
+
+      // Si longPressReady : le moindre mouvement déclenche le drag
+      if (longPressReadyRef.current && longPressIdRef.current) {
+        enterDragMode(longPressIdRef.current);
+        return;
+      }
 
       // Détecter mouvement → annuler long-press et basculer en scroll manuel
       if (pointerStartRef.current && !pointerMovedRef.current) {
@@ -211,7 +276,7 @@ export function useDragToReorder<T>({
           pointerMovedRef.current = true;
           cancelLongPress();
           isManualScrolling.current = true;
-          lastScrollX.current = e.clientX;
+          lastScrollPos.current = isGrid ? e.clientY : e.clientX;
         }
       }
 
@@ -219,19 +284,33 @@ export function useDragToReorder<T>({
       if (isManualScrolling.current) {
         const container = scrollContainerRef.current;
         if (container) {
-          const deltaX = lastScrollX.current - e.clientX;
-          container.scrollLeft += deltaX;
-          lastScrollX.current = e.clientX;
+          if (isGrid) {
+            const deltaY = lastScrollPos.current - e.clientY;
+            container.scrollTop += deltaY;
+            lastScrollPos.current = e.clientY;
+          } else {
+            const deltaX = lastScrollPos.current - e.clientX;
+            container.scrollLeft += deltaX;
+            lastScrollPos.current = e.clientX;
+          }
         }
       }
     },
 
     onPointerUp: (e: React.PointerEvent) => {
       if (!e.isPrimary) return;
-      // Si drag actif, le listener document gère le pointerup
       if (dragStateRef.current.isDragging) return;
 
       cancelLongPress();
+
+      // Long-press reconnu mais pas de drag → sélection via onLongPressRelease
+      if (longPressReadyRef.current && longPressIdRef.current) {
+        onLongPressReleaseRef.current?.(longPressIdRef.current);
+        resetDrag();
+        return;
+      }
+
+      // Tap court
       if (!pointerMovedRef.current) {
         onSelectRef.current(id);
       }
@@ -239,11 +318,11 @@ export function useDragToReorder<T>({
     },
 
     onPointerCancel: () => {
-      if (dragStateRef.current.isDragging) return; // document gère
+      if (dragStateRef.current.isDragging) return;
       cancelLongPress();
       resetDrag();
     },
-  }), [getId, startAutoScroll, cancelLongPress, calcInsertIndex, commitReorder, resetDrag, scrollContainerRef]);
+  }), [getId, enterDragMode, cancelLongPress, resetDrag, scrollContainerRef, isGrid]);
 
   return { dragState, getDragHandlers };
 }
