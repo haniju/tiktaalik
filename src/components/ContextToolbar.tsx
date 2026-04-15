@@ -42,50 +42,67 @@ export function ContextToolbar({
   };
 
   return (
-    <div data-bars style={{
-      ...styles.outer,
-      maxHeight: visible ? 300 : 0,
-      pointerEvents: visible ? 'auto' : 'none',
-    }}>
-      <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{
-        ...styles.inner,
-        transform: visible ? 'translateY(0)' : 'translateY(-100%)',
-        opacity: visible ? 1 : 0,
+    <div style={styles.wrapper}>
+      <div data-bars style={{
+        ...styles.outer,
+        maxHeight: visible ? 300 : 0,
+        pointerEvents: visible ? 'auto' : 'none',
       }}>
-        {contextPanel === 'drawing' && state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool) && (
-          <DrawingPanel
-            tool={state.activeTool as DrawingTool}
-            color={state.toolColors[state.activeTool as DrawingTool]}
-            width={state.toolWidths[state.activeTool as DrawingTool]}
-            opacity={state.toolOpacities[state.activeTool as DrawingTool]}
-            airbrushEdgeOpacity={state.airbrushEdgeOpacity}
-            onColorChange={c => onSetToolColor(state.activeTool as DrawingTool, c)}
-            onWidthChange={w => onSetToolWidth(state.activeTool as DrawingTool, w)}
-            onOpacityChange={o => onSetToolOpacity(state.activeTool as DrawingTool, o)}
-            onAirbrushEdgeOpacityChange={onSetAirbrushEdgeOpacity}
-          />
-        )}
+        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{
+          ...styles.inner,
+          transform: visible ? 'translateY(0)' : 'translateY(-100%)',
+          opacity: visible ? 1 : 0,
+        }}>
+          {contextPanel === 'drawing' && state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool) && (
+            <DrawingPanel
+              tool={state.activeTool as DrawingTool}
+              color={state.toolColors[state.activeTool as DrawingTool]}
+              width={state.toolWidths[state.activeTool as DrawingTool]}
+              opacity={state.toolOpacities[state.activeTool as DrawingTool]}
+              airbrushEdgeOpacity={state.airbrushEdgeOpacity}
+              onColorChange={c => onSetToolColor(state.activeTool as DrawingTool, c)}
+              onWidthChange={w => onSetToolWidth(state.activeTool as DrawingTool, w)}
+              onOpacityChange={o => onSetToolOpacity(state.activeTool as DrawingTool, o)}
+              onAirbrushEdgeOpacityChange={onSetAirbrushEdgeOpacity}
+            />
+          )}
 
-        {contextPanel === 'text' && (
-          <TextPanel
-            textBox={textBox}
-            onChange={onUpdateTextBox}
-          />
-        )}
+          {contextPanel === 'text' && (
+            <TextPanel
+              textBox={textBox}
+              onChange={onUpdateTextBox}
+            />
+          )}
 
-        {contextPanel === 'background' && (
-          <UnifiedColorPicker
-            color={canvasBackground}
-            onChange={onSetBackground}
-            mode="background"
-          />
-        )}
+          {contextPanel === 'background' && (
+            <UnifiedColorPicker
+              color={canvasBackground}
+              onChange={onSetBackground}
+              mode="background"
+            />
+          )}
+        </div>
       </div>
+
+      {/* Zone invisible sous la toolbar pour attraper le swipe up sans dessiner */}
+      {visible && (
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={styles.hitArea}
+        />
+      )}
     </div>
   );
 }
 
+const HITAREA_H = 60;
+
 const styles: Record<string, React.CSSProperties> = {
+  wrapper: {
+    position: 'relative',
+    flexShrink: 0,
+  },
   outer: {
     overflow: 'hidden',
     transition: 'max-height 0.25s ease',
@@ -95,5 +112,13 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#fff',
     borderBottom: '1px solid #e8e8e8',
     transition: 'transform 0.25s ease, opacity 0.2s ease',
+  },
+  hitArea: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    height: HITAREA_H,
+    zIndex: 10,
   },
 };
