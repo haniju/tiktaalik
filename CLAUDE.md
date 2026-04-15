@@ -19,19 +19,21 @@ To run a single test file: `npx vitest run src/utils/textboxUtils.test.ts`
 
 **Tiktaalik** is a mobile-first web-based sketchpad app (React + TypeScript + Konva) with two screens:
 
-- **HomeScreen** — Home screen (topbar + galerie). Galerie = flex-wrap grid of vignettes. Vignette = thumbnail image (400px) + footer (title | timing)
+- **HomeScreen** — Home screen (topbar + galerie). Galerie = flex-wrap grid of vignettes. Vignette = thumbnail image (300px) + footer (title | timing). Long-press: select (badge bar with delete/rename), long-press+drag: reorder. Multi-select supported.
 - **SketchScreen** — canvas drawing interface (Konva.Stage) with tools and panels
 
 ### State & Persistence
 
 All data lives in `localStorage`:
 - `sketchpad_drawings` — serialized `Drawing[]` (layers, background, metadata)
+- `sketchpad_drawing_order` — array of drawing IDs for custom gallery order (Option A: separate from Drawing objects, filtered on load)
 - `sketchpad_tool_state` — active tool settings (colors, widths) across sessions
 
 Custom hooks handle state:
 - `useDrawingStorage` — CRUD for drawings in localStorage, with automatic migration of legacy formats
 - `useToolState` — active tool, canvas mode, colors, widths, opacities per tool (canvas background is per-Drawing, not here)
-- `useDragToReorder` — drag-to-reorder in SelectionPanel (long-press 350ms to drag, swipe to scroll)
+- `useDragToReorder` — drag-to-reorder, supports `layout: 'horizontal'` (SelectionPanel) and `layout: 'grid'` (HomeScreen galerie). Two-phase long-press: `onLongPressRelease` for select, move after long-press for drag. Vibrate on long-press ready.
+- `useDrawingOrder` — persistence of custom gallery order in `sketchpad_drawing_order` (array of IDs). `applyOrder()` sorts drawings, filters stale IDs, puts new drawings first.
 - `useAutosave` — debounced autosave timer, saveNow/scheduleSave, visibilitychange/beforeunload listeners
 - `useUndoRedo` — undoStack, pushUndo, undo/redo, Cmd+Z keyboard shortcut
 - `useStageViewport` — stageRef, stageSize, zoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn
@@ -177,6 +179,11 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 - `TextPanel` — replaced native `<input type="color">` with `UnifiedColorPicker mode="text"` (shown when textbox selected)
 - `ColorPickerPanel.tsx` — deleted (superseded)
 - `HslColorPicker.tsx` — kept as internal sub-component of `UnifiedColorPicker`
+- HomeScreen: drag-to-reorder vignettes (long-press+drag), vignette selection with badge bar (delete + rename), multi-select, ghost flottant, order persistence via `useDrawingOrder`
+- `useDragToReorder` — adapted for 2D grid layout, two-phase long-press (`onLongPressRelease`), vertical auto-scroll
+- `useDrawingOrder` — new hook, `sketchpad_drawing_order` localStorage key (Option A: separate array of IDs)
+- Rename dialog (popup) and delete confirmation dialog on HomeScreen
+- Thumbnail resolution doubled (200px → 400px wide) for sharper vignettes
 
 ## Do Not
 
