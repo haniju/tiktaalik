@@ -70,9 +70,10 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
 }
 
 export function generateThumbnail(layers: DrawLayer[], width: number, height: number, background = '#ffffff'): string {
-  const scale = 200 / width;
+  const THUMB_W = 400;
+  const scale = THUMB_W / width;
   const canvas = document.createElement('canvas');
-  canvas.width = 200;
+  canvas.width = THUMB_W;
   canvas.height = Math.round(height * scale);
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = background;

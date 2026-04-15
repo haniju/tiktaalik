@@ -19,7 +19,7 @@ To run a single test file: `npx vitest run src/utils/textboxUtils.test.ts`
 
 **Tiktaalik** is a mobile-first web-based sketchpad app (React + TypeScript + Konva) with two screens:
 
-- **GalleryScreen** — browse, create, rename, delete drawings stored in `localStorage`
+- **HomeScreen** — Home screen (topbar + galerie). Galerie = flex-wrap grid of vignettes. Vignette = thumbnail image (400px) + footer (title | timing)
 - **SketchScreen** — canvas drawing interface (Konva.Stage) with tools and panels
 
 ### State & Persistence
@@ -64,7 +64,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 - **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
 - Per-tool opacity in `toolOpacities` (marker, airbrush center); airbrush edge opacity separate (`airbrushEdgeOpacity`)
-- Color selection: preset swatches + `HslColorPicker` (expandable in DrawingPanel)
+- Color selection: `UnifiedColorPicker` component shared across all contexts (drawing, background, text) — preset swatches + expandable `HslColorPicker` (HSL sliders). Mode prop selects preset palette (vivid for drawing/text, neutral for background).
 - `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode
 
 ### TextBox State Machine
@@ -125,7 +125,8 @@ The app version from `package.json` is injected at build time as the global `__A
 
 - ESLint shows ~16 errors: unused vars, `any` types, one empty catch block — cleanup in progress
 - `react-hooks/exhaustive-deps` rule referenced in code but plugin not installed
-- `DrawingSecondaryToolbar` a été supprimé et remplacé par `HslColorPicker`
+- `DrawingSecondaryToolbar` supprimé → remplacé par `HslColorPicker` → unifié dans `UnifiedColorPicker`
+- `ColorPickerPanel` supprimé, remplacé par `UnifiedColorPicker mode="background"`
 - Playwright demo test stubs (`e2e/example.spec.ts`, `tests/example.spec.ts`) fail in Vitest — pre-existing, not real tests
 - Pinch zoom while textarea is focused exits editing (first touch fires handleMouseDown before second touch confirms pinch) — known limitation, deferred
 
@@ -144,12 +145,12 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 - Pinch-to-zoom two-finger gesture (toggle in dropdown, off by default)
 - Toolbar icons: spraypaint (airbrush), highlight (marker)
 - Modernized slider design (global CSS `app-slider` in App.tsx)
-- PWA install button (GalleryScreen)
+- PWA install button (HomeScreen)
 - Zoom slider integrated into ActionFABs bottom bar with +/− buttons and floating percentage label (5s timeout)
 - Inline rename: tap drawing title in Topbar to edit (replaces `prompt()`)
 - Swipe gestures on Drawingbar: swipe ↓ on any icon opens its panel + switches tool, swipe ↑ closes panel (also works on ContextToolbar surface). `data-tool` attributes on buttons, `guardClick` prevents click after swipe.
 - ContextToolbar slide animation (translateY) for open/close
-- GalleryScreen: mosaic 2-column layout with 300px thumbnails, title | timing inline row, scrollable grid
+- HomeScreen: galerie flex-wrap 2-col, vignettes (thumbnail 400px + titre | timing footer), overflowY:scroll
 - ActionFABs: gradient background on active mode (blue→green)
 - TextPanel: font size stepper (+/−) buttons alongside input; "Nouveau texte" button removed
 - ColorPickerPanel: label removed, colors in flex grid matching DrawingPanel layout
@@ -164,6 +165,18 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 - `EditingTextarea`: position fixe web (left:20, top:topOffset+20) + getBoundingClientRect en PWA standalone
 - HslColorPicker: thumb centrage fix (margin-top: -9px → 1px), restored white 22px thumb with border
 - TB double-fire idle→selected→editing: `mouseUpHandledTapRef` guard prevents `handleMouseUp` + `handleTapById` both firing on same touch
+
+## Unified Color Picker — branch `feat/unified-color-picker`
+
+Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color selection into a single `UnifiedColorPicker` component.
+
+**Changes:**
+- `UnifiedColorPicker.tsx` — single component with `mode` prop (`drawing` | `background` | `text`), preset swatches + expandable `HslColorPicker`
+- `DrawingPanel` — replaced inline presets + chevron + `HslColorPicker` with `UnifiedColorPicker mode="drawing"`
+- `ContextToolbar` — replaced `ColorPickerPanel` with `UnifiedColorPicker mode="background"`
+- `TextPanel` — replaced native `<input type="color">` with `UnifiedColorPicker mode="text"` (shown when textbox selected)
+- `ColorPickerPanel.tsx` — deleted (superseded)
+- `HslColorPicker.tsx` — kept as internal sub-component of `UnifiedColorPicker`
 
 ## Do Not
 

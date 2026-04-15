@@ -132,7 +132,7 @@ const styles: Record<string, React.CSSProperties> = {
   newBtnLarge: { background: '#e63946', border: 'none', borderRadius: 12, padding: '12px 28px', color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer' },
   galerie: { flex: 1, display: 'flex', flexWrap: 'wrap', gap: 12, padding: 12, overflowY: 'scroll', alignContent: 'start' },
   vignette: { width: 'calc(50% - 6px)', height: 'max-content', background: '#fff', borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: '1px solid #e8e8e8', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' },
-  vignetteThumb: { position: 'relative', width: '100%', height: 400, flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
+  vignetteThumb: { position: 'relative', width: '100%', height: 300, flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
   vignetteThumbImg: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' },
   vignetteThumbEmpty: { position: 'absolute', inset: 0, background: '#f0f0f0' },
   vignetteFooter: { display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '8px 10px', gap: 6 },
