@@ -57,6 +57,8 @@ export function useDragToReorder<T>({
   const pointerYRef = useRef(0);
   const activePointerId = useRef<number | null>(null);
   const docCleanupRef = useRef<(() => void) | null>(null);
+  const pointerTargetRef = useRef<HTMLElement | null>(null);
+  const touchMoveCleanupRef = useRef<(() => void) | null>(null);
 
   const isGrid = layout === 'grid';
 
@@ -93,6 +95,24 @@ export function useDragToReorder<T>({
     if (longPressTimerRef.current !== null) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+    }
+  }, []);
+
+  // Bloque le scroll natif en interceptant touchmove (non-passive) sur le container
+  const blockNativeScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const handler = (e: TouchEvent) => { e.preventDefault(); };
+    container.addEventListener('touchmove', handler, { passive: false });
+    touchMoveCleanupRef.current = () => {
+      container.removeEventListener('touchmove', handler);
+    };
+  }, [scrollContainerRef]);
+
+  const unblockNativeScroll = useCallback(() => {
+    if (touchMoveCleanupRef.current) {
+      touchMoveCleanupRef.current();
+      touchMoveCleanupRef.current = null;
     }
   }, []);
 
@@ -165,6 +185,7 @@ export function useDragToReorder<T>({
   const resetDrag = useCallback(() => {
     stopAutoScroll();
     cancelLongPress();
+    unblockNativeScroll();
     if (docCleanupRef.current) { docCleanupRef.current(); docCleanupRef.current = null; }
     pointerStartRef.current = null;
     pointerMovedRef.current = false;
@@ -175,7 +196,7 @@ export function useDragToReorder<T>({
     const reset = { ...INITIAL_STATE };
     dragStateRef.current = reset;
     setDragState(reset);
-  }, [stopAutoScroll, cancelLongPress]);
+  }, [stopAutoScroll, cancelLongPress, unblockNativeScroll]);
 
   // Démarre le drag effectif (appelé depuis le timer ou depuis le premier move après longPressReady)
   const enterDragMode = useCallback((id: string) => {
@@ -242,6 +263,7 @@ export function useDragToReorder<T>({
           longPressReadyRef.current = true;
           longPressIdRef.current = id;
           navigator.vibrate?.(50);
+          blockNativeScroll();
           const state: DragState = {
             ...dragStateRef.current, longPressReady: true, draggingId: id,
             pointerX: pointerXRef.current, pointerY: pointerYRef.current,
