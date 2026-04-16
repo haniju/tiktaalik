@@ -65,6 +65,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 - **CanvasMode**: `draw | select | move` — selected in `ActionFABs.tsx` (bottom bar)
 - **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
+- `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker, **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)
 - Per-tool opacity in `toolOpacities` (marker, airbrush center); airbrush edge opacity separate (`airbrushEdgeOpacity`)
 - Color selection: `UnifiedColorPicker` component shared across all contexts (drawing, background, text) — preset swatches + expandable `HslColorPicker` (HSL sliders). Mode prop selects preset palette (vivid for drawing/text, neutral for background).
 - `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode. Swipe up to close. Hit area (60px invisible zone below toolbar) captures touch to prevent accidental strokes on canvas.
@@ -189,6 +190,8 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 - Vignette thumbnail height changed from fixed 300px to `28vh` for consistent mobile sizing
 - Build timestamp (`__BUILD_TIME__`) displayed next to version badge on HomeScreen
 - `useDragToReorder`: `blockNativeScroll` / `unblockNativeScroll` — prevents scroll/drag conflict on mobile
+- `TextPanel`: duplicate button — copies selected textbox 20px above, same X, new TB in `selected` state
+- `SketchScreen`: `activeTextBox` derived from `editingTextId ?? selectedTextId` — TextPanel controls work in both selected and editing states
 
 ## Do Not
 

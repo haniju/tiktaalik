@@ -173,13 +173,17 @@ export function SketchScreen({ drawing, onBack }: Props) {
     activeColor, activeWidth,
   });
 
+  const selectedTextId = tbState.kind === 'selected' ? tbState.id : null;
+
   const updateTextBox = useCallback((patch: Partial<TextBox>) => {
+    const targetId = editingTextId ?? selectedTextId;
+    if (!targetId) return;
     setLayers(prev => prev.map(l => {
-      if (l.tool !== 'text' || l.id !== editingTextId) return l;
+      if (l.tool !== 'text' || l.id !== targetId) return l;
       return { ...l, ...patch };
     }));
     scheduleSave();
-  }, [editingTextId]);
+  }, [editingTextId, selectedTextId]);
 
   const deleteItem = useCallback((id: string) => {
     const newL = layers.filter(l => l.id !== id);
@@ -188,6 +192,21 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'deleteItem');
     pushUndo(newL); scheduleSave();
   }, [layers, tbState, pushUndo, setTbStateWithLog]);
+
+  const duplicateTextBox = useCallback(() => {
+    const id = tbState.kind === 'selected' ? tbState.id : tbState.kind === 'editing' ? tbState.id : null;
+    if (!id) return;
+    const tb = layers.find(l => l.id === id && l.tool === 'text') as TextLayer | undefined;
+    if (!tb) return;
+    const newId = uuidv4();
+    const dup: TextLayer = { ...tb, id: newId, y: tb.y - 20 };
+    const newLayers = [...layers, dup];
+    setLayers(newLayers);
+    pushUndo(newLayers);
+    setTbStateWithLog({ kind: 'selected', id: newId }, 'duplicateTextBox');
+    setContextPanel('text');
+    scheduleSave();
+  }, [layers, tbState, pushUndo, setTbStateWithLog, setContextPanel, scheduleSave]);
 
   const deleteSelected = useCallback(() => {
     const newL = layers.filter(l => !selection.includes(l.id));
@@ -222,6 +241,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const editingTextBox = editingTextId
     ? (layers.find(l => l.id === editingTextId && l.tool === 'text') as TextLayer | undefined) ?? null
     : null;
+
+  const activeTextBox = editingTextBox
+    ?? (selectedTextId ? (layers.find(l => l.id === selectedTextId && l.tool === 'text') as TextLayer | undefined) ?? null : null);
 
   // Compense vv.offsetTop sur les barres : quand Chrome ajuste le visual viewport (textarea
   // qui grandit, TB en bas du canvas), position:fixed;top:0 passe au-dessus du visual viewport.
@@ -281,13 +303,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
           contextPanel={contextPanel}
           state={toolState}
           canvasBackground={canvasBackground}
-          textBox={editingTextBox}
+          textBox={activeTextBox}
           onSetToolColor={setToolColor}
           onSetToolWidth={setToolWidth}
           onSetToolOpacity={setToolOpacity}
           onSetAirbrushEdgeOpacity={setAirbrushEdgeOpacity}
           onSetBackground={setCanvasBackground}
           onUpdateTextBox={updateTextBox}
+          onDuplicateTextBox={duplicateTextBox}
           onSwipeClose={collapsePanel}
         />
 

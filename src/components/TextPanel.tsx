@@ -7,9 +7,10 @@ const FONTS = ['Arial', 'Georgia', 'Courier New', 'Verdana', 'Times New Roman', 
 interface Props {
   textBox: TextBox | null;
   onChange: (patch: Partial<TextBox>) => void;
+  onDuplicate: () => void;
 }
 
-export function TextPanel({ textBox, onChange }: Props) {
+export function TextPanel({ textBox, onChange, onDuplicate }: Props) {
   const isBold   = textBox?.fontStyle.includes('bold') ?? false;
   const isItalic = textBox?.fontStyle.includes('italic') ?? false;
 
@@ -66,6 +67,14 @@ export function TextPanel({ textBox, onChange }: Props) {
             <Icon name={`text_${a}`} size={20} />
           </button>
         ))}
+
+        <div style={styles.divider} />
+
+        <button disabled={disabled}
+          style={{ ...styles.btn, ...(disabled ? styles.disabled : {}) }}
+          onClick={onDuplicate}>
+          <Icon name="duplicate" size={20} />
+        </button>
       </div>
 
       {!disabled && (

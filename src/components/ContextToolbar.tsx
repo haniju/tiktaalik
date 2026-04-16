@@ -19,13 +19,14 @@ interface Props {
   onSetAirbrushEdgeOpacity: (opacity: number) => void;
   onSetBackground: (color: string) => void;
   onUpdateTextBox: (patch: Partial<TextBox>) => void;
+  onDuplicateTextBox: () => void;
   onSwipeClose: () => void;
 }
 
 export function ContextToolbar({
   contextPanel, state, canvasBackground, textBox,
   onSetToolColor, onSetToolWidth, onSetToolOpacity, onSetAirbrushEdgeOpacity, onSetBackground,
-  onUpdateTextBox, onSwipeClose,
+  onUpdateTextBox, onDuplicateTextBox, onSwipeClose,
 }: Props) {
   const visible = contextPanel !== null;
   const touchStartY = useRef<number | null>(null);
@@ -71,6 +72,7 @@ export function ContextToolbar({
             <TextPanel
               textBox={textBox}
               onChange={onUpdateTextBox}
+              onDuplicate={onDuplicateTextBox}
             />
           )}
 
