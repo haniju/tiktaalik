@@ -42,6 +42,7 @@ export default defineConfig({
   ],
   define: {
     __APP_VERSION__: JSON.stringify(version),
+    __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })),
   },
   build: {
     outDir: 'dist',

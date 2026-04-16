@@ -27,6 +27,7 @@ function newDrawing(): Drawing {
 }
 
 const APP_VERSION = __APP_VERSION__;
+const BUILD_TIME = __BUILD_TIME__;
 const GHOST_W = 120;
 const GHOST_H = 170; // ratio A4 approx
 
@@ -215,12 +216,15 @@ export function HomeScreen({ onOpen, onNew }: Props) {
 
                 <div
                   {...getDragHandlers(d.id)}
+                  onContextMenu={e => e.preventDefault()}
                   style={{
                     ...styles.vignette,
                     ...(isSelected && !isDraggingThis ? styles.vignetteSelected : {}),
                     opacity: (isDraggingThis || isDragFollower) ? 0.2 : 1,
                     touchAction: 'pan-y',
-                  }}
+                    WebkitTouchCallout: 'none',
+                    userSelect: 'none',
+                  } as React.CSSProperties}
                 >
                   {/* Badge bar — visible quand sélectionné et pas en drag */}
                   {isSelected && !isDraggingThis && !isDragging && (
@@ -341,7 +345,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
         </div>
       )}
 
-      <div style={styles.versionBadge}>v{APP_VERSION}</div>
+      <div style={styles.versionBadge}>v{APP_VERSION} — MAJ {BUILD_TIME}</div>
     </div>
   );
 }
