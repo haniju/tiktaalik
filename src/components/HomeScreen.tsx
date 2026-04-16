@@ -371,7 +371,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '2px solid #118ab2',
     boxShadow: '0 4px 16px rgba(17,138,178,0.2)',
   },
-  vignetteThumb: { position: 'relative', width: '100%', height: 300, flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
+  vignetteThumb: { position: 'relative', width: '100%', height: '28vh', flexShrink: 0, overflow: 'hidden', background: '#f8f8f8' },
   vignetteThumbImg: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' },
   vignetteThumbEmpty: { position: 'absolute', inset: 0, background: '#f0f0f0' },
   vignetteFooter: { display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '8px 10px', gap: 6 },
