@@ -12,7 +12,7 @@ type SelectSubMode = 'none' | 'rotate' | 'scale';
 interface Props {
   layers: DrawLayer[];
   selection: string[];
-  focusedId: string | null;
+  focusedIds: string[];
   selectSubMode: SelectSubMode;
   onFocus: (id: string) => void;
   onSetSelectSubMode: (mode: 'rotate' | 'scale') => void;
@@ -66,7 +66,7 @@ function ItemPreview({ kind, stroke, ab, tb }: {
 export function SelectionPanel({
   layers,
   selection,
-  focusedId,
+  focusedIds,
   selectSubMode,
   onFocus,
   onSetSelectSubMode,
@@ -119,6 +119,7 @@ export function SelectionPanel({
           const tb = kind === 'text' ? layer as TextLayer : undefined;
 
           const isItemSelected = panelSelected.includes(id);
+          const isItemFocused = focusedIds.includes(id);
           const isDraggingThis = dragState.draggingId === id && dragState.isDragging;
           const isDragFollower = isDraggingGroup && panelSelected.includes(id) && dragState.draggingId !== id;
           const showInsertBefore = dragState.isDragging && dragState.insertIndex === idx && !panelSelected.includes(id);
@@ -174,6 +175,7 @@ export function SelectionPanel({
                 <div style={{
                   ...s.thumb,
                   ...(isItemSelected && !isDraggingThis ? s.thumbSelected : {}),
+                  ...(isItemFocused && !isDraggingThis ? s.thumbFocused : {}),
                 }}>
                   <ItemPreview kind={kind} stroke={stroke} ab={ab} tb={tb} />
                 </div>
@@ -248,7 +250,7 @@ export function SelectionPanel({
         <span style={s.count}>
           {selection.length} tracé{selection.length > 1 ? 's' : ''} sélectionné{selection.length > 1 ? 's' : ''}
         </span>
-        {focusedId !== null && (
+        {focusedIds.length > 0 && (
           <>
             <button
               style={{
@@ -367,6 +369,10 @@ const s: Record<string, React.CSSProperties> = {
     background: '#fff',
     transform: 'scale(1.06) translateY(-2px)',
     boxShadow: '0 6px 18px rgba(0,0,0,0.15)',
+  },
+  thumbFocused: {
+    border: '2px solid #f4a261',
+    boxShadow: '0 6px 18px rgba(244,162,97,0.3)',
   },
   thumbDragging: {
     border: '2px solid #222',

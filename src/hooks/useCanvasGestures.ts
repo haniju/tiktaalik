@@ -21,13 +21,13 @@ export interface UseCanvasGesturesParams {
   editingTextIdRef: React.MutableRefObject<string | null>;
   editingCreatedAtRef: React.MutableRefObject<number>;
   selectionRef: React.MutableRefObject<string[]>;
-  focusedIdRef: React.MutableRefObject<string | null>;
+  focusedIdsRef: React.MutableRefObject<string[]>;
   setTbStateWithLogRef: React.MutableRefObject<(next: TextBoxSelectionState, source: string) => void>;
   centerViewOnRef: React.MutableRefObject<(cx: number, cy: number, immediate?: boolean, topOffsetPx?: number) => void>;
   barsRef: React.RefObject<HTMLDivElement>;
   setLayers: React.Dispatch<React.SetStateAction<DrawLayer[]>>;
   setSelection: React.Dispatch<React.SetStateAction<string[]>>;
-  setFocusedId: React.Dispatch<React.SetStateAction<string | null>>;
+  setFocusedIds: React.Dispatch<React.SetStateAction<string[]>>;
   setContextPanel: React.Dispatch<React.SetStateAction<ContextPanel>>;
   setZoomPct: React.Dispatch<React.SetStateAction<number>>;
   exitEditing: () => void;
@@ -77,6 +77,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const selRectStart = useRef<{ x: number; y: number } | null>(null);
   const isDraggingSelection = useRef(false);
   const dragArmed = useRef(false);
+  const dragArmedHitId = useRef<string | null>(null);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragPointerStart = useRef<{ x: number; y: number } | null>(null);
   const dragLayerSnapshot = useRef<DrawLayer[]>([]);
@@ -170,7 +171,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     if (toolState.canvasMode === 'select') {
       if (isBackground) {
         setSelection([]);
-        p.current.setFocusedId(null);
+        p.current.setFocusedIds([]);
         selRectStart.current = pos;
         setSelRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
         return;
@@ -192,6 +193,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (alreadySelected) {
         // Armer le drag — confirmé seulement si le doigt bouge > seuil
         dragArmed.current = true;
+        dragArmedHitId.current = hitId;
         dragStartPos.current = snapPos;
         dragPointerStart.current = snapScreen;
         dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
@@ -480,11 +482,19 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     // Sauvegarder la position de départ AVANT nettoyage pour vérifier le déplacement total
     const savedPointerStart = dragPointerStart.current;
     if (dragArmed.current) {
+      // Tap sans drag → toggle dans le sous-groupe (focusedIds)
+      const hitId = dragArmedHitId.current;
+      if (hitId) {
+        p.current.setFocusedIds(prev => prev.includes(hitId) ? prev.filter(x => x !== hitId) : [...prev, hitId]);
+      }
       dragArmed.current = false;
+      dragArmedHitId.current = null;
       dragStartPos.current = null;
       dragPointerStart.current = null;
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
+      // Bloquer le click/tap Konva suivant pour éviter double toggle
+      dragJustEndedRef.current = true;
     }
     dragPointerStart.current = null;
     if (isDraggingSelection.current) {
@@ -504,12 +514,19 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (totalDisp > 15) {
         // Vrai drag — bloquer le tap Konva synthétique post-drag
         dragJustEndedRef.current = true;
+        dragArmedHitId.current = null;
         pushUndo(layersRef.current);
         scheduleSave();
       } else {
         // Micro-jitter → traiter comme un tap : restaurer les positions d'origine
         setLayers(snapshot);
-        // Ne PAS mettre dragJustEndedRef → le tap Konva va fire normalement
+        // Toggle dans le sous-groupe + bloquer le click Konva (peut ne pas fire sur desktop)
+        const hitId = dragArmedHitId.current;
+        if (hitId) {
+          p.current.setFocusedIds(prev => prev.includes(hitId) ? prev.filter(x => x !== hitId) : [...prev, hitId]);
+        }
+        dragArmedHitId.current = null;
+        dragJustEndedRef.current = true;
       }
       return;
     }
@@ -585,8 +602,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     if (ts.canvasMode === 'select') {
       const sel = p.current.selectionRef.current;
       if (sel.includes(tbId)) {
-        // Déjà sélectionné → niveau 2 (focused)
-        p.current.setFocusedId(tbId);
+        // Déjà sélectionné → toggle dans le sous-groupe (focusedIds)
+        p.current.setFocusedIds(prev => prev.includes(tbId) ? prev.filter(x => x !== tbId) : [...prev, tbId]);
       } else {
         setSelection(prev => [...prev, tbId]);
       }
@@ -644,10 +661,11 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const handleDragEnd = useCallback(() => p.current.scheduleSave(), []);
 
   const handleSelectItem = useCallback((id: string) => {
+    if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
     const sel = p.current.selectionRef.current;
     if (sel.includes(id)) {
-      // Déjà sélectionné → niveau 2 (focused)
-      p.current.setFocusedId(id);
+      // Déjà sélectionné → toggle dans le sous-groupe (focusedIds)
+      p.current.setFocusedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     } else {
       p.current.setSelection(prev => [...prev, id]);
     }

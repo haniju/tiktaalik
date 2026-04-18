@@ -13,7 +13,7 @@ interface DrawingLayerProps {
   canvasBackground: string;
   layers: DrawLayer[];
   selection: string[];
-  focusedId: string | null;
+  focusedIds: string[];
   tbState: TextBoxSelectionState;
   canvasMode: CanvasMode;
   currentStroke: Stroke | null;
@@ -28,7 +28,7 @@ interface DrawingLayerProps {
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
-  canvasBackground, layers, selection, focusedId, tbState, canvasMode,
+  canvasBackground, layers, selection, focusedIds, tbState, canvasMode,
   currentStroke, currentAirbrush, selRect,
   stageRef, textNodesRef,
   onSelectItem, onTapById, onLayerUpdate, onDragEnd,
@@ -41,7 +41,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
       {layers.map(layer => {
         const isSelected = selection.includes(layer.id);
         const isFocused = tbState.kind !== 'idle' && tbState.id === layer.id;
-        const isLevel2 = focusedId === layer.id;
+        const isLevel2 = isSelected && focusedIds.includes(layer.id);
         const outlineColor = isFocused ? '#e63946' : isLevel2 ? '#f4a261' : '#118ab2';
         const selectItem = () => { if (canvasMode === 'select') onSelectItem(layer.id); };
 
@@ -54,7 +54,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
               isTextSelected={tbState.kind === 'selected' && tbState.id === tb.id}
               isSelected={isSelected}
               isFocused={isFocused}
-              isLevel2={focusedId === tb.id}
+              isLevel2={isLevel2}
               stageRef={stageRef}
               textNodesRef={textNodesRef}
               onTap={onTapById}

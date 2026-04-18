@@ -55,10 +55,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>(selection);
-  // ─── Sélection niveau 2 (focusedId) + sous-mode rotate/scale ───
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const focusedIdRef = useRef(focusedId);
-  focusedIdRef.current = focusedId;
+  // ─── Sélection niveau 2 (sous-groupe pour rotate/scale) ───
+  const [focusedIds, setFocusedIds] = useState<string[]>([]);
+  const focusedIdsRef = useRef(focusedIds);
+  focusedIdsRef.current = focusedIds;
   const [selectSubMode, setSelectSubMode] = useState<'none' | 'rotate' | 'scale'>('none');
   // ─── État textbox unifié — remplace editingTextId + selectedTextId + focusedId ───
   const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
@@ -90,13 +90,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   selectionRef.current = selection;
 
-  // Nettoyer focusedId si l'objet focalisé n'est plus dans la sélection
+  // Nettoyer focusedIds — retirer les objets qui ne sont plus dans la sélection
   useEffect(() => {
-    if (focusedId && !selection.includes(focusedId)) {
-      setFocusedId(null);
-      setSelectSubMode('none');
+    const filtered = focusedIds.filter(id => selection.includes(id));
+    if (filtered.length !== focusedIds.length) {
+      setFocusedIds(filtered);
+      if (filtered.length === 0) setSelectSubMode('none');
     }
-  }, [selection, focusedId]);
+  }, [selection, focusedIds]);
 
   // ─── Refs DOM ──────────────────────────────────────────────────────────────
   const barsRef = useRef<HTMLDivElement>(null);
@@ -168,7 +169,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (tbStateRef.current.kind !== 'idle') exitEditing();
     setCanvasMode(mode);
     setSelection([]);
-    setFocusedId(null);
+    setFocusedIds([]);
     setSelectSubMode('none');
   }, [setCanvasMode, exitEditing]);
 
@@ -179,9 +180,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
     selRect, currentStroke, currentAirbrush, textNodesRef,
   } = useCanvasGestures({
     stageRef, layersRef,
-    toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef, focusedIdRef,
+    toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef, focusedIdsRef,
     setTbStateWithLogRef, centerViewOnRef, barsRef,
-    setLayers, setSelection, setFocusedId, setContextPanel, setZoomPct,
+    setLayers, setSelection, setFocusedIds, setContextPanel, setZoomPct,
     exitEditing, collapseEditingToSelected, addTextBox, collapsePanel,
     pushUndo, scheduleSave,
     pinchZoomEnabledRef,
@@ -335,10 +336,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
           <SelectionPanel
             layers={layers}
             selection={selection}
-            focusedId={focusedId}
+            focusedIds={focusedIds}
             selectSubMode={selectSubMode}
             onFocus={id => {
-              setFocusedId(prev => prev === id ? null : id);
+              setFocusedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
               setSelectSubMode('none');
             }}
             onSetSelectSubMode={mode => {
@@ -350,7 +351,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             }}
             onDeleteItem={deleteItem}
             onDeleteSelected={deleteSelected}
-            onClearSelection={() => { setSelection([]); setFocusedId(null); setSelectSubMode('none'); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
+            onClearSelection={() => { setSelection([]); setFocusedIds([]); setSelectSubMode('none'); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
             onReorderByIds={orderedIds => {
               // orderedIds est en ordre panel (z décroissant, top-of-stack en premier).
               // layers est en z croissant → inverser pour aligner les deux ordres.
@@ -396,7 +397,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             canvasBackground={canvasBackground}
             layers={layers}
             selection={selection}
-            focusedId={focusedId}
+            focusedIds={focusedIds}
             tbState={tbState}
             canvasMode={toolState.canvasMode}
             currentStroke={currentStroke}
