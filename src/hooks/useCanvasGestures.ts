@@ -21,11 +21,13 @@ export interface UseCanvasGesturesParams {
   editingTextIdRef: React.MutableRefObject<string | null>;
   editingCreatedAtRef: React.MutableRefObject<number>;
   selectionRef: React.MutableRefObject<string[]>;
+  focusedIdRef: React.MutableRefObject<string | null>;
   setTbStateWithLogRef: React.MutableRefObject<(next: TextBoxSelectionState, source: string) => void>;
   centerViewOnRef: React.MutableRefObject<(cx: number, cy: number, immediate?: boolean, topOffsetPx?: number) => void>;
   barsRef: React.RefObject<HTMLDivElement>;
   setLayers: React.Dispatch<React.SetStateAction<DrawLayer[]>>;
   setSelection: React.Dispatch<React.SetStateAction<string[]>>;
+  setFocusedId: React.Dispatch<React.SetStateAction<string | null>>;
   setContextPanel: React.Dispatch<React.SetStateAction<ContextPanel>>;
   setZoomPct: React.Dispatch<React.SetStateAction<number>>;
   exitEditing: () => void;
@@ -168,6 +170,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     if (toolState.canvasMode === 'select') {
       if (isBackground) {
         setSelection([]);
+        p.current.setFocusedId(null);
         selRectStart.current = pos;
         setSelRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
         return;
@@ -474,6 +477,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       clearTimeout(dragLongPressTimer.current);
       dragLongPressTimer.current = null;
     }
+    // Sauvegarder la position de départ AVANT nettoyage pour vérifier le déplacement total
+    const savedPointerStart = dragPointerStart.current;
     if (dragArmed.current) {
       dragArmed.current = false;
       dragStartPos.current = null;
@@ -484,12 +489,28 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     dragPointerStart.current = null;
     if (isDraggingSelection.current) {
       isDraggingSelection.current = false;
+      const snapshot = dragLayerSnapshot.current;
       dragStartPos.current = null;
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
-      dragJustEndedRef.current = true; // bloque le tap Konva synthétique post-drag
-      pushUndo(layersRef.current);
-      scheduleSave();
+
+      // Vérifier si c'était un vrai drag ou juste du micro-jitter (< 15px)
+      const stage = stageRef.current;
+      const screenPos = stage?.getPointerPosition();
+      const totalDisp = (screenPos && savedPointerStart)
+        ? Math.hypot(screenPos.x - savedPointerStart.x, screenPos.y - savedPointerStart.y)
+        : Infinity;
+
+      if (totalDisp > 15) {
+        // Vrai drag — bloquer le tap Konva synthétique post-drag
+        dragJustEndedRef.current = true;
+        pushUndo(layersRef.current);
+        scheduleSave();
+      } else {
+        // Micro-jitter → traiter comme un tap : restaurer les positions d'origine
+        setLayers(snapshot);
+        // Ne PAS mettre dragJustEndedRef → le tap Konva va fire normalement
+      }
       return;
     }
 
@@ -562,7 +583,13 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
             setLayers, setSelection, setContextPanel, setTbStateWithLogRef, centerViewOnRef } = p.current;
     const ts = toolStateRef.current;
     if (ts.canvasMode === 'select') {
-      setSelection(prev => prev.includes(tbId) ? prev : [...prev, tbId]);
+      const sel = p.current.selectionRef.current;
+      if (sel.includes(tbId)) {
+        // Déjà sélectionné → niveau 2 (focused)
+        p.current.setFocusedId(tbId);
+      } else {
+        setSelection(prev => [...prev, tbId]);
+      }
       return;
     }
     if (ts.activeTool !== 'text') return;
@@ -617,7 +644,13 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const handleDragEnd = useCallback(() => p.current.scheduleSave(), []);
 
   const handleSelectItem = useCallback((id: string) => {
-    p.current.setSelection(prev => prev.includes(id) ? prev : [...prev, id]);
+    const sel = p.current.selectionRef.current;
+    if (sel.includes(id)) {
+      // Déjà sélectionné → niveau 2 (focused)
+      p.current.setFocusedId(id);
+    } else {
+      p.current.setSelection(prev => [...prev, id]);
+    }
   }, []);
 
   return {

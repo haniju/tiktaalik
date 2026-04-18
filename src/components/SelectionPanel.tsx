@@ -7,11 +7,15 @@ interface PanelItem {
   kind: 'stroke' | 'airbrush' | 'text';
 }
 
+type SelectSubMode = 'none' | 'rotate' | 'scale';
+
 interface Props {
   layers: DrawLayer[];
   selection: string[];
   focusedId: string | null;
+  selectSubMode: SelectSubMode;
   onFocus: (id: string) => void;
+  onSetSelectSubMode: (mode: 'rotate' | 'scale') => void;
   onDeselect: (id: string) => void;
   onDeleteItem: (id: string) => void;
   onDeleteSelected: () => void;
@@ -62,6 +66,10 @@ function ItemPreview({ kind, stroke, ab, tb }: {
 export function SelectionPanel({
   layers,
   selection,
+  focusedId,
+  selectSubMode,
+  onFocus,
+  onSetSelectSubMode,
   onDeselect, onDeleteItem, onDeleteSelected, onClearSelection,
   onReorderByIds,
 }: Props) {
@@ -78,8 +86,10 @@ export function SelectionPanel({
     } as PanelItem))
     .reverse(); // on-top à gauche
 
-  const handleSelect = (id: string) =>
+  const handleSelect = (id: string) => {
     setPanelSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    onFocus(id); // TAP panel → niveau 2 (focusedId toggle)
+  };
 
   const { dragState, getDragHandlers } = useDragToReorder({
     items: allItems,
@@ -238,6 +248,30 @@ export function SelectionPanel({
         <span style={s.count}>
           {selection.length} tracé{selection.length > 1 ? 's' : ''} sélectionné{selection.length > 1 ? 's' : ''}
         </span>
+        {focusedId !== null && (
+          <>
+            <button
+              style={{
+                ...s.footerBtn,
+                ...(selectSubMode === 'rotate' ? s.footerBtnActive : {}),
+              }}
+              onClick={() => onSetSelectSubMode('rotate')}
+              title="Rotation"
+            >
+              <img src="/icons/rotate.svg" width="16" height="16" alt="Rotate" style={{ opacity: selectSubMode === 'rotate' ? 1 : 0.6 }} />
+            </button>
+            <button
+              style={{
+                ...s.footerBtn,
+                ...(selectSubMode === 'scale' ? s.footerBtnActive : {}),
+              }}
+              onClick={() => onSetSelectSubMode('scale')}
+              title="Redimensionner"
+            >
+              <img src="/icons/scale.svg" width="16" height="16" alt="Scale" style={{ opacity: selectSubMode === 'scale' ? 1 : 0.6 }} />
+            </button>
+          </>
+        )}
         <button style={s.footerBtn} onClick={onDeleteSelected} title="Tout supprimer">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4h6v2"/>
@@ -372,5 +406,9 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  footerBtnActive: {
+    background: 'linear-gradient(135deg, #118ab2 0%, #06d6a0 100%)',
+    color: '#fff',
   },
 };

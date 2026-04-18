@@ -13,6 +13,7 @@ interface DrawingLayerProps {
   canvasBackground: string;
   layers: DrawLayer[];
   selection: string[];
+  focusedId: string | null;
   tbState: TextBoxSelectionState;
   canvasMode: CanvasMode;
   currentStroke: Stroke | null;
@@ -27,7 +28,7 @@ interface DrawingLayerProps {
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
-  canvasBackground, layers, selection, tbState, canvasMode,
+  canvasBackground, layers, selection, focusedId, tbState, canvasMode,
   currentStroke, currentAirbrush, selRect,
   stageRef, textNodesRef,
   onSelectItem, onTapById, onLayerUpdate, onDragEnd,
@@ -40,6 +41,8 @@ export const DrawingLayer = React.memo(function DrawingLayer({
       {layers.map(layer => {
         const isSelected = selection.includes(layer.id);
         const isFocused = tbState.kind !== 'idle' && tbState.id === layer.id;
+        const isLevel2 = focusedId === layer.id;
+        const outlineColor = isFocused ? '#e63946' : isLevel2 ? '#f4a261' : '#118ab2';
         const selectItem = () => { if (canvasMode === 'select') onSelectItem(layer.id); };
 
         if (layer.tool === 'text') {
@@ -51,6 +54,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
               isTextSelected={tbState.kind === 'selected' && tbState.id === tb.id}
               isSelected={isSelected}
               isFocused={isFocused}
+              isLevel2={focusedId === tb.id}
               stageRef={stageRef}
               textNodesRef={textNodesRef}
               onTap={onTapById}
@@ -70,7 +74,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
             <Group key={ab.id} id={ab.id} onClick={selectItem} onTap={selectItem}>
               {/* Outline de sélection — cercles plus larges en dessous */}
               {isSelected && (
-                <AirbrushOutline stroke={ab} color={isFocused ? '#e63946' : '#118ab2'} />
+                <AirbrushOutline stroke={ab} color={outlineColor} />
               )}
               <AirbrushShape stroke={ab} />
               {/* Zone de hit transparente — AirbrushShape a listening={false} */}
@@ -84,7 +88,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
               {/* Outline de sélection — même tracé, plus épais, en dessous */}
               {isSelected && (
                 <Line points={s.points}
-                  stroke={isFocused ? '#e63946' : '#118ab2'}
+                  stroke={outlineColor}
                   strokeWidth={s.width + 6}
                   lineCap="round" lineJoin="round" tension={0.3}
                   opacity={0.55}

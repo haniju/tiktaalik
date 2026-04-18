@@ -55,6 +55,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>(selection);
+  // ─── Sélection niveau 2 (focusedId) + sous-mode rotate/scale ───
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const focusedIdRef = useRef(focusedId);
+  focusedIdRef.current = focusedId;
+  const [selectSubMode, setSelectSubMode] = useState<'none' | 'rotate' | 'scale'>('none');
   // ─── État textbox unifié — remplace editingTextId + selectedTextId + focusedId ───
   const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
   const tbStateRef = useRef(tbState);
@@ -84,6 +89,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
   drawingNameRef.current = drawingName;
 
   selectionRef.current = selection;
+
+  // Nettoyer focusedId si l'objet focalisé n'est plus dans la sélection
+  useEffect(() => {
+    if (focusedId && !selection.includes(focusedId)) {
+      setFocusedId(null);
+      setSelectSubMode('none');
+    }
+  }, [selection, focusedId]);
 
   // ─── Refs DOM ──────────────────────────────────────────────────────────────
   const barsRef = useRef<HTMLDivElement>(null);
@@ -155,6 +168,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (tbStateRef.current.kind !== 'idle') exitEditing();
     setCanvasMode(mode);
     setSelection([]);
+    setFocusedId(null);
+    setSelectSubMode('none');
   }, [setCanvasMode, exitEditing]);
 
   // ─── Gestures canvas ───────────────────────────────────────────────────────
@@ -164,9 +179,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
     selRect, currentStroke, currentAirbrush, textNodesRef,
   } = useCanvasGestures({
     stageRef, layersRef,
-    toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef,
+    toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef, focusedIdRef,
     setTbStateWithLogRef, centerViewOnRef, barsRef,
-    setLayers, setSelection, setContextPanel, setZoomPct,
+    setLayers, setSelection, setFocusedId, setContextPanel, setZoomPct,
     exitEditing, collapseEditingToSelected, addTextBox, collapsePanel,
     pushUndo, scheduleSave,
     pinchZoomEnabledRef,
@@ -279,25 +294,27 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
         />
 
-        <Drawingbar
-          state={toolState}
-          canvasBackground={canvasBackground}
-          contextPanel={contextPanel}
-          onSelectDrawingTool={t => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectDrawingTool(t); }}
-          onSelectText={selectTextTool}
-          onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
-          onSelectBackground={selectBackground}
-          onSwipeOpen={(target) => {
-            if (target === 'eraser') return;
-            if (target === 'text') { selectTextTool(); setContextPanel('text'); }
-            else if (target === 'background') { selectBackground(); }
-            else if (['airbrush', 'pen', 'marker'].includes(target)) {
-              selectDrawingTool(target as DrawingTool);
-              setContextPanel('drawing');
-            }
-          }}
-          onSwipeClose={collapsePanel}
-        />
+        {!(toolState.canvasMode === 'select' && selection.length > 0) && (
+          <Drawingbar
+            state={toolState}
+            canvasBackground={canvasBackground}
+            contextPanel={contextPanel}
+            onSelectDrawingTool={t => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectDrawingTool(t); }}
+            onSelectText={selectTextTool}
+            onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
+            onSelectBackground={selectBackground}
+            onSwipeOpen={(target) => {
+              if (target === 'eraser') return;
+              if (target === 'text') { selectTextTool(); setContextPanel('text'); }
+              else if (target === 'background') { selectBackground(); }
+              else if (['airbrush', 'pen', 'marker'].includes(target)) {
+                selectDrawingTool(target as DrawingTool);
+                setContextPanel('drawing');
+              }
+            }}
+            onSwipeClose={collapsePanel}
+          />
+        )}
 
         <ContextToolbar
           contextPanel={contextPanel}
@@ -318,12 +335,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
           <SelectionPanel
             layers={layers}
             selection={selection}
-            focusedId={tbState.kind !== 'idle' ? tbState.id : null}
+            focusedId={focusedId}
+            selectSubMode={selectSubMode}
             onFocus={id => {
-              const next: TextBoxSelectionState = tbState.kind !== 'idle' && tbState.id === id
-                ? { kind: 'idle' }
-                : { kind: 'selected', id };
-              setTbStateWithLog(next, 'selectionPanel:focus');
+              setFocusedId(prev => prev === id ? null : id);
+              setSelectSubMode('none');
+            }}
+            onSetSelectSubMode={mode => {
+              setSelectSubMode(prev => prev === mode ? 'none' : mode);
             }}
             onDeselect={id => {
               setSelection(prev => prev.filter(x => x !== id));
@@ -331,7 +350,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             }}
             onDeleteItem={deleteItem}
             onDeleteSelected={deleteSelected}
-            onClearSelection={() => { setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
+            onClearSelection={() => { setSelection([]); setFocusedId(null); setSelectSubMode('none'); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
             onReorderByIds={orderedIds => {
               // orderedIds est en ordre panel (z décroissant, top-of-stack en premier).
               // layers est en z croissant → inverser pour aligner les deux ordres.
@@ -354,11 +373,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
         )}
       </div>
 
-      {/* Canvas — position absolue, top = hauteur des barres fixe (topbar + drawingbar) */}
-      {/* On utilise paddingTop pour pousser le contenu sous les barres sans que le canvas resize */}
+      {/* Canvas — position absolue, top = hauteur des barres fixe */}
+      {/* Drawingbar masquée quand le SelectionPanel est affiché → top = TOPBAR_H seul */}
       <div style={{
         position: 'absolute',
-        top: TOPBAR_H + DRAWINGBAR_H,
+        top: (toolState.canvasMode === 'select' && selection.length > 0) ? TOPBAR_H : TOPBAR_H + DRAWINGBAR_H,
         left: 0, right: 0, bottom: 0,
         background: '#e0e0e0',
         overflow: 'hidden',
@@ -377,6 +396,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             canvasBackground={canvasBackground}
             layers={layers}
             selection={selection}
+            focusedId={focusedId}
             tbState={tbState}
             canvasMode={toolState.canvasMode}
             currentStroke={currentStroke}

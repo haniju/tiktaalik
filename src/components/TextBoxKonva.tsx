@@ -15,6 +15,7 @@ interface TextBoxKonvaProps {
   isTextSelected: boolean;
   isSelected: boolean;
   isFocused: boolean;
+  isLevel2: boolean;
   stageRef: React.RefObject<Konva.Stage>;
   textNodesRef: React.MutableRefObject<Map<string, Konva.Text>>;
   onTap: (tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => void;
@@ -23,7 +24,7 @@ interface TextBoxKonvaProps {
 }
 
 export const TextBoxKonva = React.memo(function TextBoxKonva({
-  tb, isEditing, isTextSelected, isSelected, isFocused,
+  tb, isEditing, isTextSelected, isSelected, isFocused, isLevel2,
   stageRef, textNodesRef, onTap, onLayerUpdate, onDragEnd,
 }: TextBoxKonvaProps): JSX.Element {
   // Quand isEditing passe true→false, le nœud Konva vient de repasser à text={tb.text}
@@ -62,12 +63,12 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         onTap={e => onTap(tb.id, tbH, e)}
       />
 
-      {/* Bordure select mode (canvas selection) */}
+      {/* Bordure select mode (canvas selection) — orange si niveau 2 */}
       {isSelected && !isTextSelected && !isEditing && (
         <Rect x={-2} y={-2} width={tb.width + 4} height={tbH + 4}
-          stroke={isFocused ? '#e63946' : '#118ab2'}
-          strokeWidth={1.5}
-          dash={[5, 3]}
+          stroke={isLevel2 ? '#f4a261' : isFocused ? '#e63946' : '#118ab2'}
+          strokeWidth={isLevel2 ? 2 : 1.5}
+          dash={isLevel2 ? undefined : [5, 3]}
           fill="transparent"
           cornerRadius={3}
           listening={false}
@@ -137,8 +138,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
       </>}
 
-      {/* Handles resize milieu gauche et droit */}
-      {isTextSelected && !isEditing && <>
+      {/* Handles resize milieu gauche et droit — visibles en mode texte OU select niveau 2 */}
+      {(isTextSelected || isLevel2) && !isEditing && <>
         <ResizeHandle
           cx={0} cy={tbH / 2} side="left"
           tb={{ x: tb.x, y: tb.y, width: tb.width }}
