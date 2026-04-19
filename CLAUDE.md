@@ -193,6 +193,29 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 - `TextPanel`: duplicate button — copies selected textbox 20px above, same X, new TB in `selected` state
 - `SketchScreen`: `activeTextBox` derived from `editingTextId ?? selectedTextId` — TextPanel controls work in both selected and editing states
 
+## Rotate & Scale — Phase 1 (fondation) — branch `feat/unified-color-picker`
+
+Prépare le terrain pour rotate/scale des objets sélectionnés.
+
+**Types:**
+- `TextBox.rotation?: number` — angle de rotation en degrés (optionnel, défaut 0). Les strokes/airbrush auront leurs coords bakées au pointer-up, pas besoin de champ persistant.
+
+**Utilitaire bounds (`src/utils/bounds.ts`):**
+- `getLayerBounds(layer): Rect` — bounding box d'un layer (stroke: min/max points ± width/2, airbrush: min/max points ± radius, text: x/y/width + hauteur via `wrapText`)
+- `getGroupBounds(layers, ids): Rect` — bounding box englobante d'un groupe de layers par IDs
+
+**ResizeHandle refonte UI:**
+- Poignée visible : petit carré plein ~10px (couleur `#333`), centré au milieu du bord gauche/droite du TB
+- Zone d'accroche invisible : rectangle transparent ~30px autour du carré (vraie zone de hit-test/drag)
+- Utilise `<Group>` Konva contenant deux `<Rect>` (hit zone + knob visible) au lieu d'un seul Rect teal 30×36px
+- S'applique en mode texte ET en mode select (#2) — même composant
+
+**SelectionPanel refonte layout:**
+- Toolbar (compteur + rotate/scale + delete + close) passe **en haut** du panel (au-dessus de la liste)
+- Label descriptif (Stylo, Marqueur, Aerogr., Texte) passe **en haut** de chaque vignette
+- Badge bar (delete + close par item) passe **en bas** de chaque vignette
+- SVG inline remplacés par `<img src="/icons/delete.svg">` et `<img src="/icons/close.svg">`
+
 ## Do Not
 
 - Do not add `node_modules/`, `dist/`, or `.zip` files to git

@@ -49,6 +49,7 @@ export interface TextBox {
   background: string;
   opacity: number;
   padding: number;
+  rotation?: number;
 }
 
 // TextBox dans la pile unifiée — discriminant tool: 'text'
