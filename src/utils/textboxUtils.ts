@@ -118,19 +118,18 @@ export function isPointInTextBox(
   pad = 4,
 ): boolean {
   const r = getTextBoxHitRect(tb, height, pad);
-  // Si le TB est rotaté, dé-rotater le point dans le repère local du TB
+  // Si le TB est rotaté, dé-rotater le point dans le repère local du TB.
+  // Le pivot de rotation Konva est (tb.x, tb.y) — l'origin du Group.
   let lpx = px, lpy = py;
   const rotation = (tb as TextLayer).rotation ?? 0;
   if (rotation !== 0) {
-    const cx = tb.x + tb.width / 2;
-    const cy = tb.y + height / 2;
     const rad = (-rotation * Math.PI) / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
-    const dx = px - cx;
-    const dy = py - cy;
-    lpx = dx * cos - dy * sin + cx;
-    lpy = dx * sin + dy * cos + cy;
+    const dx = px - tb.x;
+    const dy = py - tb.y;
+    lpx = dx * cos - dy * sin + tb.x;
+    lpy = dx * sin + dy * cos + tb.y;
   }
   return lpx >= r.x && lpx <= r.x + r.w && lpy >= r.y && lpy <= r.y + r.h;
 }

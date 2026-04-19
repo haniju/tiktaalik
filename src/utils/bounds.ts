@@ -69,17 +69,45 @@ function getAirbrushBounds(ab: AirbrushStroke): Rect {
   };
 }
 
-function getTextBounds(tb: TextLayer): Rect {
+/** Bounds locaux du TB (sans tenir compte de la rotation) */
+function getTextLocalBounds(tb: TextLayer): Rect {
   const lines = wrapText(tb.text, tb.width, tb.fontSize, tb.fontFamily, tb.fontStyle, tb.padding);
   const lineHeight = tb.fontSize * 1.2;
   const height = lines.length * lineHeight + tb.padding * 2;
+  return { x: tb.x, y: tb.y, width: tb.width, height };
+}
 
-  return {
-    x: tb.x,
-    y: tb.y,
-    width: tb.width,
-    height,
-  };
+/** AABB d'un text layer — tient compte de la rotation (Konva rotate autour de tb.x, tb.y) */
+function getTextBounds(tb: TextLayer): Rect {
+  const local = getTextLocalBounds(tb);
+  const rotation = tb.rotation ?? 0;
+  if (rotation === 0) return local;
+
+  const rad = (rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  // Les 4 coins en coordonnées locales du Group Konva (origin = 0,0)
+  const corners = [
+    [0, 0],
+    [local.width, 0],
+    [local.width, local.height],
+    [0, local.height],
+  ];
+
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+
+  for (const [lx, ly] of corners) {
+    const wx = lx * cos - ly * sin + tb.x;
+    const wy = lx * sin + ly * cos + tb.y;
+    if (wx < minX) minX = wx;
+    if (wx > maxX) maxX = wx;
+    if (wy < minY) minY = wy;
+    if (wy > maxY) maxY = wy;
+  }
+
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 /**
@@ -163,16 +191,34 @@ function rotateAirbrush(ab: AirbrushStroke, angleDeg: number, cx: number, cy: nu
 }
 
 function rotateTextLayer(tb: TextLayer, angleDeg: number, cx: number, cy: number): TextLayer {
-  // Position du TB tournée autour du centre du groupe
-  const tbBounds = getTextBounds(tb);
-  const tbCx = tbBounds.x + tbBounds.width / 2;
-  const tbCy = tbBounds.y + tbBounds.height / 2;
-  const rotated = rotatePoint(tbCx, tbCy, cx, cy, angleDeg);
+  const local = getTextLocalBounds(tb);
+  const halfW = local.width / 2;
+  const halfH = local.height / 2;
+
+  // Centre visuel du TB : le centre local (halfW, halfH) est transformé
+  // par la rotation existante autour de l'origin Konva (tb.x, tb.y)
+  const existingRot = tb.rotation ?? 0;
+  const erad = (existingRot * Math.PI) / 180;
+  const ecos = Math.cos(erad);
+  const esin = Math.sin(erad);
+  const visualCx = ecos * halfW - esin * halfH + tb.x;
+  const visualCy = esin * halfW + ecos * halfH + tb.y;
+
+  // Rotation du centre visuel autour du centre du groupe
+  const rotated = rotatePoint(visualCx, visualCy, cx, cy, angleDeg);
+
+  // Nouvelle rotation cumulée
+  const newRotation = (((existingRot + angleDeg) % 360) + 360) % 360;
+  const nrad = (newRotation * Math.PI) / 180;
+  const ncos = Math.cos(nrad);
+  const nsin = Math.sin(nrad);
+
+  // Recalcul de x, y depuis le nouveau centre visuel
   return {
     ...tb,
-    x: rotated.x - tbBounds.width / 2,
-    y: rotated.y - tbBounds.height / 2,
-    rotation: ((tb.rotation ?? 0) + angleDeg) % 360,
+    x: rotated.x - (ncos * halfW - nsin * halfH),
+    y: rotated.y - (nsin * halfW + ncos * halfH),
+    rotation: newRotation,
   };
 }
 
