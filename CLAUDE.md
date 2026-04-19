@@ -245,6 +245,36 @@ Bounding box + 4 handles de scale + interaction canvas pour redimensionner les o
 - Nouvelles props : `selectSubMode`, `stageScale`, `onScaleStart/Move/End`
 - Rend `<BoundingBoxHandles>` quand `selectSubMode === 'scale' && focusedIds.length > 0`
 
+## Rotate & Scale — Phase 4 (mode rotate) — branch `feat/unified-color-picker`
+
+Rotation libre des objets focusés (niveau 2) via un handle circulaire.
+
+**`bounds.ts` — `rotatePoint(x, y, cx, cy, angleDeg)` + `applyRotation(layer, angleDeg, cx, cy)`:**
+- Strokes : points bakés via rotation cos/sin autour du centre
+- Airbrush : points bakés idem
+- TextBox : position tournée autour du centre du groupe + `rotation` cumulée sur le layer (Konva rend via `<Group rotation>`)
+
+**`BoundingBoxHandles.tsx` — refactoré avec `mode` prop (`'scale' | 'rotate'`):**
+- Mode scale : inchangé (4 handles aux coins)
+- Mode rotate : 1 handle circulaire au-dessus du coin top-right, ligne pointillée de liaison, icône rotate (arc + flèche), ligne indicatrice centre→handle pendant le drag
+- Calcul d'angle via `atan2(dy, dx)` entre position courante et centre du bounds vs angle initial
+
+**`useCanvasGestures.ts` — 3 rotate handlers:**
+- `handleRotateStart` — snapshot layers + capture centre bounds
+- `handleRotateMove(angleDeg)` — applique applyRotation au snapshot pour focusedIds
+- `handleRotateEnd` — pushUndo + scheduleSave
+
+**`DrawingLayer.tsx`:**
+- `showHandles` inclut `selectSubMode === 'rotate'`
+- Nouvelles props `onRotateStart/Move/End`
+- Rendu conditionnel : `BoundingBoxHandles mode="scale"` ou `mode="rotate"`
+
+**`TextBoxKonva.tsx`:**
+- `<Group rotation={tb.rotation ?? 0}>` pour le rendu Konva des TB rotées
+
+**`textboxUtils.ts` — fix hit-test TB rotées:**
+- `isPointInTextBox` : dé-rotation du point de tap dans le repère local du TB avant test rectangulaire
+
 ## Do Not
 
 - Do not add `node_modules/`, `dist/`, or `.zip` files to git

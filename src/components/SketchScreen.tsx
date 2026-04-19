@@ -178,6 +178,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel,
     handleTapById, handleDragEnd, handleSelectItem,
     handleScaleStart, handleScaleMove, handleScaleEnd,
+    handleRotateStart, handleRotateMove, handleRotateEnd,
     selRect, currentStroke, currentAirbrush, textNodesRef,
   } = useCanvasGestures({
     stageRef, layersRef,
@@ -415,6 +416,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onScaleStart={handleScaleStart}
             onScaleMove={handleScaleMove}
             onScaleEnd={handleScaleEnd}
+            onRotateStart={handleRotateStart}
+            onRotateMove={handleRotateMove}
+            onRotateEnd={handleRotateEnd}
           />
         </Stage>
 

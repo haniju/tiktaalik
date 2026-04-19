@@ -40,7 +40,7 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
   const tbH = konvaNode ? Math.max(konvaNode.height(), 20) : estimateTextHeight(tb);
 
   return (
-    <Group id={tb.id} x={tb.x} y={tb.y}>
+    <Group id={tb.id} x={tb.x} y={tb.y} rotation={tb.rotation ?? 0}>
       {tb.background !== '' && (
         <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
       )}

@@ -12,7 +12,7 @@ import {
   isRectIntersecting,
   roundTextBoxFontSize,
 } from '../utils/textboxUtils';
-import { getGroupBounds, applyScale } from '../utils/bounds';
+import { getGroupBounds, applyScale, applyRotation } from '../utils/bounds';
 import type { ContextPanel } from './useToolState';
 
 export interface UseCanvasGesturesParams {
@@ -54,6 +54,9 @@ export interface UseCanvasGesturesReturn {
   handleScaleStart: () => void;
   handleScaleMove: (scaleFactor: number) => void;
   handleScaleEnd: () => void;
+  handleRotateStart: () => void;
+  handleRotateMove: (angleDeg: number) => void;
+  handleRotateEnd: () => void;
   selRect: { x: number; y: number; w: number; h: number } | null;
   currentStroke: Stroke | null;
   currentAirbrush: AirbrushStroke | null;
@@ -108,6 +111,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // Scale — snapshot pattern (même approche que drag-to-move)
   const scaleSnapshotRef = useRef<DrawLayer[]>([]);
   const scaleCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Rotate — snapshot pattern
+  const rotateSnapshotRef = useRef<DrawLayer[]>([]);
+  const rotateCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -709,6 +715,33 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     scaleSnapshotRef.current = [];
   }, []);
 
+  // ─── Rotate handlers (appelés par BoundingBoxHandles mode rotate via Konva drag) ──
+  const handleRotateStart = useCallback(() => {
+    const { layersRef, focusedIdsRef } = p.current;
+    rotateSnapshotRef.current = layersRef.current.map(l => ({ ...l }));
+    const bounds = getGroupBounds(layersRef.current, focusedIdsRef.current);
+    rotateCenterRef.current = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  }, []);
+
+  const handleRotateMove = useCallback((angleDeg: number) => {
+    const { setLayers, focusedIdsRef } = p.current;
+    const snapshot = rotateSnapshotRef.current;
+    const center = rotateCenterRef.current;
+    const ids = new Set(focusedIdsRef.current);
+    setLayers(snapshot.map(layer =>
+      ids.has(layer.id) ? applyRotation(layer, angleDeg, center.x, center.y) : layer
+    ));
+  }, []);
+
+  const handleRotateEnd = useCallback(() => {
+    const { layersRef, setLayers, pushUndo, scheduleSave } = p.current;
+    const finalLayers = layersRef.current.map(l => l);
+    setLayers(finalLayers);
+    pushUndo(finalLayers);
+    scheduleSave();
+    rotateSnapshotRef.current = [];
+  }, []);
+
   return {
     handleMouseDown,
     handleMouseMove,
@@ -720,6 +753,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     handleScaleStart,
     handleScaleMove,
     handleScaleEnd,
+    handleRotateStart,
+    handleRotateMove,
+    handleRotateEnd,
     selRect,
     currentStroke,
     currentAirbrush,

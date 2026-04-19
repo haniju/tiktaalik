@@ -34,6 +34,9 @@ interface DrawingLayerProps {
   onScaleStart: () => void;
   onScaleMove: (scaleFactor: number) => void;
   onScaleEnd: () => void;
+  onRotateStart: () => void;
+  onRotateMove: (angleDeg: number) => void;
+  onRotateEnd: () => void;
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
@@ -43,9 +46,10 @@ export const DrawingLayer = React.memo(function DrawingLayer({
   stageRef, textNodesRef,
   onSelectItem, onTapById, onLayerUpdate, onDragEnd,
   onScaleStart, onScaleMove, onScaleEnd,
+  onRotateStart, onRotateMove, onRotateEnd,
 }: DrawingLayerProps): JSX.Element {
   // Bounds pour les handles (scale/rotate) — calculé seulement quand nécessaire
-  const showHandles = selectSubMode === 'scale' && focusedIds.length > 0;
+  const showHandles = (selectSubMode === 'scale' || selectSubMode === 'rotate') && focusedIds.length > 0;
   const handleBounds = showHandles ? getGroupBounds(layers, focusedIds) : null;
   return (
     <Layer>
@@ -124,14 +128,25 @@ export const DrawingLayer = React.memo(function DrawingLayer({
       {currentStroke && <Line points={currentStroke.points} stroke={currentStroke.color} strokeWidth={currentStroke.width} opacity={currentStroke.opacity} lineCap="round" lineJoin="round" tension={0.3} />}
       {currentAirbrush && <AirbrushShape stroke={currentAirbrush} />}
 
-      {/* Bounding box + handles scale */}
-      {showHandles && handleBounds && handleBounds.width > 0 && (
+      {/* Bounding box + handles scale/rotate */}
+      {showHandles && handleBounds && handleBounds.width > 0 && selectSubMode === 'scale' && (
         <BoundingBoxHandles
           bounds={handleBounds}
+          mode="scale"
           stageScale={stageScale}
           onScaleStart={onScaleStart}
           onScaleMove={onScaleMove}
           onScaleEnd={onScaleEnd}
+        />
+      )}
+      {showHandles && handleBounds && handleBounds.width > 0 && selectSubMode === 'rotate' && (
+        <BoundingBoxHandles
+          bounds={handleBounds}
+          mode="rotate"
+          stageScale={stageScale}
+          onRotateStart={onRotateStart}
+          onRotateMove={onRotateMove}
+          onRotateEnd={onRotateEnd}
         />
       )}
 

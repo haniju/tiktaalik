@@ -117,6 +117,66 @@ function scaleAirbrush(ab: AirbrushStroke, sx: number, sy: number, cx: number, c
 }
 
 /**
+ * Rotation d'un point (x, y) autour d'un centre (cx, cy) d'un angle en degrés.
+ */
+export function rotatePoint(x: number, y: number, cx: number, cy: number, angleDeg: number): { x: number; y: number } {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = x - cx;
+  const dy = y - cy;
+  return {
+    x: dx * cos - dy * sin + cx,
+    y: dx * sin + dy * cos + cy,
+  };
+}
+
+/**
+ * Applique une rotation à un layer autour d'un centre (cx, cy).
+ * Strokes/airbrush : bake les coords tournées.
+ * TextBox : stocke rotation (Konva gère le rendu via <Group rotation>).
+ */
+export function applyRotation(layer: DrawLayer, angleDeg: number, cx: number, cy: number): DrawLayer {
+  switch (layer.tool) {
+    case 'pen':
+    case 'marker':
+      return rotateStroke(layer, angleDeg, cx, cy);
+    case 'airbrush':
+      return rotateAirbrush(layer, angleDeg, cx, cy);
+    case 'text':
+      return rotateTextLayer(layer, angleDeg, cx, cy);
+  }
+}
+
+function rotateStroke(s: Stroke, angleDeg: number, cx: number, cy: number): Stroke {
+  const newPoints: number[] = [];
+  for (let i = 0; i < s.points.length; i += 2) {
+    const r = rotatePoint(s.points[i], s.points[i + 1], cx, cy, angleDeg);
+    newPoints.push(r.x, r.y);
+  }
+  return { ...s, points: newPoints };
+}
+
+function rotateAirbrush(ab: AirbrushStroke, angleDeg: number, cx: number, cy: number): AirbrushStroke {
+  const newPoints = ab.points.map(pt => rotatePoint(pt.x, pt.y, cx, cy, angleDeg));
+  return { ...ab, points: newPoints };
+}
+
+function rotateTextLayer(tb: TextLayer, angleDeg: number, cx: number, cy: number): TextLayer {
+  // Position du TB tournée autour du centre du groupe
+  const tbBounds = getTextBounds(tb);
+  const tbCx = tbBounds.x + tbBounds.width / 2;
+  const tbCy = tbBounds.y + tbBounds.height / 2;
+  const rotated = rotatePoint(tbCx, tbCy, cx, cy, angleDeg);
+  return {
+    ...tb,
+    x: rotated.x - tbBounds.width / 2,
+    y: rotated.y - tbBounds.height / 2,
+    rotation: ((tb.rotation ?? 0) + angleDeg) % 360,
+  };
+}
+
+/**
  * Calcule le bounding box englobant un groupe de layers (par IDs).
  */
 export function getGroupBounds(layers: DrawLayer[], ids: string[]): Rect {

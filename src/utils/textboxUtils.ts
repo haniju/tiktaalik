@@ -118,7 +118,21 @@ export function isPointInTextBox(
   pad = 4,
 ): boolean {
   const r = getTextBoxHitRect(tb, height, pad);
-  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+  // Si le TB est rotaté, dé-rotater le point dans le repère local du TB
+  let lpx = px, lpy = py;
+  const rotation = (tb as TextLayer).rotation ?? 0;
+  if (rotation !== 0) {
+    const cx = tb.x + tb.width / 2;
+    const cy = tb.y + height / 2;
+    const rad = (-rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const dx = px - cx;
+    const dy = py - cy;
+    lpx = dx * cos - dy * sin + cx;
+    lpy = dx * sin + dy * cos + cy;
+  }
+  return lpx >= r.x && lpx <= r.x + r.w && lpy >= r.y && lpy <= r.y + r.h;
 }
 
 /**
