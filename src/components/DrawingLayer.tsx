@@ -5,15 +5,21 @@ import { DrawLayer, Stroke, AirbrushStroke, TextLayer, CanvasMode } from '../typ
 import { TextBoxSelectionState } from '../utils/textboxUtils';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
 import { TextBoxKonva } from './TextBoxKonva';
+import { BoundingBoxHandles } from './BoundingBoxHandles';
+import { getGroupBounds } from '../utils/bounds';
 
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
+
+type SelectSubMode = 'none' | 'rotate' | 'scale';
 
 interface DrawingLayerProps {
   canvasBackground: string;
   layers: DrawLayer[];
   selection: string[];
   focusedIds: string[];
+  selectSubMode: SelectSubMode;
+  stageScale: number;
   tbState: TextBoxSelectionState;
   canvasMode: CanvasMode;
   currentStroke: Stroke | null;
@@ -25,14 +31,22 @@ interface DrawingLayerProps {
   onTapById: (tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => void;
   onLayerUpdate: React.Dispatch<React.SetStateAction<DrawLayer[]>>;
   onDragEnd: () => void;
+  onScaleStart: () => void;
+  onScaleMove: (scaleFactor: number) => void;
+  onScaleEnd: () => void;
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
-  canvasBackground, layers, selection, focusedIds, tbState, canvasMode,
+  canvasBackground, layers, selection, focusedIds, selectSubMode, stageScale,
+  tbState, canvasMode,
   currentStroke, currentAirbrush, selRect,
   stageRef, textNodesRef,
   onSelectItem, onTapById, onLayerUpdate, onDragEnd,
+  onScaleStart, onScaleMove, onScaleEnd,
 }: DrawingLayerProps): JSX.Element {
+  // Bounds pour les handles (scale/rotate) — calculé seulement quand nécessaire
+  const showHandles = selectSubMode === 'scale' && focusedIds.length > 0;
+  const handleBounds = showHandles ? getGroupBounds(layers, focusedIds) : null;
   return (
     <Layer>
       <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
@@ -109,6 +123,17 @@ export const DrawingLayer = React.memo(function DrawingLayer({
       {/* Tracé en cours */}
       {currentStroke && <Line points={currentStroke.points} stroke={currentStroke.color} strokeWidth={currentStroke.width} opacity={currentStroke.opacity} lineCap="round" lineJoin="round" tension={0.3} />}
       {currentAirbrush && <AirbrushShape stroke={currentAirbrush} />}
+
+      {/* Bounding box + handles scale */}
+      {showHandles && handleBounds && handleBounds.width > 0 && (
+        <BoundingBoxHandles
+          bounds={handleBounds}
+          stageScale={stageScale}
+          onScaleStart={onScaleStart}
+          onScaleMove={onScaleMove}
+          onScaleEnd={onScaleEnd}
+        />
+      )}
 
       {selRect && selRect.w > 0 && <Rect x={selRect.x} y={selRect.y} width={selRect.w} height={selRect.h} stroke="#118ab2" strokeWidth={1} dash={[6, 3]} fill="rgba(17,138,178,0.06)" />}
     </Layer>

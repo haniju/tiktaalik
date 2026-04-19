@@ -1,5 +1,5 @@
 import { DrawLayer, Stroke, AirbrushStroke, TextLayer } from '../types';
-import { wrapText } from './textboxUtils';
+import { wrapText, scaleTextBox } from './textboxUtils';
 
 export interface Rect {
   x: number;
@@ -80,6 +80,40 @@ function getTextBounds(tb: TextLayer): Rect {
     width: tb.width,
     height,
   };
+}
+
+/**
+ * Applique un scale uniforme à un layer autour d'un centre (cx, cy).
+ * sx/sy permettent un scale non-uniforme mais l'interaction actuelle passe sf, sf.
+ */
+export function applyScale(layer: DrawLayer, sx: number, sy: number, cx: number, cy: number): DrawLayer {
+  switch (layer.tool) {
+    case 'pen':
+    case 'marker':
+      return scaleStroke(layer, sx, sy, cx, cy);
+    case 'airbrush':
+      return scaleAirbrush(layer, sx, sy, cx, cy);
+    case 'text':
+      // Pour le texte, on utilise la moyenne de sx/sy comme facteur uniforme
+      return scaleTextBox(layer, (sx + sy) / 2, cx, cy);
+  }
+}
+
+function scaleStroke(s: Stroke, sx: number, sy: number, cx: number, cy: number): Stroke {
+  const sf = (sx + sy) / 2;
+  const newPoints = s.points.map((v, i) =>
+    i % 2 === 0 ? (v - cx) * sx + cx : (v - cy) * sy + cy
+  );
+  return { ...s, points: newPoints, width: Math.max(1, s.width * sf) };
+}
+
+function scaleAirbrush(ab: AirbrushStroke, sx: number, sy: number, cx: number, cy: number): AirbrushStroke {
+  const sf = (sx + sy) / 2;
+  const newPoints = ab.points.map(pt => ({
+    x: (pt.x - cx) * sx + cx,
+    y: (pt.y - cy) * sy + cy,
+  }));
+  return { ...ab, points: newPoints, radius: Math.max(1, ab.radius * sf) };
 }
 
 /**

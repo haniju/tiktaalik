@@ -216,6 +216,35 @@ Prépare le terrain pour rotate/scale des objets sélectionnés.
 - Badge bar (delete + close par item) passe **en bas** de chaque vignette
 - SVG inline remplacés par `<img src="/icons/delete.svg">` et `<img src="/icons/close.svg">`
 
+## Rotate & Scale — Phase 3 (mode scale) — branch `feat/unified-color-picker`
+
+Bounding box + 4 handles de scale + interaction canvas pour redimensionner les objets focusés (niveau 2).
+
+**`BoundingBoxHandles.tsx` (nouveau composant Konva):**
+- `Rect` pointillé orange (bounding box des focusedIds via `getGroupBounds`)
+- 4 handles aux coins : carré visible 10px + zone d'accroche invisible 30px (taille fixe écran, divisée par stageScale)
+- Ligne diagonale indicatrice centre→coin actif pendant le drag
+- Scale factor = distance(coin courant, centre) / distance(coin original, centre)
+
+**`bounds.ts` — `applyScale(layer, sx, sy, cx, cy)`:**
+- Strokes : points transformés `(v - c) * s + c`, width scalée
+- Airbrush : points transformés, radius scalé
+- TextBox : délègue à `scaleTextBox` (moyenne sx/sy comme facteur uniforme)
+
+**`textboxUtils.ts` — `scaleTextBox(tb, scaleFactor, cx?, cy?)`:**
+- `newFontSize = fontSize * scaleFactor` (min 8, max 200, arrondi entier au relâchement via `roundTextBoxFontSize`)
+- `newWidth = width * scaleFactor` (min 50)
+- Position ajustée proportionnellement au centre de groupe si fourni
+
+**`useCanvasGestures.ts` — 3 scale handlers:**
+- `handleScaleStart` — snapshot layers + capture centre bounds
+- `handleScaleMove(sf)` — applique applyScale au snapshot pour focusedIds
+- `handleScaleEnd` — arrondit fontSize TB + pushUndo + scheduleSave
+
+**`DrawingLayer.tsx`:**
+- Nouvelles props : `selectSubMode`, `stageScale`, `onScaleStart/Move/End`
+- Rend `<BoundingBoxHandles>` quand `selectSubMode === 'scale' && focusedIds.length > 0`
+
 ## Do Not
 
 - Do not add `node_modules/`, `dist/`, or `.zip` files to git

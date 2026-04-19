@@ -209,6 +209,41 @@ export function exitState(
   return { kind: 'idle' };
 }
 
+// ─── Scale ─────────────────────────────────────────────────────────────────
+
+/**
+ * Scale une textbox par `scaleFactor` autour d'un centre optionnel (cx, cy).
+ * - fontSize scalé (min 8, max 200) — PAS arrondi ici (arrondi au relâchement)
+ * - width scalé proportionnellement → conserve le lineCount naturellement
+ * - position ajustée si centre de groupe fourni
+ */
+export function scaleTextBox(
+  tb: TextLayer,
+  scaleFactor: number,
+  cx?: number,
+  cy?: number,
+): TextLayer {
+  const newFontSize = Math.max(8, Math.min(200, tb.fontSize * scaleFactor));
+  const newWidth = Math.max(50, tb.width * scaleFactor);
+
+  let newX = tb.x;
+  let newY = tb.y;
+  if (cx !== undefined && cy !== undefined) {
+    newX = (tb.x - cx) * scaleFactor + cx;
+    newY = (tb.y - cy) * scaleFactor + cy;
+  }
+
+  return { ...tb, fontSize: newFontSize, width: newWidth, x: newX, y: newY };
+}
+
+/**
+ * Arrondit le fontSize d'une TextLayer à l'entier le plus proche.
+ * Appelé une seule fois au relâchement du handle scale.
+ */
+export function roundTextBoxFontSize(tb: TextLayer): TextLayer {
+  return { ...tb, fontSize: Math.round(tb.fontSize) };
+}
+
 // ─── Factory & migration ────────────────────────────────────────────────────
 
 export const makeTextLayer = (id: string, x: number, y: number): TextLayer => ({

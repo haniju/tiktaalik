@@ -177,6 +177,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel,
     handleTapById, handleDragEnd, handleSelectItem,
+    handleScaleStart, handleScaleMove, handleScaleEnd,
     selRect, currentStroke, currentAirbrush, textNodesRef,
   } = useCanvasGestures({
     stageRef, layersRef,
@@ -398,6 +399,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
             layers={layers}
             selection={selection}
             focusedIds={focusedIds}
+            selectSubMode={selectSubMode}
+            stageScale={zoomPct / 100}
             tbState={tbState}
             canvasMode={toolState.canvasMode}
             currentStroke={currentStroke}
@@ -409,6 +412,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onTapById={handleTapById}
             onLayerUpdate={setLayers}
             onDragEnd={handleDragEnd}
+            onScaleStart={handleScaleStart}
+            onScaleMove={handleScaleMove}
+            onScaleEnd={handleScaleEnd}
           />
         </Stage>
 

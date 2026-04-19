@@ -10,7 +10,9 @@ import {
   estimateTextHeight,
   findTextBoxAtPoint,
   isRectIntersecting,
+  roundTextBoxFontSize,
 } from '../utils/textboxUtils';
+import { getGroupBounds, applyScale } from '../utils/bounds';
 import type { ContextPanel } from './useToolState';
 
 export interface UseCanvasGesturesParams {
@@ -49,6 +51,9 @@ export interface UseCanvasGesturesReturn {
   handleTapById: (tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => void;
   handleDragEnd: () => void;
   handleSelectItem: (id: string) => void;
+  handleScaleStart: () => void;
+  handleScaleMove: (scaleFactor: number) => void;
+  handleScaleEnd: () => void;
   selRect: { x: number; y: number; w: number; h: number } | null;
   currentStroke: Stroke | null;
   currentAirbrush: AirbrushStroke | null;
@@ -100,6 +105,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const pinchCenter = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
+  // Scale — snapshot pattern (même approche que drag-to-move)
+  const scaleSnapshotRef = useRef<DrawLayer[]>([]);
+  const scaleCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -671,6 +679,36 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     }
   }, []);
 
+  // ─── Scale handlers (appelés par BoundingBoxHandles via Konva drag) ────────
+  const handleScaleStart = useCallback(() => {
+    const { layersRef, focusedIdsRef } = p.current;
+    scaleSnapshotRef.current = layersRef.current.map(l => ({ ...l }));
+    const bounds = getGroupBounds(layersRef.current, focusedIdsRef.current);
+    scaleCenterRef.current = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  }, []);
+
+  const handleScaleMove = useCallback((scaleFactor: number) => {
+    const { setLayers, focusedIdsRef } = p.current;
+    const snapshot = scaleSnapshotRef.current;
+    const center = scaleCenterRef.current;
+    const ids = new Set(focusedIdsRef.current);
+    setLayers(snapshot.map(layer =>
+      ids.has(layer.id) ? applyScale(layer, scaleFactor, scaleFactor, center.x, center.y) : layer
+    ));
+  }, []);
+
+  const handleScaleEnd = useCallback(() => {
+    const { layersRef, setLayers, pushUndo, scheduleSave } = p.current;
+    // Arrondir le fontSize des TextLayer au relâchement
+    const finalLayers = layersRef.current.map(l =>
+      l.tool === 'text' ? roundTextBoxFontSize(l) : l
+    );
+    setLayers(finalLayers);
+    pushUndo(finalLayers);
+    scheduleSave();
+    scaleSnapshotRef.current = [];
+  }, []);
+
   return {
     handleMouseDown,
     handleMouseMove,
@@ -679,6 +717,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     handleTapById,
     handleDragEnd,
     handleSelectItem,
+    handleScaleStart,
+    handleScaleMove,
+    handleScaleEnd,
     selRect,
     currentStroke,
     currentAirbrush,
