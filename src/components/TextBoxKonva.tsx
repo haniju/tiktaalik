@@ -142,7 +142,7 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
       {(isTextSelected || isLevel2) && !isEditing && <>
         <ResizeHandle
           cx={0} cy={tbH / 2} side="left"
-          tb={{ x: tb.x, y: tb.y, width: tb.width }}
+          tb={{ x: tb.x, y: tb.y, width: tb.width, rotation: tb.rotation }}
           stageRef={stageRef}
           onDragEnd={onDragEnd}
           onMove={(newX, newWidth) => onLayerUpdate(prev => prev.map(l =>
@@ -151,7 +151,7 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
         <ResizeHandle
           cx={tb.width} cy={tbH / 2} side="right"
-          tb={{ x: tb.x, y: tb.y, width: tb.width }}
+          tb={{ x: tb.x, y: tb.y, width: tb.width, rotation: tb.rotation }}
           stageRef={stageRef}
           onDragEnd={onDragEnd}
           onMove={(_, newWidth) => onLayerUpdate(prev => prev.map(l =>

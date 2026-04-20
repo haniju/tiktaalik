@@ -175,7 +175,10 @@ function RotateHandle({ bounds, stageScale, hitSize, cx, cy, onRotateStart, onRo
           const newX = node.x();
           const newY = node.y();
           const currentAngle = Math.atan2(newY - cy, newX - cx) * 180 / Math.PI;
-          const delta = currentAngle - origAngleRef.current;
+          let delta = currentAngle - origAngleRef.current;
+          // Normaliser dans [-180, 180] pour éviter les sautes à la frontière atan2
+          if (delta > 180) delta -= 360;
+          if (delta < -180) delta += 360;
           setDragPos({ x: newX, y: newY });
           onRotateMove(delta);
         }}
