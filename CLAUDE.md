@@ -110,6 +110,15 @@ Known limitation: pinch zoom while the textarea is focused triggers `exitEditing
 
 The app version from `package.json` is injected at build time as the global `__APP_VERSION__` via `vite.config.ts`. The build timestamp is injected as `__BUILD_TIME__` (fr-FR locale, short date+time). Both are displayed in the HomeScreen version badge (`v1.9.1 — MAJ 16/04/2026 14:32`).
 
+### Build & Chunking
+
+Production build uses `manualChunks` in `vite.config.ts` to split the bundle into 3 chunks:
+- **index** (~103 kB) — application code
+- **vendor-react** (~130 kB) — `react` + `react-dom`
+- **vendor-konva** (~304 kB) — `konva` + `react-konva`
+
+This keeps each chunk under Vite's 500 kB warning threshold and improves browser caching (vendor chunks rarely change).
+
 ### Tests
 
 - **Unit/integration**: Vitest with jsdom. Setup: `src/test/setup.ts`
