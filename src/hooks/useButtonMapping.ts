@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type MappableAction = 'toggle_pan';
 
+// Seuil (ms) pour distinguer tap (toggle) du hold (momentané)
+const HOLD_THRESHOLD = 250;
+
 export interface ButtonMapping {
   key: string;       // event.key (ex: "AudioVolumeDown", "F3")
   code: string;      // event.code (ex: "VolumeDown", "F3")
@@ -38,7 +41,14 @@ function keyLabel(e: KeyboardEvent): string {
   return labels[e.key] ?? e.key;
 }
 
-export function useButtonMapping(actions: Record<MappableAction, () => void>) {
+/** Actions pour chaque MappableAction : toggle (tap court), enter (hold start), exit (hold release) */
+export interface HoldAwareActions {
+  toggle: Record<MappableAction, () => void>;
+  enter: Record<MappableAction, () => void>;
+  exit: Record<MappableAction, () => void>;
+}
+
+export function useButtonMapping(actions: HoldAwareActions) {
   const [mappings, setMappings] = useState<ButtonMapping[]>(loadMappings);
   const [listening, setListening] = useState(false);
   const mappingsRef = useRef(mappings);
@@ -65,21 +75,71 @@ export function useButtonMapping(actions: Record<MappableAction, () => void>) {
     return () => document.removeEventListener('keydown', handler, { capture: true });
   }, [listening]);
 
-  // --- Listener global : déclenche les actions mappées (hors mode listen) ---
+  // --- Listener global : hold-aware (keydown/keyup avec seuil) ---
   useEffect(() => {
     if (listening) return;
-    const handler = (e: KeyboardEvent) => {
+    // Track par clé : timer du hold + flag isHolding
+    const holdState = new Map<string, { timer: ReturnType<typeof setTimeout>; holding: boolean }>();
+
+    const keyId = (e: KeyboardEvent) => `${e.key}:${e.code}`;
+
+    const downHandler = (e: KeyboardEvent) => {
       const match = mappingsRef.current.find(
         m => m.key === e.key && m.code === e.code && m.action !== null
       );
-      if (match) {
-        e.preventDefault();
-        e.stopPropagation();
-        actionsRef.current[match.action!]();
+      if (!match) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const id = keyId(e);
+      // Ignore key repeat (autorepeat pendant hold)
+      if (holdState.has(id)) return;
+
+      const timer = setTimeout(() => {
+        // Seuil dépassé → mode hold, entrer en pan
+        const entry = holdState.get(id);
+        if (entry) {
+          entry.holding = true;
+          actionsRef.current.enter[match.action!]();
+        }
+      }, HOLD_THRESHOLD);
+
+      holdState.set(id, { timer, holding: false });
+    };
+
+    const upHandler = (e: KeyboardEvent) => {
+      const match = mappingsRef.current.find(
+        m => m.key === e.key && m.code === e.code && m.action !== null
+      );
+      if (!match) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const id = keyId(e);
+      const entry = holdState.get(id);
+      if (!entry) return;
+
+      clearTimeout(entry.timer);
+      holdState.delete(id);
+
+      if (entry.holding) {
+        // Relâchement après hold → sortir du pan
+        actionsRef.current.exit[match.action!]();
+      } else {
+        // Relâchement avant seuil → toggle
+        actionsRef.current.toggle[match.action!]();
       }
     };
-    document.addEventListener('keydown', handler, { capture: true });
-    return () => document.removeEventListener('keydown', handler, { capture: true });
+
+    document.addEventListener('keydown', downHandler, { capture: true });
+    document.addEventListener('keyup', upHandler, { capture: true });
+    return () => {
+      document.removeEventListener('keydown', downHandler, { capture: true });
+      document.removeEventListener('keyup', upHandler, { capture: true });
+      // Cleanup timers
+      holdState.forEach(entry => clearTimeout(entry.timer));
+      holdState.clear();
+    };
   }, [listening]);
 
   const startListening = useCallback(() => setListening(true), []);

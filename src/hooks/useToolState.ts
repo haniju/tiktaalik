@@ -141,11 +141,19 @@ export function useToolState() {
     }
   }, []);
 
-  // Toggle pan : si on est en move → restaure le mode précédent, sinon → entre en move
-  const togglePan = useCallback(() => {
+  // Entrer en pan (mémorise le contexte courant)
+  const enterPan = useCallback(() => {
+    const { canvasMode } = stateRef.current;
+    if (canvasMode !== 'move') {
+      setCanvasMode('move');
+    }
+  }, [setCanvasMode]);
+
+  // Sortir du pan (restaure le contexte mémorisé)
+  const exitPan = useCallback(() => {
     const { canvasMode, previousMode } = stateRef.current;
-    if (canvasMode === 'move' && previousMode) {
-      // Restaurer le mode mémorisé
+    if (canvasMode !== 'move') return;
+    if (previousMode) {
       setContextPanel(null);
       setState(prev => {
         const next = {
@@ -156,14 +164,20 @@ export function useToolState() {
         };
         persist(next); return next;
       });
-    } else if (canvasMode === 'move') {
-      // Pas de mémoire → fallback draw/pen
-      setCanvasMode('draw');
     } else {
-      // Entrer en move (mémorise via setCanvasMode)
-      setCanvasMode('move');
+      setCanvasMode('draw');
     }
   }, [setCanvasMode]);
+
+  // Toggle pan : si on est en move → restaure le mode précédent, sinon → entre en move
+  const togglePan = useCallback(() => {
+    const { canvasMode } = stateRef.current;
+    if (canvasMode === 'move') {
+      exitPan();
+    } else {
+      enterPan();
+    }
+  }, [enterPan, exitPan]);
 
   const collapsePanel = useCallback(() => setContextPanel(null), []);
 
@@ -208,7 +222,7 @@ export function useToolState() {
   return {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
-    setCanvasMode, togglePan, collapsePanel,
+    setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
     setToolColor, setToolWidth, setToolOpacity, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
     topbarMode, openPanel, setOpenPanel,

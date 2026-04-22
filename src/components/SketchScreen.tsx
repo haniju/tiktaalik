@@ -43,7 +43,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
-    setCanvasMode, togglePan, collapsePanel,
+    setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
     setToolColor, setToolWidth, setToolOpacity, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
@@ -183,9 +183,25 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setSelectSubMode('none');
   }, [togglePan, exitEditing]);
 
+  const handleEnterPan = useCallback(() => {
+    if (tbStateRef.current.kind !== 'idle') exitEditing();
+    enterPan();
+    setSelection([]);
+    setFocusedIds([]);
+    setSelectSubMode('none');
+  }, [enterPan, exitEditing]);
+
+  const handleExitPan = useCallback(() => {
+    exitPan();
+  }, [exitPan]);
+
   // ─── Button mapping (boutons physiques → actions) ──────────────────────────
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
-  const buttonMapping = useButtonMapping({ toggle_pan: handleTogglePan });
+  const buttonMapping = useButtonMapping({
+    toggle: { toggle_pan: handleTogglePan },
+    enter: { toggle_pan: handleEnterPan },
+    exit: { toggle_pan: handleExitPan },
+  });
 
   // ─── Gestures canvas ───────────────────────────────────────────────────────
   const {
@@ -474,6 +490,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
         zoomPct={zoomPct}
         onSetMode={handleSetCanvasMode}
         onTogglePan={handleTogglePan}
+        onEnterPan={handleEnterPan}
+        onExitPan={handleExitPan}
         onZoomChange={zoomTo}
       />
 

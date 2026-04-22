@@ -66,6 +66,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 
 - **CanvasMode**: `draw | select | move` — selected in `ActionFABs.tsx` (bottom bar)
 - **Pan mode memory**: entering `move` (pan) saves the current `{ canvasMode, activeTool }` into `ToolState.previousMode`. Toggle off via the FAB pan button restores the saved context (`togglePan`). Choosing any other mode/tool (Drawingbar, select, eraser) clears `previousMode` — the explicit choice takes priority. Persisted in localStorage alongside `activeTool` and `canvasMode`.
+- **Hold-to-pan (pan momentané)**: both the FAB pan button and mapped physical buttons support hold-to-pan. Tap short (<250ms) toggles pan on/off (existing behavior). Hold (≥250ms) activates pan immediately; releasing the button/key restores the previous mode. Uses `enterPan()`/`exitPan()` from `useToolState`. FAB uses `pointerDown`/`pointerUp`; physical buttons use `keydown`/`keyup` with hold state tracking per key.
 - **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
 - `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker (toggle via `text_color` button, hidden by default), **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)
@@ -212,8 +213,11 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 
 **Pan mode memory:** entering pan (move) saves `{ canvasMode, activeTool }` in `ToolState.previousMode`. FAB toggle off restores the saved context. Any other explicit mode/tool choice clears the memory. Persisted in localStorage.
 
+**Hold-to-pan (pan momentané):** both FAB and physical buttons support hold-to-pan with 250ms threshold. Tap short → toggle (existing behavior). Hold ≥250ms → `enterPan()` activates pan immediately, release → `exitPan()` restores previous mode. `useToolState` exports `enterPan`/`exitPan`/`togglePan`. FAB uses `pointerDown`/`pointerUp`; `useButtonMapping` tracks hold state per key via `keydown`/`keyup` with `HoldAwareActions` interface (`toggle`/`enter`/`exit` callbacks per action).
+
 **Button mapping (physical buttons → actions):**
-- `useButtonMapping` hook — two-phase system: listen mode (detect buttons via `keydown`, `preventDefault` on all captured keys) and active mode (global `keydown` listener triggers mapped actions)
+- `useButtonMapping` hook — two-phase system: listen mode (detect buttons via `keydown`, `preventDefault` on all captured keys) and active mode (hold-aware `keydown`/`keyup` listeners with 250ms threshold)
+- `HoldAwareActions` interface: `{ toggle, enter, exit }` each containing a `Record<MappableAction, () => void>`
 - `ButtonMappingModal` component — opened from Topbar dropdown "Mapping boutons". UI: detect button → list appears → `<select>` to assign action per button
 - Actions: `toggle_pan` (extensible later)
 - Persisted in `sketchpad_button_mapping` localStorage key
