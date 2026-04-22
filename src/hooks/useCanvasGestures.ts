@@ -496,19 +496,40 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     // Sauvegarder la position de départ AVANT nettoyage pour vérifier le déplacement total
     const savedPointerStart = dragPointerStart.current;
     if (dragArmed.current) {
-      // Tap sans drag → toggle dans le sous-groupe (focusedIds)
-      const hitId = dragArmedHitId.current;
-      if (hitId) {
-        p.current.setFocusedIds(prev => prev.includes(hitId) ? prev.filter(x => x !== hitId) : [...prev, hitId]);
-      }
       dragArmed.current = false;
+      const hitId = dragArmedHitId.current;
       dragArmedHitId.current = null;
       dragStartPos.current = null;
       dragPointerStart.current = null;
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
-      // Bloquer le click/tap Konva suivant pour éviter double toggle
-      dragJustEndedRef.current = true;
+
+      // Mode texte : tap sans drag sur la TB selected → passer en editing
+      if (toolState.activeTool === 'text' && hitId && tbStateRef.current.kind === 'selected' && tbStateRef.current.id === hitId) {
+        editingCreatedAtRef.current = Date.now();
+        setTbStateWithLogRef.current({ kind: 'editing', id: hitId }, 'handleMouseUp:textTap');
+        const textLayers = layersRef.current.filter((l): l is TextLayer => l.tool === 'text');
+        const tb = textLayers.find(t => t.id === hitId);
+        if (tb) {
+          const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
+          const stage = stageRef.current;
+          if (stage) {
+            const sc = stage.scaleX();
+            stage.position({ x: 20 - tb.x * sc, y: barsH + 20 - tb.y * sc });
+            stage.batchDraw();
+          }
+          setContextPanel('text');
+        }
+        // Bloquer handleTapById pour éviter double-fire
+        mouseUpHandledTapRef.current = true;
+      } else {
+        // Mode select : tap sans drag → toggle dans le sous-groupe (focusedIds)
+        if (hitId) {
+          p.current.setFocusedIds(prev => prev.includes(hitId) ? prev.filter(x => x !== hitId) : [...prev, hitId]);
+        }
+        // Bloquer le click/tap Konva suivant pour éviter double toggle
+        dragJustEndedRef.current = true;
+      }
     }
     dragPointerStart.current = null;
     if (isDraggingSelection.current) {
