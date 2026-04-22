@@ -65,7 +65,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 - **CanvasMode**: `draw | select | move` — selected in `ActionFABs.tsx` (bottom bar)
 - **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
-- `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker, **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)
+- `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker (toggle via `text_color` button, hidden by default), **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)
 - Per-tool opacity in `toolOpacities` (marker, airbrush center); airbrush edge opacity separate (`airbrushEdgeOpacity`)
 - Color selection: `UnifiedColorPicker` component shared across all contexts (drawing, background, text) — preset swatches + expandable `HslColorPicker` (HSL sliders). Mode prop selects preset palette (vivid for drawing/text, neutral for background).
 - `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode. Swipe up to close. Hit area (60px invisible zone below toolbar) captures touch to prevent accidental strokes on canvas.
@@ -168,6 +168,9 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 - `EditingTextarea`: position fixe web (left:20, top:topOffset+20) + getBoundingClientRect en PWA standalone
 - HslColorPicker: thumb centrage fix (margin-top: -9px → 1px), restored white 22px thumb with border
 - TB double-fire idle→selected→editing: `mouseUpHandledTapRef` guard prevents `handleMouseUp` + `handleTapById` both firing on same touch
+- Text-tool tap on selected TB → editing: `dragArmedHitId` was not set in text-mode mouseDown, causing mouseUp to skip the `selected→editing` transition
+- Text-tool tap on other TB while selected: `mouseUpHandledTapRef` guard added in mouseDown to prevent `handleTapById` from escalating `selected→editing`
+- `ResizeHandle` knob stays visually anchored to TB border during drag (knobRef offset compensation in onDragMove)
 
 ## Unified Color Picker — branch `feat/unified-color-picker`
 
@@ -177,7 +180,7 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 - `UnifiedColorPicker.tsx` — single component with `mode` prop (`drawing` | `background` | `text`), preset swatches + expandable `HslColorPicker`
 - `DrawingPanel` — replaced inline presets + chevron + `HslColorPicker` with `UnifiedColorPicker mode="drawing"`
 - `ContextToolbar` — replaced `ColorPickerPanel` with `UnifiedColorPicker mode="background"`
-- `TextPanel` — replaced native `<input type="color">` with `UnifiedColorPicker mode="text"` (shown when textbox selected)
+- `TextPanel` — replaced native `<input type="color">` with `UnifiedColorPicker mode="text"` (toggled via `text_color` icon button, hidden by default)
 - `ColorPickerPanel.tsx` — deleted (superseded)
 - `HslColorPicker.tsx` — kept as internal sub-component of `UnifiedColorPicker`
 - HomeScreen: drag-to-reorder vignettes (long-press+drag), vignette selection with badge bar (delete + rename), multi-select, ghost flottant, order persistence via `useDrawingOrder`
@@ -208,6 +211,7 @@ Prépare le terrain pour rotate/scale des objets sélectionnés.
 - Poignée visible : petit carré plein ~10px (couleur `#333`), centré au milieu du bord gauche/droite du TB
 - Zone d'accroche invisible : rectangle transparent ~30px autour du carré (vraie zone de hit-test/drag)
 - Utilise `<Group>` Konva contenant deux `<Rect>` (hit zone + knob visible) au lieu d'un seul Rect teal 30×36px
+- Pendant le drag, le knob visible reste accroché au bord de la TB (`knobRef` + compensation d'offset dans `onDragMove`), seule la hit zone suit le doigt
 - S'applique en mode texte ET en mode select (#2) — même composant
 
 **SelectionPanel refonte layout:**

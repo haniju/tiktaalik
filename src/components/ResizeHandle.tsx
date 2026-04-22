@@ -25,6 +25,7 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd, on
     tbX: number;
     tbWidth: number;
   } | null>(null);
+  const knobRef = useRef<Konva.Rect>(null);
 
   const sc = stageRef.current?.scaleX() ?? 1;
   const knob = KNOB_SCREEN / sc;
@@ -34,12 +35,7 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd, on
     <Group
       x={cx} y={cy}
       draggable
-      dragBoundFunc={pos => {
-        // Pour les TB rotées, on ne peut pas simplement clamper X/Y écran
-        // car l'axe de resize ne s'aligne plus avec les axes écran.
-        // On laisse le drag libre et on clampe la largeur min dans onDragMove.
-        return pos;
-      }}
+      dragBoundFunc={pos => pos}
       onDragStart={e => {
         dragStartRef.current = {
           pointerX: e.target.absolutePosition().x,
@@ -71,10 +67,17 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd, on
           const newWidth = Math.max(dragStartRef.current.tbWidth + dxCanvas, 150);
           onMove(dragStartRef.current.tbX, newWidth);
         }
+
+        // Compenser le déplacement du Group pour que le knob reste accroché au bord de la TB
+        const groupPos = e.target.position();
+        if (knobRef.current) {
+          knobRef.current.position({ x: -knob / 2 - groupPos.x + cx, y: -knob / 2 - groupPos.y + cy });
+        }
       }}
       onDragEnd={e => {
         dragStartRef.current = null;
         e.target.position({ x: cx, y: cy });
+        if (knobRef.current) knobRef.current.position({ x: -knob / 2, y: -knob / 2 });
         onDragEnd();
       }}
       onClick={onTap}
@@ -88,8 +91,9 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd, on
         width={hit} height={hit}
         fill="transparent"
       />
-      {/* Poignée visible — petit carré plein */}
+      {/* Poignée visible — petit carré plein, reste accroché au bord de la TB pendant le drag */}
       <Rect
+        ref={knobRef}
         x={-knob / 2} y={-knob / 2}
         width={knob} height={knob}
         fill="#333" cornerRadius={2 / sc}

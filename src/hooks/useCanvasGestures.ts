@@ -261,6 +261,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           }
           // Sinon armer le drag pour déplacer la textbox
           dragArmed.current = true;
+          dragArmedHitId.current = hitId;
           dragStartPos.current = pos;
           dragPointerStart.current = screenPos;
           dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
@@ -273,6 +274,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           // Tap sur une autre textbox → la sélectionner
           setTbStateWithLogRef.current({ kind: 'selected', id: hitId }, 'handleMouseDown:otherTextbox');
           setContextPanel('text');
+          // Guard : empêcher handleTapById de re-traiter ce même tap (sinon selected→editing)
+          mouseUpHandledTapRef.current = true;
         }
         return;
       }
