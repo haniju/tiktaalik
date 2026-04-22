@@ -11,10 +11,11 @@ interface Props {
   canvasMode: CanvasMode;
   zoomPct: number;
   onSetMode: (mode: CanvasMode) => void;
+  onTogglePan: () => void;
   onZoomChange: (pct: number) => void;
 }
 
-export function ActionFABs({ canvasMode, zoomPct, onSetMode, onZoomChange }: Props) {
+export function ActionFABs({ canvasMode, zoomPct, onSetMode, onTogglePan, onZoomChange }: Props) {
   const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomPct));
   const [showLabel, setShowLabel] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,7 +68,7 @@ export function ActionFABs({ canvasMode, zoomPct, onSetMode, onZoomChange }: Pro
       {/* Mode move */}
       <button
         style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}) }}
-        onClick={() => onSetMode(canvasMode === 'move' ? 'draw' : 'move')}
+        onClick={onTogglePan}
         title="Déplacer"
       >
         <Icon name="drag" size={20} style={{ opacity: canvasMode === 'move' ? 0.9 : 0.6 }} />

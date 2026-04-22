@@ -27,7 +27,7 @@ To run a single test file: `npx vitest run src/utils/textboxUtils.test.ts`
 All data lives in `localStorage`:
 - `sketchpad_drawings` — serialized `Drawing[]` (layers, background, metadata)
 - `sketchpad_drawing_order` — array of drawing IDs for custom gallery order (Option A: separate from Drawing objects, filtered on load)
-- `sketchpad_tool_state` — active tool settings (colors, widths) across sessions
+- `sketchpad_tool_state` — active tool settings (colors, widths, active tool, canvas mode, previousMode) across sessions
 
 Custom hooks handle state:
 - `useDrawingStorage` — CRUD for drawings in localStorage, with automatic migration of legacy formats
@@ -63,6 +63,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 ### Tools & Modes
 
 - **CanvasMode**: `draw | select | move` — selected in `ActionFABs.tsx` (bottom bar)
+- **Pan mode memory**: entering `move` (pan) saves the current `{ canvasMode, activeTool }` into `ToolState.previousMode`. Toggle off via the FAB pan button restores the saved context (`togglePan`). Choosing any other mode/tool (Drawingbar, select, eraser) clears `previousMode` — the explicit choice takes priority. Persisted in localStorage alongside `activeTool` and `canvasMode`.
 - **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
 - `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker (toggle via `text_color` button, hidden by default), **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)

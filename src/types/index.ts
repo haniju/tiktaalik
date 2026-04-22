@@ -2,9 +2,16 @@ export type DrawingTool = 'airbrush' | 'pen' | 'marker';
 export type Tool = DrawingTool | 'eraser' | 'text' | null;
 export type CanvasMode = 'draw' | 'select' | 'move'; // mode actif du canvas
 
+// Contexte sauvegardé avant activation du mode pan (move)
+export interface PreviousMode {
+  canvasMode: CanvasMode;
+  activeTool: Tool;
+}
+
 export interface ToolState {
   activeTool: Tool;          // null quand mode move/select
   canvasMode: CanvasMode;
+  previousMode: PreviousMode | null; // mémoire du mode avant pan
   toolColors: Record<DrawingTool, string>;
   toolWidths: Record<DrawingTool, number>;
   toolOpacities: Record<DrawingTool, number>;

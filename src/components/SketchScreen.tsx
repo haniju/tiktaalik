@@ -41,7 +41,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
-    setCanvasMode, collapsePanel,
+    setCanvasMode, togglePan, collapsePanel,
     setToolColor, setToolWidth, setToolOpacity, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
@@ -172,6 +172,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setFocusedIds([]);
     setSelectSubMode('none');
   }, [setCanvasMode, exitEditing]);
+
+  const handleTogglePan = useCallback(() => {
+    if (tbStateRef.current.kind !== 'idle') exitEditing();
+    togglePan();
+    setSelection([]);
+    setFocusedIds([]);
+    setSelectSubMode('none');
+  }, [togglePan, exitEditing]);
 
   // ─── Gestures canvas ───────────────────────────────────────────────────────
   const {
@@ -458,6 +466,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
         canvasMode={toolState.canvasMode}
         zoomPct={zoomPct}
         onSetMode={handleSetCanvasMode}
+        onTogglePan={handleTogglePan}
         onZoomChange={zoomTo}
       />
     </div>
