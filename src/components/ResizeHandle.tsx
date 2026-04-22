@@ -9,6 +9,7 @@ export interface ResizeHandleProps {
   stageRef: React.RefObject<Konva.Stage>;
   onMove: (newX: number, newWidth: number) => void;
   onDragEnd: () => void;
+  onTap?: (e: Konva.KonvaEventObject<Event>) => void;
 }
 
 // Taille visuelle du petit carré (px écran)
@@ -16,7 +17,7 @@ const KNOB_SCREEN = 10;
 // Taille de la zone d'accroche invisible (px écran)
 const HIT_SCREEN = 30;
 
-export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: ResizeHandleProps) {
+export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd, onTap }: ResizeHandleProps) {
   const dragStartRef = useRef<{
     pointerX: number;
     pointerY: number;
@@ -76,6 +77,8 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: 
         e.target.position({ x: cx, y: cy });
         onDragEnd();
       }}
+      onClick={onTap}
+      onTap={onTap}
       onMouseEnter={() => { if (stageRef.current) stageRef.current.container().style.cursor = 'ew-resize'; }}
       onMouseLeave={() => { if (stageRef.current) stageRef.current.container().style.cursor = ''; }}
     >

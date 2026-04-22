@@ -90,6 +90,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
       {isTextSelected && !isEditing && <>
         <Rect x={HANDLE_W} y={-BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -102,6 +104,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
         <Rect x={HANDLE_W} y={tbH - BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -114,6 +118,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
         <Rect x={-BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -126,6 +132,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
         <Rect x={tb.width - BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -145,6 +153,7 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
           tb={{ x: tb.x, y: tb.y, width: tb.width, rotation: tb.rotation }}
           stageRef={stageRef}
           onDragEnd={onDragEnd}
+          onTap={e => onTap(tb.id, tbH, e)}
           onMove={(newX, newWidth) => onLayerUpdate(prev => prev.map(l =>
             l.id !== tb.id || l.tool !== 'text' ? l : { ...l, x: newX, width: newWidth },
           ))}
@@ -154,6 +163,7 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
           tb={{ x: tb.x, y: tb.y, width: tb.width, rotation: tb.rotation }}
           stageRef={stageRef}
           onDragEnd={onDragEnd}
+          onTap={e => onTap(tb.id, tbH, e)}
           onMove={(_, newWidth) => onLayerUpdate(prev => prev.map(l =>
             l.id !== tb.id || l.tool !== 'text' ? l : { ...l, width: newWidth },
           ))}
