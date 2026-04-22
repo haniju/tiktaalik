@@ -28,10 +28,12 @@ All data lives in `localStorage`:
 - `sketchpad_drawings` — serialized `Drawing[]` (layers, background, metadata)
 - `sketchpad_drawing_order` — array of drawing IDs for custom gallery order (Option A: separate from Drawing objects, filtered on load)
 - `sketchpad_tool_state` — active tool settings (colors, widths, active tool, canvas mode, previousMode) across sessions
+- `sketchpad_button_mapping` — array of `{ key, code, keyCode, label, action }` for physical button → action mapping
 
 Custom hooks handle state:
 - `useDrawingStorage` — CRUD for drawings in localStorage, with automatic migration of legacy formats
 - `useToolState` — active tool, canvas mode, colors, widths, opacities per tool (canvas background is per-Drawing, not here)
+- `useButtonMapping` — physical button → action mapping. Two-phase: listen mode (captures `keydown` events, `preventDefault` on all, adds to detected list) and active mode (global `keydown` listener triggers mapped actions). Persisted in `sketchpad_button_mapping`. Modal UI via `ButtonMappingModal` (opened from Topbar dropdown).
 - `useDragToReorder` — drag-to-reorder, supports `layout: 'horizontal'` (SelectionPanel) and `layout: 'grid'` (HomeScreen galerie). Two-phase long-press: `onLongPressRelease` for select, move after long-press for drag. Vibrate on long-press ready. On long-press, `blockNativeScroll()` intercepts `touchmove` (non-passive) on the scroll container to prevent the browser from claiming the gesture for scrolling (which would fire `pointercancel` and kill the drag).
 - `useDrawingOrder` — persistence of custom gallery order in `sketchpad_drawing_order` (array of IDs). `applyOrder()` sorts drawings, filters stale IDs, puts new drawings first.
 - `useAutosave` — debounced autosave timer, saveNow/scheduleSave, visibilitychange/beforeunload listeners
@@ -196,6 +198,18 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 - `useDragToReorder`: `blockNativeScroll` / `unblockNativeScroll` — prevents scroll/drag conflict on mobile
 - `TextPanel`: duplicate button — copies selected textbox 20px above, same X, new TB in `selected` state
 - `SketchScreen`: `activeTextBox` derived from `editingTextId ?? selectedTextId` — TextPanel controls work in both selected and editing states
+
+## Pan Mode Memory + Button Mapping — branch `feat/unified-color-picker`
+
+**Pan mode memory:** entering pan (move) saves `{ canvasMode, activeTool }` in `ToolState.previousMode`. FAB toggle off restores the saved context. Any other explicit mode/tool choice clears the memory. Persisted in localStorage.
+
+**Button mapping (physical buttons → actions):**
+- `useButtonMapping` hook — two-phase system: listen mode (detect buttons via `keydown`, `preventDefault` on all captured keys) and active mode (global `keydown` listener triggers mapped actions)
+- `ButtonMappingModal` component — opened from Topbar dropdown "Mapping boutons". UI: detect button → list appears → `<select>` to assign action per button
+- Actions: `toggle_pan` (extensible later)
+- Persisted in `sketchpad_button_mapping` localStorage key
+- Designed for Android rugged phones (Blackview etc.) with custom/programmable buttons. Volume keys and custom keys (F1/F3) work in Chrome Android when system-level mapping is set to "None"
+- `preventDefault()` blocks native behavior (volume change, etc.) for mapped buttons
 
 ## Rotate & Scale — Phase 1 (fondation) — branch `feat/unified-color-picker`
 

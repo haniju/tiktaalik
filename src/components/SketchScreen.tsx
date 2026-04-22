@@ -21,6 +21,8 @@ import { SelectionPanel } from './SelectionPanel';
 import { ActionFABs } from './ActionFABs';
 import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
+import { ButtonMappingModal } from './ButtonMappingModal';
+import { useButtonMapping } from '../hooks/useButtonMapping';
 
 
 const DEBUG_DEFAULT = false;
@@ -181,6 +183,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setSelectSubMode('none');
   }, [togglePan, exitEditing]);
 
+  // ─── Button mapping (boutons physiques → actions) ──────────────────────────
+  const [mappingModalOpen, setMappingModalOpen] = useState(false);
+  const buttonMapping = useButtonMapping({ toggle_pan: handleTogglePan });
+
   // ─── Gestures canvas ───────────────────────────────────────────────────────
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel,
@@ -303,6 +309,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onDelete={handleDeleteDrawing}
           onToggleDebug={() => setDebug(d => !d)}
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
+          onOpenButtonMapping={() => setMappingModalOpen(true)}
         />
 
         {!(toolState.canvasMode === 'select' && selection.length > 0) && (
@@ -469,6 +476,20 @@ export function SketchScreen({ drawing, onBack }: Props) {
         onTogglePan={handleTogglePan}
         onZoomChange={zoomTo}
       />
+
+      {mappingModalOpen && (
+        <ButtonMappingModal
+          mappings={buttonMapping.mappings}
+          listening={buttonMapping.listening}
+          actionLabels={buttonMapping.ACTION_LABELS}
+          onStartListening={buttonMapping.startListening}
+          onStopListening={buttonMapping.stopListening}
+          onSetAction={buttonMapping.setAction}
+          onRemoveMapping={buttonMapping.removeMapping}
+          onClearAll={buttonMapping.clearAll}
+          onClose={() => { buttonMapping.stopListening(); setMappingModalOpen(false); }}
+        />
+      )}
     </div>
   );
 }

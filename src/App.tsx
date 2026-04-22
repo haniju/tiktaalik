@@ -47,6 +47,10 @@ const SLIDER_CSS = `
   border: none;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
+}
 `;
 
 type Screen = 'home' | 'sketch';
