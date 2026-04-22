@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { TextBox } from '../types';
 import { Icon } from './Icon';
 import { UnifiedColorPicker } from './UnifiedColorPicker';
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function TextPanel({ textBox, onChange, onDuplicate }: Props) {
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const isBold   = textBox?.fontStyle.includes('bold') ?? false;
   const isItalic = textBox?.fontStyle.includes('italic') ?? false;
 
@@ -47,6 +49,11 @@ export function TextPanel({ textBox, onChange, onDuplicate }: Props) {
       </div>
 
       <div style={{ ...styles.row, ...(disabled ? styles.rowDisabled : {}) }}>
+        <button disabled={disabled} style={{ ...styles.btn, ...(showColorPicker ? styles.btnActive : {}), ...(disabled ? styles.disabled : {}) }}
+          onClick={() => setShowColorPicker(v => !v)}>
+          <Icon name="text_color" size={20} />
+        </button>
+
         <button disabled={disabled} style={{ ...styles.btn, ...(isBold ? styles.btnActive : {}), ...(disabled ? styles.disabled : {}) }} onClick={toggleBold}>
           <Icon name="text_bold" size={20} />
         </button>
@@ -77,7 +84,7 @@ export function TextPanel({ textBox, onChange, onDuplicate }: Props) {
         </button>
       </div>
 
-      {!disabled && (
+      {!disabled && showColorPicker && (
         <UnifiedColorPicker
           color={textBox?.color ?? '#000000'}
           onChange={c => onChange({ color: c })}
