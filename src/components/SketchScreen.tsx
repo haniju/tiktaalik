@@ -183,8 +183,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setSelectSubMode('none');
   }, [togglePan, exitEditing]);
 
+  // Ref synchrone pour le hold-to-pan (pas de latence React)
+  const holdPanActiveRef = useRef(false);
+
   const handleEnterPan = useCallback(() => {
     if (tbStateRef.current.kind !== 'idle') exitEditing();
+    holdPanActiveRef.current = true;
     enterPan();
     setSelection([]);
     setFocusedIds([]);
@@ -192,6 +196,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [enterPan, exitEditing]);
 
   const handleExitPan = useCallback(() => {
+    holdPanActiveRef.current = false;
     exitPan();
   }, [exitPan]);
 
@@ -218,6 +223,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     exitEditing, collapseEditingToSelected, addTextBox, collapsePanel,
     pushUndo, scheduleSave,
     pinchZoomEnabledRef,
+    holdPanActiveRef,
     activeColor, activeWidth,
   });
 

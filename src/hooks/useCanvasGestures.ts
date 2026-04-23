@@ -39,6 +39,7 @@ export interface UseCanvasGesturesParams {
   pushUndo: (layers: DrawLayer[]) => void;
   scheduleSave: () => void;
   pinchZoomEnabledRef: React.MutableRefObject<boolean>;
+  holdPanActiveRef: React.MutableRefObject<boolean>;
   activeColor: string;
   activeWidth: number;
 }
@@ -176,7 +177,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const targetName = (e.target as Konva.Node).name();
     const isBackground = e.target === stage || targetName === 'background-rect';
 
-    if (toolState.canvasMode === 'move') {
+    if (toolState.canvasMode === 'move' || p.current.holdPanActiveRef.current) {
       isPanning.current = true;
       panStart.current = { x: screenPos.x, y: screenPos.y, sx: stage.x(), sy: stage.y() };
       return;
@@ -341,7 +342,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
 
-    if (toolState.canvasMode === 'move' && isPanning.current && panStart.current) {
+    if ((toolState.canvasMode === 'move' || p.current.holdPanActiveRef.current) && isPanning.current && panStart.current) {
       const raw = { x: panStart.current.sx + screenPos.x - panStart.current.x, y: panStart.current.sy + screenPos.y - panStart.current.y };
       stage.position(clampStagePos(raw, stage.scaleX(), stage.width(), stage.height()));
       stage.batchDraw();
