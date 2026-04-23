@@ -50,6 +50,42 @@ export function SketchScreen({ drawing, onBack }: Props) {
   } = useToolState();
 
   const [debug, setDebug] = useState(DEBUG_DEFAULT);
+
+  // ─── Debug : tracking des pointers actifs ──────────────────────────────────
+  const [activePointers, setActivePointers] = useState<Map<number, { x: number; y: number; target: string }>>(new Map());
+  useEffect(() => {
+    if (!debug) { setActivePointers(new Map()); return; }
+    const getTarget = (e: PointerEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.closest?.('[data-fabs]')) return 'FAB';
+      if (el.closest?.('.konvajs-content')) return 'canvas';
+      return el.tagName?.toLowerCase() ?? '?';
+    };
+    const down = (e: PointerEvent) => {
+      setActivePointers(prev => new Map(prev).set(e.pointerId, { x: Math.round(e.clientX), y: Math.round(e.clientY), target: getTarget(e) }));
+    };
+    const move = (e: PointerEvent) => {
+      setActivePointers(prev => {
+        if (!prev.has(e.pointerId)) return prev;
+        const next = new Map(prev);
+        next.set(e.pointerId, { x: Math.round(e.clientX), y: Math.round(e.clientY), target: getTarget(e) });
+        return next;
+      });
+    };
+    const up = (e: PointerEvent) => {
+      setActivePointers(prev => { const next = new Map(prev); next.delete(e.pointerId); return next; });
+    };
+    document.addEventListener('pointerdown', down, true);
+    document.addEventListener('pointermove', move, true);
+    document.addEventListener('pointerup', up, true);
+    document.addEventListener('pointercancel', up, true);
+    return () => {
+      document.removeEventListener('pointerdown', down, true);
+      document.removeEventListener('pointermove', move, true);
+      document.removeEventListener('pointerup', up, true);
+      document.removeEventListener('pointercancel', up, true);
+    };
+  }, [debug]);
   const [pinchZoom, setPinchZoom] = useState(false);
   const pinchZoomEnabledRef = useRef(pinchZoom);
   pinchZoomEnabledRef.current = pinchZoom;
@@ -484,10 +520,18 @@ export function SketchScreen({ drawing, onBack }: Props) {
           {`tbState=${tbState.kind}${tbState.kind !== 'idle' ? ` id=${(tbState as { kind: string; id: string }).id?.slice(0, 6)}` : ''}`}
           {` | tool=${toolState.activeTool}`}
           {` | mode=${toolState.canvasMode}`}
+          {` | holdPan=${holdPanActiveRef.current ? '●' : '○'}`}
           {` | zoom=${Math.round(zoomPct)}%`}
           {` | layers=${layers.length}`}
           {` | dirty=${isDirty ? '●' : '○'}`}
           {` | action=${lastAction}`}
+          {'\n'}
+          {activePointers.size === 0
+            ? 'pointers: none'
+            : Array.from(activePointers.entries()).map(([id, p], i) =>
+                `${i === 0 ? 'A' : i === 1 ? 'B' : String.fromCharCode(65 + i)}:${p.target}(${p.x},${p.y})`
+              ).join(' | ')
+          }
         </div>
       )}
 
