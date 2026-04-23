@@ -66,7 +66,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 
 - **CanvasMode**: `draw | select | move` — selected in `ActionFABs.tsx` (bottom bar)
 - **Pan mode memory**: entering `move` (pan) saves the current `{ canvasMode, activeTool }` into `ToolState.previousMode`. Toggle off via the FAB pan button restores the saved context (`togglePan`). Choosing any other mode/tool (Drawingbar, select, eraser) clears `previousMode` — the explicit choice takes priority. Persisted in localStorage alongside `activeTool` and `canvasMode`.
-- **Hold-to-pan (pan momentané)**: both the FAB pan button and mapped physical buttons support hold-to-pan. Tap short (<250ms) toggles pan on/off (existing behavior). Hold (≥250ms) activates pan immediately; releasing the button/key restores the previous mode. Uses `enterPan()`/`exitPan()` from `useToolState`. FAB uses `pointerDown`/`pointerUp`; physical buttons use `keydown`/`keyup` with hold state tracking per key.
+- **Hold-to-pan (pan momentané) — WIP BUG**: both the FAB pan button and mapped physical buttons support hold-to-pan. Tap short (<250ms) toggles pan on/off (existing behavior). Hold (≥250ms) activates pan immediately; releasing the button/key restores the previous mode. Uses `enterPan()`/`exitPan()` from `useToolState`. FAB uses `pointerDown`/`pointerUp`; physical buttons use `keydown`/`keyup` with hold state tracking per key. **Bug**: FAB hold détecte bien les deux doigts (debug overlay OK, `holdPanActiveRef=true`) mais le viewport ne se déplace pas. Probable problème Konva multi-touch — voir notes d'investigation dans la section "Pan Mode Memory".
 - **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
 - `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker (toggle via `text_color` button, hidden by default), **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)
@@ -145,6 +145,7 @@ This keeps each chunk under Vite's 500 kB warning threshold and improves browser
 - `ColorPickerPanel` supprimé, remplacé par `UnifiedColorPicker mode="background"`
 - Playwright demo test stubs (`e2e/example.spec.ts`, `tests/example.spec.ts`) fail in Vitest — pre-existing, not real tests
 - Pinch zoom while textarea is focused exits editing (first touch fires handleMouseDown before second touch confirms pinch) — known limitation, deferred
+- **Hold-to-pan via FAB broken**: doigt B détecté sur canvas (debug overlay OK) mais viewport ne bouge pas — see "Pan Mode Memory + Button Mapping" section for investigation notes
 
 ## Refactoring Phase 1 — COMPLETE — branch `refactor/sketchscreen-decomp`
 
@@ -213,7 +214,22 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 
 **Pan mode memory:** entering pan (move) saves `{ canvasMode, activeTool }` in `ToolState.previousMode`. FAB toggle off restores the saved context. Any other explicit mode/tool choice clears the memory. Persisted in localStorage.
 
-**Hold-to-pan (pan momentané):** both FAB and physical buttons support hold-to-pan with 250ms threshold. Tap short → toggle (existing behavior). Hold ≥250ms → `enterPan()` activates pan immediately, release → `exitPan()` restores previous mode. `useToolState` exports `enterPan`/`exitPan`/`togglePan`. FAB uses `pointerDown`/`pointerUp`; `useButtonMapping` tracks hold state per key via `keydown`/`keyup` with `HoldAwareActions` interface (`toggle`/`enter`/`exit` callbacks per action).
+**Hold-to-pan (pan momentané) — WIP, BUG OUVERT:**
+Both FAB and physical buttons support hold-to-pan with 250ms threshold. Tap short → toggle (existing behavior). Hold ≥250ms → `enterPan()` activates pan immediately, release → `exitPan()` restores previous mode. `useToolState` exports `enterPan`/`exitPan`/`togglePan`. FAB uses `pointerDown`/`pointerUp`; `useButtonMapping` tracks hold state per key via `keydown`/`keyup` with `HoldAwareActions` interface (`toggle`/`enter`/`exit` callbacks per action).
+
+**Bug: hold-to-pan via FAB — doigt B détecté mais viewport ne bouge pas.**
+- Contexte : doigt A hold FAB pan → `holdPanActiveRef=true` (vérifié via debug overlay) → doigt B touche et drag le canvas → pointer B détecté (visible dans debug overlay) mais le viewport ne se repositionne pas.
+- Le debug overlay montre `A:FAB(x,y) | B:canvas(x,y)` correctement et `holdPan=●`.
+- `holdPanActiveRef` est un ref synchrone (pas de latence React), lu par `useCanvasGestures` dans `handleMouseDown` et `handleMouseMove` via `p.current.holdPanActiveRef.current`.
+- L'hypothèse initiale (latence React setState) a été corrigée avec `holdPanActiveRef`, mais le pan ne fonctionne toujours pas.
+- **Pistes à investiguer :**
+  1. Konva Stage `onTouchStart`/`onTouchMove` : le stage reçoit-il le touch du doigt B ? Le doigt A est sur un élément DOM hors du canvas (le FAB `<button>`), donc Konva ne devrait pas le voir. Mais le doigt B touche bien le canvas — il faut vérifier que `handleMouseDown` est bien appelé avec le bon pointer.
+  2. `isPanning.current` : est-il bien mis à `true` dans `handleMouseDown` pour le doigt B ? Logger dans le handler.
+  3. `panStart.current` : est-il bien initialisé avec les coordonnées du doigt B ?
+  4. `handleMouseMove` : est-il appelé pour les mouvements du doigt B ? Konva pourrait ne pas relayer les `touchmove` si le premier touch (doigt A) n'est pas sur le stage.
+  5. Multi-touch Konva : Konva pourrait ignorer le 2e touch si le 1er n'est pas sur le stage. Vérifier comment `getPointerPosition()` se comporte en multi-touch quand seul un doigt est sur le canvas.
+  6. Le `touchAction: 'none'` est sur le FAB mais aussi sur le container du stage — vérifier qu'il n'y a pas de conflit.
+- **Fichiers clés :** `useCanvasGestures.ts:180` (handleMouseDown pan check), `useCanvasGestures.ts:344` (handleMouseMove pan), `ActionFABs.tsx` (FAB pointerDown/Up), `SketchScreen.tsx:186-196` (holdPanActiveRef)
 
 **Button mapping (physical buttons → actions):**
 - `useButtonMapping` hook — two-phase system: listen mode (detect buttons via `keydown`, `preventDefault` on all captured keys) and active mode (hold-aware `keydown`/`keyup` listeners with 250ms threshold)
