@@ -95,10 +95,11 @@ export function ActionFABs({ canvasMode, zoomPct, onSetMode, onTogglePan, onEnte
 
       {/* Mode move — tap: toggle, hold: pan momentané */}
       <button
-        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}) }}
+        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}), WebkitTouchCallout: 'none', userSelect: 'none', touchAction: 'none' }}
         onPointerDown={handlePanPointerDown}
         onPointerUp={handlePanPointerUp}
         onPointerCancel={handlePanPointerUp}
+        onContextMenu={e => e.preventDefault()}
         title="Déplacer"
       >
         <Icon name="drag" size={20} style={{ opacity: canvasMode === 'move' ? 0.9 : 0.6 }} />

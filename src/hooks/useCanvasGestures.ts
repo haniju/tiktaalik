@@ -97,6 +97,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const lastAirbrushPt = useRef<{ x: number; y: number } | null>(null);
   const isPanning = useRef(false);
   const panStart = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
+  // Hold-to-pan : identifier du touch du doigt B sur le canvas (pour bypasser Konva getPointerPosition)
+  const holdPanTouchId = useRef<number | null>(null);
   const pendingTextboxRef = useRef<{ x: number; y: number } | null>(null);
   // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
   const dragJustEndedRef = useRef(false);
@@ -115,6 +117,20 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // Rotate — snapshot pattern
   const rotateSnapshotRef = useRef<DrawLayer[]>([]);
   const rotateCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Cherche un touch par identifier dans evt.touches et retourne sa position relative au stage container.
+   *  Retourne null si le touch n'est plus actif (doigt levé). */
+  const getTouchScreenPos = useCallback((nativeEvt: TouchEvent, touchId: number, stage: Konva.Stage): { x: number; y: number } | null => {
+    for (let i = 0; i < nativeEvt.touches.length; i++) {
+      if (nativeEvt.touches[i].identifier === touchId) {
+        const stageBox = stage.container().getBoundingClientRect();
+        return { x: nativeEvt.touches[i].clientX - stageBox.left, y: nativeEvt.touches[i].clientY - stageBox.top };
+      }
+    }
+    return null;
+  }, []);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -143,8 +159,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const toolState = toolStateRef.current;
 
     // Pinch zoom — détection de deux doigts
+    // Guard : si holdPan est actif, les 2 touches = doigt A sur FAB + doigt B sur canvas, pas un vrai pinch
     const nativeEvt = e.evt;
-    if (pinchZoomEnabledRef.current && 'touches' in nativeEvt && nativeEvt.touches.length >= 2) {
+    if (pinchZoomEnabledRef.current && !p.current.holdPanActiveRef.current && 'touches' in nativeEvt && nativeEvt.touches.length >= 2) {
       e.evt.preventDefault();
       const t1 = nativeEvt.touches[0], t2 = nativeEvt.touches[1];
       lastPinchDist.current = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
@@ -178,8 +195,19 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const isBackground = e.target === stage || targetName === 'background-rect';
 
     if (toolState.canvasMode === 'move' || p.current.holdPanActiveRef.current) {
+      // En hold-to-pan multi-touch, Konva getPointerPosition() lit touches[0] = doigt A (FAB, immobile).
+      // On tracke le touch identifier du doigt B pour lire sa position directement dans evt.touches.
+      let panScreenPos = screenPos;
+      if (p.current.holdPanActiveRef.current && 'changedTouches' in nativeEvt && nativeEvt.changedTouches.length > 0) {
+        const ct = nativeEvt.changedTouches[0];
+        holdPanTouchId.current = ct.identifier;
+        const stageBox = stage.container().getBoundingClientRect();
+        panScreenPos = { x: ct.clientX - stageBox.left, y: ct.clientY - stageBox.top };
+      } else {
+        holdPanTouchId.current = null;
+      }
       isPanning.current = true;
-      panStart.current = { x: screenPos.x, y: screenPos.y, sx: stage.x(), sy: stage.y() };
+      panStart.current = { x: panScreenPos.x, y: panScreenPos.y, sx: stage.x(), sy: stage.y() };
       return;
     }
 
@@ -342,8 +370,15 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
 
-    if ((toolState.canvasMode === 'move' || p.current.holdPanActiveRef.current) && isPanning.current && panStart.current) {
-      const raw = { x: panStart.current.sx + screenPos.x - panStart.current.x, y: panStart.current.sy + screenPos.y - panStart.current.y };
+    if ((toolState.canvasMode === 'move' || holdPanTouchId.current !== null) && isPanning.current && panStart.current) {
+      // Hold-to-pan : chercher le touch tracké par identifier (indépendant de Konva getPointerPosition)
+      let panScreenPos = screenPos;
+      if (holdPanTouchId.current !== null && 'touches' in nativeEvt) {
+        const found = getTouchScreenPos(nativeEvt as TouchEvent, holdPanTouchId.current, stage);
+        if (!found) return; // touch plus actif (doigt levé) → ignorer, handleMouseUp nettoiera
+        panScreenPos = found;
+      }
+      const raw = { x: panStart.current.sx + panScreenPos.x - panStart.current.x, y: panStart.current.sy + panScreenPos.y - panStart.current.y };
       stage.position(clampStagePos(raw, stage.scaleX(), stage.width(), stage.height()));
       stage.batchDraw();
       return;
@@ -484,7 +519,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (editingTextIdRef.current) return;
 
-    if (isPanning.current) { isPanning.current = false; panStart.current = null; return; }
+    if (isPanning.current) { isPanning.current = false; panStart.current = null; holdPanTouchId.current = null; return; }
 
     if (toolState.activeTool === 'eraser' && isErasing.current) {
       isErasing.current = false;
