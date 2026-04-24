@@ -15,6 +15,7 @@ export interface ToolState {
   toolColors: Record<DrawingTool, string>;
   toolWidths: Record<DrawingTool, number>;
   toolOpacities: Record<DrawingTool, number>;
+  toolSmoothings: Record<DrawingTool, number>;
   airbrushEdgeOpacity: number;
 }
 

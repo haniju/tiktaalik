@@ -71,6 +71,7 @@ Pinch-to-zoom (two-finger gesture) is available but disabled by default — togg
 - Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
 - `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker (toggle via `text_color` button, hidden by default), **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)
 - Per-tool opacity in `toolOpacities` (marker, airbrush center); airbrush edge opacity separate (`airbrushEdgeOpacity`)
+- Per-tool smoothing in `toolSmoothings` (0–1). Pen/marker: minimum-distance filter on captured points (0–12px threshold, eliminates touch jitter). Airbrush: denser point interpolation step (factor 0.6→0.15, eliminates circle bead artifacts). Slider "Lissage" in `DrawingPanel` for all 3 drawing tools. Defaults: pen/marker 30%, airbrush 50%.
 - Color selection: `UnifiedColorPicker` component shared across all contexts (drawing, background, text) — preset swatches + expandable `HslColorPicker` (HSL sliders). Mode prop selects preset palette (vivid for drawing/text, neutral for background).
 - `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode. Swipe up to close. Hit area (60px invisible zone below toolbar) captures touch to prevent accidental strokes on canvas.
 
@@ -109,7 +110,7 @@ Known limitation: pinch zoom while the textarea is focused triggers `exitEditing
 
 ### App Version
 
-The app version from `package.json` is injected at build time as the global `__APP_VERSION__` via `vite.config.ts`. The build timestamp is injected as `__BUILD_TIME__` (fr-FR locale, short date+time). Both are displayed in the HomeScreen version badge (`v1.9.1 — MAJ 16/04/2026 14:32`).
+The app version from `package.json` is injected at build time as the global `__APP_VERSION__` via `vite.config.ts`. The build timestamp is injected as `__BUILD_TIME__` (fr-FR locale, short date+time). Both are displayed in the HomeScreen version badge (`v2.0.0 — MAJ 24/04/2026 ...`).
 
 ### Build & Chunking
 
@@ -188,7 +189,7 @@ Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting
 
 ## Unified Color Picker — branch `feat/unified-color-picker`
 
-Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color selection into a single `UnifiedColorPicker` component.
+Branch created from `refactor/sketchscreen-decomp` (v2.0.0). Unifies all color selection into a single `UnifiedColorPicker` component.
 
 **Changes:**
 - `UnifiedColorPicker.tsx` — single component with `mode` prop (`drawing` | `background` | `text`), preset swatches + expandable `HslColorPicker`

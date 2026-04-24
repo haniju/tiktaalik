@@ -117,6 +117,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // Rotate — snapshot pattern
   const rotateSnapshotRef = useRef<DrawLayer[]>([]);
   const rotateCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Smoothing — filtre de distance minimale pour pen/marker
+  const lastAcceptedPt = useRef<{ x: number; y: number } | null>(null);
+  const lastRawPt = useRef<{ x: number; y: number } | null>(null);
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -328,10 +331,14 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (editingTextIdRef.current) exitEditing();
       const opacity = toolState.toolOpacities[toolState.activeTool];
       const w = toolState.activeTool === 'marker' ? activeWidth * 4 : activeWidth;
-      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x, pos.y] };
+      // Micro-offset 0.1px sur le 2e point : Konva <Line tension> ne rend rien pour un segment
+      // de longueur zéro (tap court), le décalage force un segment minimal → point rond via lineCap="round"
+      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1] };
       // Mise à jour directe du ref : handleMouseUp peut arriver avant le re-render (tap court)
       currentStrokeRef.current = stroke;
       setCurrentStroke(stroke);
+      lastAcceptedPt.current = { x: pos.x, y: pos.y };
+      lastRawPt.current = { x: pos.x, y: pos.y };
       isDrawing.current = true;
     }
   }, [eraseAt]);
@@ -442,7 +449,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (last) {
         const dx = pos.x - last.x, dy = pos.y - last.y;
         const dist = Math.hypot(dx, dy);
-        const step = currentAB.radius * (1 - AIRBRUSH_CONFIG.pointDensity + 0.1);
+        // Densité de pas contrôlée par le lissage : 0% → 0.6 (actuel), 100% → 0.15 (chevauchement dense)
+        const abSmoothing = toolState.toolSmoothings.airbrush ?? 0;
+        const stepFactor = 0.6 - abSmoothing * 0.45;
+        const step = Math.max(currentAB.radius * stepFactor, 1);
         const steps = Math.max(1, Math.floor(dist / step));
         const newPts: Array<{ x: number; y: number }> = [];
         for (let i = 1; i <= steps; i++) {
@@ -457,6 +467,16 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     }
 
     if (isDrawing.current && currentStrokeRef.current) {
+      lastRawPt.current = { x: pos.x, y: pos.y };
+      // Filtre de distance minimale — élimine le micro-jitter tactile
+      const smoothing = toolState.toolSmoothings[toolState.activeTool as 'pen' | 'marker'] ?? 0;
+      const minDist = smoothing * 12;
+      if (minDist > 0 && lastAcceptedPt.current) {
+        const dx = pos.x - lastAcceptedPt.current.x;
+        const dy = pos.y - lastAcceptedPt.current.y;
+        if (dx * dx + dy * dy < minDist * minDist) return;
+      }
+      lastAcceptedPt.current = { x: pos.x, y: pos.y };
       setCurrentStroke(prev => prev ? { ...prev, points: [...prev.points, pos.x, pos.y] } : null);
     }
   }, [eraseAt]);
@@ -645,7 +665,14 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (currentStrokeRef.current && isDrawing.current) {
       isDrawing.current = false;
-      const cs = currentStrokeRef.current;
+      // Ajouter le dernier point brut si le filtre de distance l'avait ignoré
+      let cs = currentStrokeRef.current;
+      if (lastRawPt.current && lastAcceptedPt.current &&
+          (lastRawPt.current.x !== lastAcceptedPt.current.x || lastRawPt.current.y !== lastAcceptedPt.current.y)) {
+        cs = { ...cs, points: [...cs.points, lastRawPt.current.x, lastRawPt.current.y] };
+      }
+      lastAcceptedPt.current = null;
+      lastRawPt.current = null;
       const newL = [...layersRef.current, cs];
       setLayers(newL); pushUndo(newL);
       setCurrentStroke(null); scheduleSave();

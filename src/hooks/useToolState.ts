@@ -10,6 +10,7 @@ const DEFAULT_STATE: ToolState = {
   toolColors: { airbrush: '#e63946', pen: '#000000', marker: '#2196f3' },
   toolWidths: { airbrush: 10, pen: 5, marker: 10 },
   toolOpacities: { airbrush: 0.7, pen: 1, marker: 0.4 },
+  toolSmoothings: { airbrush: 0.5, pen: 0.3, marker: 0.3 },
   airbrushEdgeOpacity: 0,
 };
 
@@ -29,6 +30,7 @@ function persist(state: ToolState) {
       toolColors: state.toolColors,
       toolWidths: state.toolWidths,
       toolOpacities: state.toolOpacities,
+      toolSmoothings: state.toolSmoothings,
       airbrushEdgeOpacity: state.airbrushEdgeOpacity,
     }));
   } catch {}
@@ -46,6 +48,7 @@ export function useToolState() {
     toolColors: { ...DEFAULT_STATE.toolColors, ...persisted.toolColors },
     toolWidths: { ...DEFAULT_STATE.toolWidths, ...persisted.toolWidths },
     toolOpacities: { ...DEFAULT_STATE.toolOpacities, ...persisted.toolOpacities },
+    toolSmoothings: { ...DEFAULT_STATE.toolSmoothings, ...persisted.toolSmoothings },
     airbrushEdgeOpacity: persisted.airbrushEdgeOpacity ?? DEFAULT_STATE.airbrushEdgeOpacity,
   });
   const [contextPanel, setContextPanel] = useState<ContextPanel>(null);
@@ -202,6 +205,13 @@ export function useToolState() {
     });
   }, []);
 
+  const setToolSmoothing = useCallback((tool: DrawingTool, smoothing: number) => {
+    setState(prev => {
+      const next = { ...prev, toolSmoothings: { ...prev.toolSmoothings, [tool]: smoothing } };
+      persist(next); return next;
+    });
+  }, []);
+
   const setAirbrushEdgeOpacity = useCallback((opacity: number) => {
     setState(prev => {
       const next = { ...prev, airbrushEdgeOpacity: opacity };
@@ -223,7 +233,7 @@ export function useToolState() {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
-    setToolColor, setToolWidth, setToolOpacity, setAirbrushEdgeOpacity,
+    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
     topbarMode, openPanel, setOpenPanel,
     setTopbarMode: setCanvasMode,

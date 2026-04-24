@@ -17,6 +17,7 @@ interface Props {
   onSetToolWidth: (tool: DrawingTool, width: number) => void;
   onSetToolOpacity: (tool: DrawingTool, opacity: number) => void;
   onSetAirbrushEdgeOpacity: (opacity: number) => void;
+  onSetToolSmoothing: (tool: DrawingTool, smoothing: number) => void;
   onSetBackground: (color: string) => void;
   onUpdateTextBox: (patch: Partial<TextBox>) => void;
   onDuplicateTextBox: () => void;
@@ -25,7 +26,7 @@ interface Props {
 
 export function ContextToolbar({
   contextPanel, state, canvasBackground, textBox,
-  onSetToolColor, onSetToolWidth, onSetToolOpacity, onSetAirbrushEdgeOpacity, onSetBackground,
+  onSetToolColor, onSetToolWidth, onSetToolOpacity, onSetAirbrushEdgeOpacity, onSetToolSmoothing, onSetBackground,
   onUpdateTextBox, onDuplicateTextBox, onSwipeClose,
 }: Props) {
   const visible = contextPanel !== null;
@@ -61,10 +62,12 @@ export function ContextToolbar({
               width={state.toolWidths[state.activeTool as DrawingTool]}
               opacity={state.toolOpacities[state.activeTool as DrawingTool]}
               airbrushEdgeOpacity={state.airbrushEdgeOpacity}
+              smoothing={state.toolSmoothings[state.activeTool as DrawingTool]}
               onColorChange={c => onSetToolColor(state.activeTool as DrawingTool, c)}
               onWidthChange={w => onSetToolWidth(state.activeTool as DrawingTool, w)}
               onOpacityChange={o => onSetToolOpacity(state.activeTool as DrawingTool, o)}
               onAirbrushEdgeOpacityChange={onSetAirbrushEdgeOpacity}
+              onSmoothingChange={s => onSetToolSmoothing(state.activeTool as DrawingTool, s)}
             />
           )}
 
