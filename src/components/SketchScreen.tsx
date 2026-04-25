@@ -86,6 +86,24 @@ export function SketchScreen({ drawing, onBack }: Props) {
       document.removeEventListener('pointercancel', up, true);
     };
   }, [debug]);
+
+  // ─── Debug : offset bas pour rester au-dessus du clavier virtuel ───────────
+  const [debugBottomOffset, setDebugBottomOffset] = useState(0);
+  useEffect(() => {
+    if (!debug) { setDebugBottomOffset(0); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      setDebugBottomOffset(window.innerHeight - vv.height - vv.offsetTop);
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, [debug]);
+
   const [pinchZoom, setPinchZoom] = useState(false);
   const pinchZoomEnabledRef = useRef(pinchZoom);
   pinchZoomEnabledRef.current = pinchZoom;
@@ -519,7 +537,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
       {debug && (
         <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
+          position: 'fixed', left: 0, right: 0,
+          bottom: debugBottomOffset,
           background: 'rgba(0,0,0,0.82)',
           color: '#0f0', fontFamily: 'monospace', fontSize: 11,
           padding: '6px 10px', zIndex: 9999,
