@@ -106,12 +106,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
   toolStateRef.current = toolState;
   const [lastAction, setLastAction] = useState<string>('—');
   const setTbStateWithLog = useCallback((next: TextBoxSelectionState, source: string) => {
+    console.log(`[tbState] ${tbState.kind} → ${next.kind} (${source})`);
     if (debug) {
-      console.log(`[tbState] ${tbState.kind} → ${next.kind} (${source})`);
       setLastAction(source);
     }
     setTbState(next);
-  }, [tbState.kind]);
+  }, [tbState.kind, debug]);
   const setTbStateWithLogRef = useRef(setTbStateWithLog);
   setTbStateWithLogRef.current = setTbStateWithLog;
   const [isDirty, setIsDirty] = useState(false);
@@ -153,6 +153,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
   });
 
   const editingCreatedAtRef = useRef<number>(0);
+  // Guard : timestamp de la dernière saisie texte — empêche un blur parasite (mobile)
+  // de tuer l'édition avant que React ait rendu le nouveau layers (layersRef stale)
+  const lastInputRef = useRef<number>(0);
 
   // Dériver les IDs courants depuis tbState (source unique de vérité)
   const editingTextId = tbState.kind === 'editing' ? tbState.id : null;
@@ -172,6 +175,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   const collapseEditingToSelected = useCallback(() => {
     if (Date.now() - editingCreatedAtRef.current < 300) return;
+    // Guard : ignorer les blurs parasites qui arrivent juste après une saisie
+    // (layersRef.current n'a pas encore été mis à jour par le re-render React)
+    if (Date.now() - lastInputRef.current < 150) return;
     const id = editingTextIdRef.current;
     if (!id) return;
     const layer = layersRef.current.find(l => l.id === id && l.tool === 'text') as TextLayer | undefined;
@@ -268,6 +274,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const updateTextBox = useCallback((patch: Partial<TextBox>) => {
     const targetId = editingTextId ?? selectedTextId;
     if (!targetId) return;
+    if ('text' in patch) lastInputRef.current = Date.now();
     setLayers(prev => prev.map(l => {
       if (l.tool !== 'text' || l.id !== targetId) return l;
       return { ...l, ...patch };

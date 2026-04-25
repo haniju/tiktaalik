@@ -88,6 +88,7 @@ export function useButtonMapping(actions: HoldAwareActions) {
         m => m.key === e.key && m.code === e.code && m.action !== null
       );
       if (!match) return;
+      console.log('[buttonMapping] keydown intercepté:', e.key, e.code, '→', match.action);
       e.preventDefault();
       e.stopPropagation();
 

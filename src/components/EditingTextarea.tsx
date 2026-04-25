@@ -56,6 +56,13 @@ export const EditingTextarea = React.memo(function EditingTextarea(
       onKeyDown={e => { if (e.key === 'Escape') onExit(); }}
       onBlur={e => {
         const related = e.relatedTarget as HTMLElement | null;
+        console.log('[blur]', {
+          relatedTarget: related?.tagName,
+          relatedId: related?.id,
+          relatedDataset: related ? Object.keys(related.dataset) : null,
+          activeElement: document.activeElement?.tagName,
+          text: textBox.text,
+        });
         // Ne pas sortir si le focus part vers les barres (topbar, drawingbar, contextToolbar, textPanel)
         // ou vers les FABs
         if (related && (
@@ -63,6 +70,7 @@ export const EditingTextarea = React.memo(function EditingTextarea(
           related.closest('[data-bars]') ||
           related.closest('[data-fabs]')
         )) return;
+        console.log('[blur] → onBlurExit() appelé');
         onBlurExit();
       }}
       style={{
