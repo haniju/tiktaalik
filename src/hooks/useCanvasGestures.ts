@@ -185,7 +185,16 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const screenPos = stage.getPointerPosition()!;
 
     // En mode text : si on édite et qu'on tape sur le canvas → collapse vers selected
+    // SAUF si le tap est sur le TB en cours d'édition (zone Konva rotée qui dépasse la textarea)
     if (editingTextIdRef.current && toolState.activeTool === 'text') {
+      let node: Konva.Node | null = e.target;
+      let hitId: string | null = null;
+      while (node) {
+        const nid = node.id?.();
+        if (nid) { hitId = nid; break; }
+        node = node.getParent?.() ?? null;
+      }
+      if (hitId === editingTextIdRef.current) return; // tap sur le TB en édition → ignorer
       collapseEditingToSelected();
       return;
     }

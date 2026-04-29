@@ -8,6 +8,7 @@ import { ResizeHandle } from './ResizeHandle';
 const HANDLE_W = 12;
 const HANDLE_H = 28;
 const BORDER_HIT = 14;
+const HIT_PAD = 10; // Marge tactile autour du TB (améliore le hit-test pour les TBs rotées)
 
 interface TextBoxKonvaProps {
   tb: TextLayer;
@@ -56,8 +57,9 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         listening={false}
       />
 
-      {/* Zone intérieure principale — tap / double-tap */}
-      <Rect x={0} y={0} width={tb.width} height={tbH}
+      {/* Zone intérieure principale — tap / double-tap
+           Marge HIT_PAD autour du contenu pour tolérance tactile (surtout TBs rotées) */}
+      <Rect x={-HIT_PAD} y={-HIT_PAD} width={tb.width + HIT_PAD * 2} height={tbH + HIT_PAD * 2}
         fill="rgba(0,0,0,0)"
         onClick={e => onTap(tb.id, tbH, e)}
         onTap={e => onTap(tb.id, tbH, e)}
