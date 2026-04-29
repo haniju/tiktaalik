@@ -142,6 +142,7 @@ function RotateHandle({ bounds, stageScale, hitSize, cx, cy, onRotateStart, onRo
   onRotateStart: () => void; onRotateMove: (angleDeg: number) => void; onRotateEnd: () => void;
 }) {
   const origAngleRef = useRef(0);
+  const dragCenterRef = useRef({ x: 0, y: 0 });
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
 
   // Handle positionné au-dessus du coin top-right
@@ -167,6 +168,7 @@ function RotateHandle({ bounds, stageScale, hitSize, cx, cy, onRotateStart, onRo
         radius={hitRadius}
         fill="transparent" draggable
         onDragStart={() => {
+          dragCenterRef.current = { x: cx, y: cy };
           origAngleRef.current = Math.atan2(handleY - cy, handleX - cx) * 180 / Math.PI;
           onRotateStart();
         }}
@@ -174,7 +176,8 @@ function RotateHandle({ bounds, stageScale, hitSize, cx, cy, onRotateStart, onRo
           const node = e.target;
           const newX = node.x();
           const newY = node.y();
-          const currentAngle = Math.atan2(newY - cy, newX - cx) * 180 / Math.PI;
+          const c = dragCenterRef.current;
+          const currentAngle = Math.atan2(newY - c.y, newX - c.x) * 180 / Math.PI;
           let delta = currentAngle - origAngleRef.current;
           // Normaliser dans [-180, 180] pour éviter les sautes à la frontière atan2
           if (delta > 180) delta -= 360;
@@ -205,7 +208,7 @@ function RotateHandle({ bounds, stageScale, hitSize, cx, cy, onRotateStart, onRo
       {/* Ligne du centre au handle pendant le drag */}
       {dragPos && (
         <Line
-          points={[cx, cy, dragPos.x, dragPos.y]}
+          points={[dragCenterRef.current.x, dragCenterRef.current.y, dragPos.x, dragPos.y]}
           stroke="#f4a261" strokeWidth={1 / stageScale}
           dash={[4 / stageScale, 4 / stageScale]} opacity={0.6}
           listening={false}
