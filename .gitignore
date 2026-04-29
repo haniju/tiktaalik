@@ -4,8 +4,7 @@ dist/
 *.local
 *.zip
 
-# Déploiement
-deploy.sh
+# Déploiement (credentials dans .env, pas dans les scripts)
 .env
 
 # Playwright
