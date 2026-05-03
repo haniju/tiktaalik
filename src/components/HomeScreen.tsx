@@ -188,7 +188,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
     <div style={styles.home}>
       {/* Topbar */}
       <div style={styles.topBar}>
-        <span style={styles.title}>Mes dessins</span>
+        <span style={styles.title}>Mes dessins <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#e63946', borderRadius: 6, padding: '2px 6px', marginLeft: 6, verticalAlign: 'middle' }}>BETA</span></span>
         {showInstall && (
           <button style={styles.installBtn} onClick={handleInstall}>Installer</button>
         )}
@@ -345,7 +345,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
         </div>
       )}
 
-      <div style={styles.versionBadge}>v{APP_VERSION} — MAJ {BUILD_TIME}</div>
+      <div style={styles.versionBadge}>v{APP_VERSION} BETA — MAJ {BUILD_TIME}</div>
     </div>
   );
 }

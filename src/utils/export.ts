@@ -24,9 +24,13 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
       const lines = wrapText(tb.text, tb.width, tb.fontSize, tb.fontFamily, tb.fontStyle, tb.padding);
       const lineH = tb.fontSize * 1.4;
 
+      const rotation = tb.rotation ?? 0;
+      const openGroup = rotation !== 0 ? `<g transform="rotate(${rotation},${tb.x},${tb.y})">` : '';
+      const closeGroup = rotation !== 0 ? '</g>' : '';
+
       if (tb.background) {
         const h = lines.length * lineH + tb.padding * 2;
-        elements.push(`<rect x="${tb.x}" y="${tb.y}" width="${tb.width}" height="${h}" fill="${tb.background}" opacity="${tb.opacity}"/>`);
+        elements.push(`${openGroup}<rect x="${tb.x}" y="${tb.y}" width="${tb.width}" height="${h}" fill="${tb.background}" opacity="${tb.opacity}"/>${closeGroup}`);
       }
 
       lines.forEach((line, i) => {
@@ -35,7 +39,7 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
         if (tb.align === 'center') { textAnchor = 'middle'; tx = tb.x + tb.width / 2; }
         if (tb.align === 'right') { textAnchor = 'end'; tx = tb.x + tb.width - tb.padding; }
         const ty = tb.y + tb.padding + tb.fontSize + i * lineH;
-        elements.push(`<text x="${tx}" y="${ty}" font-family="${tb.fontFamily}" font-size="${tb.fontSize}" font-weight="${weight}" font-style="${style}" text-decoration="${decoration}" text-anchor="${textAnchor}" fill="${tb.color}" opacity="${tb.opacity}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`);
+        elements.push(`${openGroup}<text x="${tx}" y="${ty}" font-family="${tb.fontFamily}" font-size="${tb.fontSize}" font-weight="${weight}" font-style="${style}" text-decoration="${decoration}" text-anchor="${textAnchor}" fill="${tb.color}" opacity="${tb.opacity}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>${closeGroup}`);
       });
     } else {
       const s = layer as Stroke;
@@ -113,6 +117,14 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
 
       ctx.globalAlpha = tb.opacity;
 
+      const rotation = tb.rotation ?? 0;
+      if (rotation !== 0) {
+        ctx.save();
+        ctx.translate(tb.x * scale, tb.y * scale);
+        ctx.rotate(rotation * Math.PI / 180);
+        ctx.translate(-tb.x * scale, -tb.y * scale);
+      }
+
       if (tb.background) {
         const h = lines.length * lineH + tb.padding * 2 * scale;
         ctx.fillStyle = tb.background;
@@ -131,6 +143,8 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
         else { ctx.textAlign = 'left'; }
         ctx.fillText(line, tx, ty);
       });
+
+      if (rotation !== 0) ctx.restore();
     } else {
       const s = layer as Stroke;
       if (s.points.length < 2) return;
