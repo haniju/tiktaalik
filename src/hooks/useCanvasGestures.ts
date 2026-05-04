@@ -320,9 +320,18 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         // Tap sur une autre textbox ou sur le fond → désélectionner (pas de création)
         exitEditing();
         if (hitId) {
-          // Tap sur une autre textbox → la sélectionner
+          // Tap sur une autre textbox → la sélectionner + recentrer le viewport
           setTbStateWithLogRef.current({ kind: 'selected', id: hitId }, 'handleMouseDown:otherTextbox');
           setContextPanel('text');
+          const textLayers = p.current.layersRef.current.filter((l): l is TextLayer => l.tool === 'text');
+          const hitTb = textLayers.find(t => t.id === hitId);
+          if (hitTb) {
+            const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
+            const sc = stage.scaleX();
+            const aabb = getLayerBounds(hitTb);
+            stage.position(clampStagePos({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc }, sc, stage.width(), stage.height()));
+            stage.batchDraw();
+          }
           // Guard : empêcher handleTapById de re-traiter ce même tap (sinon selected→editing)
           mouseUpHandledTapRef.current = true;
         }

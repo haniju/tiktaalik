@@ -95,6 +95,8 @@ This replaces the previous architecture that used three desynchronized state var
 
 When a TB is tapped (selected/editing), the stage is repositioned so the TB appears at screen coords (20, barsH+20). For rotated TBs, the **AABB** (Axis-Aligned Bounding Box) is used instead of raw `tb.x`/`tb.y` — the AABB is computed by `getLayerBounds()` (from `bounds.ts`) which rotates the 4 corners and takes min/max. This ensures the entire visible text is within the focus zone, not just the Konva rotation anchor point.
 
+**TB-to-TB focus transfer**: when the user taps TBb while TBa is already selected (or editing), the viewport must reposition to TBb — not stay on TBa. Every code path that transitions tbState from one TB to another must include the viewport repositioning logic (`stage.position` via AABB). There are multiple entry points for this transition (mouseDown early-exit for text tool, mouseUp pendingTextbox hit, Konva onTap handler) — all must reposition. If a guard blocks a downstream handler (e.g. `mouseUpHandledTapRef` prevents `handleTapById` from firing), the upstream handler that set the guard is responsible for doing the repositioning itself.
+
 ### EditingTextarea
 
 `EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Positioning depends on context:
