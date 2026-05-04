@@ -120,6 +120,12 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // Smoothing — filtre de distance minimale pour pen/marker
   const lastAcceptedPt = useRef<{ x: number; y: number } | null>(null);
   const lastRawPt = useRef<{ x: number; y: number } | null>(null);
+  // Mount guard — bloque les événements fantômes (synthetic mouse events post-touch sur la vignette HomeScreen)
+  const mountReadyRef = useRef(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => { mountReadyRef.current = true; }, 300);
+    return () => { clearTimeout(timer); mountReadyRef.current = false; };
+  }, []);
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -153,6 +159,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   }, []);
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    // Guard : ignore les événements fantômes pendant les 300ms après le mount
+    if (!mountReadyRef.current) return;
     const { stageRef, toolStateRef, editingTextIdRef, tbStateRef, selectionRef,
             setSelection, setContextPanel, setTbStateWithLogRef,
             exitEditing, collapseEditingToSelected, collapsePanel,
