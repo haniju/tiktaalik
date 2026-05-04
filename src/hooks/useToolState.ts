@@ -42,7 +42,7 @@ export function useToolState() {
   const persisted = loadPersisted();
   const [state, setState] = useState<ToolState>({
     ...DEFAULT_STATE,
-    activeTool: persisted.activeTool ?? DEFAULT_STATE.activeTool,
+    activeTool: persisted.activeTool === 'text' ? 'pen' : (persisted.activeTool ?? DEFAULT_STATE.activeTool),
     canvasMode: persisted.canvasMode ?? DEFAULT_STATE.canvasMode,
     previousMode: persisted.previousMode ?? null,
     toolColors: { ...DEFAULT_STATE.toolColors, ...persisted.toolColors },
