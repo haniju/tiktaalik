@@ -12,7 +12,7 @@ import {
   isRectIntersecting,
   roundTextBoxFontSize,
 } from '../utils/textboxUtils';
-import { getGroupBounds, applyScale, applyRotation } from '../utils/bounds';
+import { getLayerBounds, getGroupBounds, applyScale, applyRotation } from '../utils/bounds';
 import type { ContextPanel } from './useToolState';
 
 export interface UseCanvasGesturesParams {
@@ -534,7 +534,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           const stage = stageRef.current;
           if (stage) {
             const sc = stage.scaleX();
-            stage.position({ x: 20 - hitTb.x * sc, y: barsH + 20 - hitTb.y * sc });
+            const aabb = getLayerBounds(hitTb as TextLayer);
+            stage.position({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc });
             stage.batchDraw();
           }
           setContextPanel('text');
@@ -760,7 +761,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         const s = stageRef.current;
         if (s) {
           const sc = s.scaleX();
-          s.position({ x: 20 - tb.x * sc, y: barsH + 20 - tb.y * sc });
+          const aabb = getLayerBounds(tb);
+          s.position({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc });
           s.batchDraw();
         }
       }

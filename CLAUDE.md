@@ -90,6 +90,10 @@ This replaces the previous architecture that used three desynchronized state var
 - `tbState` captured in JSX closures can be stale. Always use `tbStateRef.current` (not `tbState`) in `handleTap` when calling `nextSelectionState`.
 - Konva fires a synthetic `tap` after `touchend` even when a drag occurred. Guard: `dragJustEndedRef`.
 
+### Focus viewport (stage repositioning on TB tap)
+
+When a TB is tapped (selected/editing), the stage is repositioned so the TB appears at screen coords (20, barsH+20). For rotated TBs, the **AABB** (Axis-Aligned Bounding Box) is used instead of raw `tb.x`/`tb.y` — the AABB is computed by `getLayerBounds()` (from `bounds.ts`) which rotates the 4 corners and takes min/max. This ensures the entire visible text is within the focus zone, not just the Konva rotation anchor point.
+
 ### EditingTextarea
 
 `EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Positioning depends on context:
