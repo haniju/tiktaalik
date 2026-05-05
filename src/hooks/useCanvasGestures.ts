@@ -92,6 +92,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const dragLayerSnapshot = useRef<DrawLayer[]>([]);
   const dragSelectionRef = useRef<string[]>([]);
   const dragLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressCanvasPos = useRef<{ x: number; y: number } | null>(null); // position canvas au mouseDown (pour lasso différé)
   const isDrawing = useRef(false);
   const isErasing = useRef(false);
   const lastAirbrushPt = useRef<{ x: number; y: number } | null>(null);
@@ -117,6 +118,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // Rotate — snapshot pattern
   const rotateSnapshotRef = useRef<DrawLayer[]>([]);
   const rotateCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const rotateLatestRef = useRef<DrawLayer[]>([]); // résultat synchrone du dernier handleRotateMove
   // Smoothing — filtre de distance minimale pour pen/marker
   const lastAcceptedPt = useRef<{ x: number; y: number } | null>(null);
   const lastRawPt = useRef<{ x: number; y: number } | null>(null);
@@ -263,6 +265,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       } else {
         // Long-press (350ms) pour les objets non sélectionnés
         dragPointerStart.current = snapScreen;
+        longPressCanvasPos.current = snapPos;
         dragLongPressTimer.current = setTimeout(() => {
           dragLongPressTimer.current = null;
           // Sélectionner l'objet puis démarrer le drag
@@ -370,7 +373,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   }, [eraseAt]);
 
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const { stageRef, editingTextIdRef, toolStateRef, setZoomPct, setLayers, selectionRef, pinchZoomEnabledRef } = p.current;
+    const { stageRef, editingTextIdRef, toolStateRef, setZoomPct, setLayers, setSelection, selectionRef, pinchZoomEnabledRef } = p.current;
     const stage = stageRef.current!;
     const toolState = toolStateRef.current;
 
@@ -426,7 +429,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         isDraggingSelection.current = true;
       }
     }
-    // Annuler le long-press si le doigt a bougé
+    // Annuler le long-press si le doigt a bougé → démarrer le lasso en mode select
     if (dragLongPressTimer.current && dragPointerStart.current) {
       const ddx = screenPos.x - dragPointerStart.current.x;
       const ddy = screenPos.y - dragPointerStart.current.y;
@@ -434,6 +437,15 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         clearTimeout(dragLongPressTimer.current);
         dragLongPressTimer.current = null;
         dragPointerStart.current = null;
+        // En mode select, convertir en lasso depuis la position originale du pointer
+        if (toolState.canvasMode === 'select' && longPressCanvasPos.current) {
+          const startP = longPressCanvasPos.current;
+          setSelection([]);
+          p.current.setFocusedIds([]);
+          selRectStart.current = startP;
+          setSelRect({ x: Math.min(startP.x, pos.x), y: Math.min(startP.y, pos.y), w: Math.abs(pos.x - startP.x), h: Math.abs(pos.y - startP.y) });
+        }
+        longPressCanvasPos.current = null;
       }
     }
     if (isDraggingSelection.current && dragStartPos.current) {
@@ -579,6 +591,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       clearTimeout(dragLongPressTimer.current);
       dragLongPressTimer.current = null;
     }
+    longPressCanvasPos.current = null;
     // Sauvegarder la position de départ AVANT nettoyage pour vérifier le déplacement total
     const savedPointerStart = dragPointerStart.current;
     if (dragArmed.current) {
@@ -843,18 +856,22 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const snapshot = rotateSnapshotRef.current;
     const center = rotateCenterRef.current;
     const ids = new Set(focusedIdsRef.current);
-    setLayers(snapshot.map(layer =>
+    const rotated = snapshot.map(layer =>
       ids.has(layer.id) ? applyRotation(layer, angleDeg, center.x, center.y) : layer
-    ));
+    );
+    rotateLatestRef.current = rotated; // mise à jour synchrone
+    setLayers(rotated);
   }, []);
 
   const handleRotateEnd = useCallback(() => {
-    const { layersRef, setLayers, pushUndo, scheduleSave } = p.current;
-    const finalLayers = layersRef.current.map(l => l);
+    const { setLayers, pushUndo, scheduleSave } = p.current;
+    // Utiliser rotateLatestRef (synchrone) au lieu de layersRef (stale si React n'a pas rendu)
+    const finalLayers = rotateLatestRef.current;
     setLayers(finalLayers);
     pushUndo(finalLayers);
     scheduleSave();
     rotateSnapshotRef.current = [];
+    rotateLatestRef.current = [];
   }, []);
 
   return {

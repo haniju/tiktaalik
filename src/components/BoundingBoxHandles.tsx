@@ -162,9 +162,10 @@ function RotateHandle({ bounds, stageScale, hitSize, cx, cy, onRotateStart, onRo
         listening={false}
       />
 
-      {/* Zone d'accroche invisible (cercle) */}
+      {/* Zone d'accroche invisible (cercle) — x/y suit dragPos pendant le drag
+           pour empêcher react-konva de reset la position quand bounds change */}
       <Circle
-        x={handleX} y={handleY}
+        x={dragPos?.x ?? handleX} y={dragPos?.y ?? handleY}
         radius={hitRadius}
         fill="transparent" draggable
         onDragStart={() => {
@@ -185,8 +186,7 @@ function RotateHandle({ bounds, stageScale, hitSize, cx, cy, onRotateStart, onRo
           setDragPos({ x: newX, y: newY });
           onRotateMove(delta);
         }}
-        onDragEnd={(e) => {
-          e.target.position({ x: handleX, y: handleY });
+        onDragEnd={() => {
           setDragPos(null);
           onRotateEnd();
         }}

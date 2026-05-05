@@ -126,7 +126,7 @@ Le bouton pan (et les boutons physiques mappés) supporte deux gestes :
 #### Sélection simple / multi-sélection
 
 En mode select :
-- **Lasso rectangulaire** : tracer un rectangle sur le canvas pour sélectionner les objets qu'il intersecte (traits, aérographes, textboxes).
+- **Lasso rectangulaire** : tracer un rectangle sur le canvas pour sélectionner les objets qu'il intersecte (traits, aérographes, textboxes). Le lasso peut démarrer n'importe où, y compris sur un tracé existant (un drag sur un objet non sélectionné déclenche le lasso ; un tap simple le sélectionne).
 - **Tap sur un objet** non sélectionné : l'ajoute à la sélection.
 - **Tap sur un objet** déjà sélectionné : toggle dans le sous-groupe focus (niveau 2).
 - **Tap sur le fond** : désélectionne tout.
