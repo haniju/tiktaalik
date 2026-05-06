@@ -111,15 +111,24 @@ Trois modes de canvas :
 - **select** — mode sélection (lasso rectangulaire, sélection d'objets)
 - **move** — mode panoramique (déplacement du viewport)
 
+#### Mode pan — deux modalités d'activation
+
+Le mode pan (move) permet de déplacer le viewport par drag sur le canvas. Deux façons de l'activer :
+
+**1. Pan comme outil permanent (toggle)**
+- Sélectionner le pan via le bouton FAB ou un bouton physique mappé (tap court <250ms) bascule en mode move.
+- Un second tap (ou la sélection d'un autre outil/mode) quitte le pan.
+- Entrer en pan permanent **efface** la sélection en cours et réinitialise le sous-mode select.
+
+**2. Pan momentané / flash (hold-to-pan)**
+- Maintenir le bouton FAB ou un bouton physique mappé (>=250ms) active le pan immédiatement.
+- Relâcher le bouton restaure le mode et l'outil précédents.
+- Si l'utilisateur était en mode select avec des objets sélectionnés, la sélection est **conservée** pendant le pan flash — y compris le sous-mode actif (rotate, scale) et les objets focusés. Au relâchement, l'utilisateur retrouve sa sélection et son sous-mode intacts.
+- Si l'utilisateur était en mode draw ou sans sélection active, le comportement est identique au pan permanent (reset).
+
 #### Mémoire du mode pan
 
 Quand l'utilisateur entre en mode pan (move), le mode et l'outil précédents sont mémorisés. Désactiver le pan (toggle off) restaure le contexte sauvegardé. Choisir explicitement un autre mode ou outil efface la mémoire — le choix explicite a priorité.
-
-#### Pan momentané (hold-to-pan)
-
-Le bouton pan (et les boutons physiques mappés) supporte deux gestes :
-- **Tap court** (<250ms) : toggle pan on/off (comportement classique)
-- **Appui long** (>=250ms) : active le pan immédiatement. Relâcher le bouton restaure le mode précédent.
 
 ### Sélection
 

@@ -249,10 +249,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const handleEnterPan = useCallback(() => {
     if (tbStateRef.current.kind !== 'idle') exitEditing();
     holdPanActiveRef.current = true;
+    // En mode select avec sélection active, on conserve la sélection pendant le flash pan
+    const preserveSelection = toolStateRef.current.canvasMode === 'select' && selectionRef.current.length > 0;
     enterPan();
-    setSelection([]);
-    setFocusedIds([]);
-    setSelectSubMode('none');
+    if (!preserveSelection) {
+      setSelection([]);
+      setFocusedIds([]);
+      setSelectSubMode('none');
+    }
   }, [enterPan, exitEditing]);
 
   const handleExitPan = useCallback(() => {
