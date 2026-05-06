@@ -140,7 +140,7 @@ En mode select :
 - **Tap sur un objet** déjà sélectionné : toggle dans le sous-groupe focus (niveau 2).
 - **Tap sur le fond** : désélectionne tout.
 
-Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut : compteur, rotate/scale, supprimer tout, fermer.
+Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut : compteur (nombre seul), rotate/scale, supprimer tout, fermer.
 
 #### Déplacement par drag
 

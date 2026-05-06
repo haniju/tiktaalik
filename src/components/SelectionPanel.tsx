@@ -113,7 +113,7 @@ export function SelectionPanel({
       {/* Toolbar — en haut du panel */}
       <div style={s.toolbar}>
         <span style={s.count}>
-          {selection.length} tracé{selection.length > 1 ? 's' : ''} sélectionné{selection.length > 1 ? 's' : ''}
+          {selection.length}
         </span>
         {focusedIds.length > 0 && (
           <>
