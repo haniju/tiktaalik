@@ -24,6 +24,7 @@ interface DrawingLayerProps {
   canvasMode: CanvasMode;
   currentStroke: Stroke | null;
   currentAirbrush: AirbrushStroke | null;
+  liveLineRef: React.MutableRefObject<Konva.Line | null>;
   selRect: { x: number; y: number; w: number; h: number } | null;
   stageRef: React.RefObject<Konva.Stage>;
   textNodesRef: React.MutableRefObject<Map<string, Konva.Text>>;
@@ -42,7 +43,7 @@ interface DrawingLayerProps {
 export const DrawingLayer = React.memo(function DrawingLayer({
   canvasBackground, layers, selection, focusedIds, selectSubMode, stageScale,
   tbState, canvasMode,
-  currentStroke, currentAirbrush, selRect,
+  currentStroke, currentAirbrush, liveLineRef, selRect,
   stageRef, textNodesRef,
   onSelectItem, onTapById, onLayerUpdate, onDragEnd,
   onScaleStart, onScaleMove, onScaleEnd,
@@ -124,8 +125,20 @@ export const DrawingLayer = React.memo(function DrawingLayer({
         }
       })}
 
-      {/* Tracé en cours */}
-      {currentStroke && <Line points={currentStroke.points} stroke={currentStroke.color} strokeWidth={currentStroke.width} opacity={currentStroke.opacity} lineCap="round" lineJoin="round" tension={0.3} />}
+      {/* Tracé en cours — React monte le nœud, Konva le met à jour via liveLineRef (zéro re-render) */}
+      {currentStroke && (
+        <Line
+          ref={liveLineRef}
+          points={[]}
+          stroke={currentStroke.color}
+          strokeWidth={currentStroke.width}
+          opacity={currentStroke.opacity}
+          lineCap="round"
+          lineJoin="round"
+          tension={0.3}
+          listening={false}
+        />
+      )}
       {currentAirbrush && <AirbrushShape stroke={currentAirbrush} />}
 
       {/* Bounding box + handles scale/rotate */}

@@ -26,6 +26,7 @@ To run a single test file: `npx vitest run src/utils/textboxUtils.test.ts`
 |---|---|---|
 | `docs/behavior.md` | **Spec comportementale** — ce que fait l'app (tech-agnostique) | PO, designer, portage |
 | `docs/implementation.md` | **Notes d'implémentation** — comment ça marche (React/Konva) | Développeur |
+| `docs/stroke-quality.md` | **Qualité des tracés** — optimisations fluidité/précision stylet | Développeur |
 | `docs/tracking.md` | **Suivi projet** — branches, phases, issues, cibles archi | Équipe |
 | `CHANGELOG.md` | Historique des releases | Tous |
 

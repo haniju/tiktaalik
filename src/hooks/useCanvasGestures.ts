@@ -61,6 +61,7 @@ export interface UseCanvasGesturesReturn {
   selRect: { x: number; y: number; w: number; h: number } | null;
   currentStroke: Stroke | null;
   currentAirbrush: AirbrushStroke | null;
+  liveLineRef: React.MutableRefObject<Konva.Line | null>;
   textNodesRef: React.MutableRefObject<Map<string, Konva.Text>>;
 }
 
@@ -119,6 +120,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const rotateSnapshotRef = useRef<DrawLayer[]>([]);
   const rotateCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const rotateLatestRef = useRef<DrawLayer[]>([]); // résultat synchrone du dernier handleRotateMove
+  // Bypass React — tracé pen/marker directement via l'API impérative Konva
+  const liveLineRef = useRef<Konva.Line | null>(null);
+  const livePointsRef = useRef<number[]>([]);
   // Smoothing — filtre de distance minimale pour pen/marker
   const lastAcceptedPt = useRef<{ x: number; y: number } | null>(null);
   const lastRawPt = useRef<{ x: number; y: number } | null>(null);
@@ -363,9 +367,11 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       // Micro-offset 0.1px sur le 2e point : Konva <Line tension> ne rend rien pour un segment
       // de longueur zéro (tap court), le décalage force un segment minimal → point rond via lineCap="round"
       const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1] };
-      // Mise à jour directe du ref : handleMouseUp peut arriver avant le re-render (tap court)
+      // Bypass React : on stocke seulement dans le ref miroir (pas de setCurrentStroke ici).
+      // setCurrentStroke monte le nœud <Line> vide dans DrawingLayer, puis liveLineRef prend le relais.
       currentStrokeRef.current = stroke;
       setCurrentStroke(stroke);
+      livePointsRef.current = [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1];
       lastAcceptedPt.current = { x: pos.x, y: pos.y };
       lastRawPt.current = { x: pos.x, y: pos.y };
       isDrawing.current = true;
@@ -505,17 +511,38 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     }
 
     if (isDrawing.current && currentStrokeRef.current) {
-      lastRawPt.current = { x: pos.x, y: pos.y };
-      // Filtre de distance minimale — élimine le micro-jitter tactile
+      // Récupérer les points coalescés (stylet haute fréquence) — fallback sur l'événement natif
+      const coalescedEvents = (e.evt as PointerEvent).getCoalescedEvents?.() ?? [e.evt];
+      const stage = p.current.stageRef.current!;
+      const scale = stage.scaleX();
+      const stagePos = stage.position();
+      const stageBox = stage.container().getBoundingClientRect();
       const smoothing = toolState.toolSmoothings[toolState.activeTool as 'pen' | 'marker'] ?? 0;
       const minDist = smoothing * 12;
-      if (minDist > 0 && lastAcceptedPt.current) {
-        const dx = pos.x - lastAcceptedPt.current.x;
-        const dy = pos.y - lastAcceptedPt.current.y;
-        if (dx * dx + dy * dy < minDist * minDist) return;
+      const minDistSq = minDist * minDist;
+
+      for (const ce of coalescedEvents) {
+        // Convertir les coords écran → coords monde pour chaque point coalescé
+        const clientX = (ce as PointerEvent).clientX ?? (e.evt as MouseEvent).clientX;
+        const clientY = (ce as PointerEvent).clientY ?? (e.evt as MouseEvent).clientY;
+        const wx = (clientX - stageBox.left - stagePos.x) / scale;
+        const wy = (clientY - stageBox.top - stagePos.y) / scale;
+
+        lastRawPt.current = { x: wx, y: wy };
+        // Filtre de distance minimale — élimine le micro-jitter tactile
+        if (minDistSq > 0 && lastAcceptedPt.current) {
+          const dx = wx - lastAcceptedPt.current.x;
+          const dy = wy - lastAcceptedPt.current.y;
+          if (dx * dx + dy * dy < minDistSq) continue;
+        }
+        lastAcceptedPt.current = { x: wx, y: wy };
+        livePointsRef.current.push(wx, wy);
       }
-      lastAcceptedPt.current = { x: pos.x, y: pos.y };
-      setCurrentStroke(prev => prev ? { ...prev, points: [...prev.points, pos.x, pos.y] } : null);
+      // Mise à jour impérative Konva — zéro re-render React
+      if (liveLineRef.current) {
+        liveLineRef.current.points(livePointsRef.current);
+        liveLineRef.current.getLayer()?.batchDraw();
+      }
     }
   }, [eraseAt]);
 
@@ -705,17 +732,21 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (currentStrokeRef.current && isDrawing.current) {
       isDrawing.current = false;
+      // Utiliser les points accumulés dans livePointsRef (bypass React)
+      let finalPoints = livePointsRef.current;
       // Ajouter le dernier point brut si le filtre de distance l'avait ignoré
-      let cs = currentStrokeRef.current;
       if (lastRawPt.current && lastAcceptedPt.current &&
           (lastRawPt.current.x !== lastAcceptedPt.current.x || lastRawPt.current.y !== lastAcceptedPt.current.y)) {
-        cs = { ...cs, points: [...cs.points, lastRawPt.current.x, lastRawPt.current.y] };
+        finalPoints = [...finalPoints, lastRawPt.current.x, lastRawPt.current.y];
       }
       lastAcceptedPt.current = null;
       lastRawPt.current = null;
+      const cs = { ...currentStrokeRef.current, points: finalPoints };
       const newL = [...layersRef.current, cs];
       setLayers(newL); pushUndo(newL);
-      setCurrentStroke(null); scheduleSave();
+      setCurrentStroke(null);
+      livePointsRef.current = [];
+      scheduleSave();
     }
   }, []);
 
@@ -891,6 +922,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     selRect,
     currentStroke,
     currentAirbrush,
+    liveLineRef,
     textNodesRef,
   };
 }

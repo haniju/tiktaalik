@@ -274,7 +274,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     handleTapById, handleDragEnd, handleSelectItem,
     handleScaleStart, handleScaleMove, handleScaleEnd,
     handleRotateStart, handleRotateMove, handleRotateEnd,
-    selRect, currentStroke, currentAirbrush, textNodesRef,
+    selRect, currentStroke, currentAirbrush, liveLineRef, textNodesRef,
   } = useCanvasGestures({
     stageRef, layersRef,
     toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef, focusedIdsRef,
@@ -505,6 +505,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             canvasMode={toolState.canvasMode}
             currentStroke={currentStroke}
             currentAirbrush={currentAirbrush}
+            liveLineRef={liveLineRef}
             selRect={selRect}
             stageRef={stageRef}
             textNodesRef={textNodesRef}
