@@ -84,6 +84,10 @@ export function useButtonMapping(actions: HoldAwareActions) {
     const keyId = (e: KeyboardEvent) => `${e.key}:${e.code}`;
 
     const downHandler = (e: KeyboardEvent) => {
+      // Ignorer les keydown qui viennent d'un champ de saisie (clavier virtuel)
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+
       const match = mappingsRef.current.find(
         m => m.key === e.key && m.code === e.code && m.action !== null
       );
@@ -109,6 +113,9 @@ export function useButtonMapping(actions: HoldAwareActions) {
     };
 
     const upHandler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+
       const match = mappingsRef.current.find(
         m => m.key === e.key && m.code === e.code && m.action !== null
       );

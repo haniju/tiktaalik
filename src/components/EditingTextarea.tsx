@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import Konva from 'konva';
 import { TextBox, TextLayer } from '../types';
 
@@ -18,6 +18,11 @@ export const EditingTextarea = React.memo(function EditingTextarea(
   { textBox, stageRef, topOffset, onUpdate, onExit, onBlurExit }: EditingTextareaProps
 ): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Flag synchrone : posé immédiatement dans onChange, bloque les blurs parasites
+  // provoqués par le re-render React qui suit un setLayers (mobile surtout)
+  const justTypedRef = useRef(false);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (typingTimerRef.current) clearTimeout(typingTimerRef.current); }, []);
 
   const stage = stageRef.current;
   const sc = stage?.scaleX() ?? 1;
@@ -50,6 +55,11 @@ export const EditingTextarea = React.memo(function EditingTextarea(
       autoFocus
       value={textBox.text}
       onChange={e => {
+        // Flag synchrone — posé dans le même task JS que l'événement input,
+        // garanti visible par un blur qui arriverait du re-render suivant
+        justTypedRef.current = true;
+        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = setTimeout(() => { justTypedRef.current = false; }, 400);
         onUpdate({ text: e.target.value });
         autoResizeTextarea(e.target);
       }}
@@ -70,6 +80,13 @@ export const EditingTextarea = React.memo(function EditingTextarea(
           related.closest('[data-bars]') ||
           related.closest('[data-fabs]')
         )) return;
+        // Guard : blur parasite post-onChange (re-render React sur mobile)
+        if (justTypedRef.current) {
+          console.log('[blur] bloqué par justTypedRef (saisie récente)');
+          // Re-focus le textarea si le blur était transitoire
+          textareaRef.current?.focus();
+          return;
+        }
         console.log('[blur] → onBlurExit() appelé');
         onBlurExit();
       }}

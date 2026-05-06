@@ -67,6 +67,18 @@ Composant `EditingTextarea` : `<textarea>` en position fixe par-dessus le canvas
 - **Web mobile** : position fixe (left:20, top:topOffset+20). Le stage est repositionné avant le mount pour que la TB atterrisse à cette position. Évite `getBoundingClientRect()` qui capture des valeurs transitionnelles pendant l'animation du clavier.
 - **PWA standalone** : utilise `getBoundingClientRect()` sur le container du stage. Détection via `window.matchMedia('(display-mode: standalone)')` au chargement du module.
 
+### Édition TB interrompue sur mobile (keydown intercepté par button mapping)
+
+**Bug** : sur mobile, taper la première lettre dans une TB provoque une sortie instantanée de l'édition (`editing → idle`) et un changement de mode canvas (passage en pan/move). L'édition est perdue.
+
+**Cause racine** : le clavier virtuel mobile envoie des `keydown` avec `key: "Unidentified"`. Le hook `useButtonMapping` (listener global `capture: true` sur `document`) matchait ces touches contre un bouton physique mappé ayant aussi `key: "Unidentified"` (ex: bouton volume). Le match déclenchait l'action `toggle_pan` → `handleTogglePan()` → `exitEditing()` (tbState = idle) + `setCanvasMode('move')`. En bonus, `e.preventDefault()` + `e.stopPropagation()` bloquaient la saisie du caractère.
+
+**Fix** (`useButtonMapping.ts`) : guard en tête des handlers `downHandler` et `upHandler` — ignorer les événements dont `e.target` est un `TEXTAREA` ou `INPUT`. Les boutons physiques ne sont jamais émis depuis un champ de saisie.
+
+**Historique** :
+- Le bug avait "disparu" avant l'ajout du button mapping (`feat: physical button mapping`, commit `bbac5da`) et est réapparu avec cette feature.
+- Première piste (blur parasite post-onChange) : un flag synchrone `justTypedRef` dans `EditingTextarea.tsx` bloque les blurs transitoires causés par le re-render React. Ce guard reste en place comme filet de sécurité, mais il ne traitait pas la vraie cause (le keydown intercepté par le button mapping, qui appelait `exitEditing()` directement — pas via un blur).
+
 ### Focus viewport (repositionnement du stage au tap TB)
 
 Position cible : écran coords (20, barsH+20). Utilise l'AABB via `getLayerBounds()` (de `bounds.ts`) qui tourne les 4 coins et prend min/max — gère les TB rotées.
