@@ -13,6 +13,7 @@ import {
   roundTextBoxFontSize,
 } from '../utils/textboxUtils';
 import { getLayerBounds, getGroupBounds, applyScale, applyRotation } from '../utils/bounds';
+import { expandToGroups, autoDissolveGroups } from '../utils/groupUtils';
 import type { ContextPanel } from './useToolState';
 
 export interface UseCanvasGesturesParams {
@@ -150,18 +151,21 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
   const eraseAt = useCallback((pos: { x: number; y: number }) => {
-    p.current.setLayers(prev => prev.filter(layer => {
-      if (layer.tool === 'text') return true; // les textboxes ne s'effacent pas à la gomme
-      if (layer.tool === 'airbrush') {
-        return !layer.points.some(pt => Math.hypot(pt.x - pos.x, pt.y - pos.y) < layer.radius * 0.8);
-      } else {
-        const pts = (layer as Stroke).points;
-        for (let i = 0; i < pts.length - 2; i += 2) {
-          if (Math.hypot(pts[i] - pos.x, pts[i + 1] - pos.y) < 20) return false;
+    p.current.setLayers(prev => {
+      const filtered = prev.filter(layer => {
+        if (layer.tool === 'text') return true; // les textboxes ne s'effacent pas à la gomme
+        if (layer.tool === 'airbrush') {
+          return !layer.points.some(pt => Math.hypot(pt.x - pos.x, pt.y - pos.y) < layer.radius * 0.8);
+        } else {
+          const pts = (layer as Stroke).points;
+          for (let i = 0; i < pts.length - 2; i += 2) {
+            if (Math.hypot(pts[i] - pos.x, pts[i + 1] - pos.y) < 20) return false;
+          }
+          return true;
         }
-        return true;
-      }
-    }));
+      });
+      return autoDissolveGroups(filtered);
+    });
   }, []);
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -272,9 +276,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         longPressCanvasPos.current = snapPos;
         dragLongPressTimer.current = setTimeout(() => {
           dragLongPressTimer.current = null;
-          // Sélectionner l'objet puis démarrer le drag
-          setSelection(prev => prev.includes(hitId!) ? prev : [...prev, hitId!]);
-          selectionRef.current = selectionRef.current.includes(hitId!) ? selectionRef.current : [...selectionRef.current, hitId!];
+          // Sélectionner l'objet (+ groupe) puis démarrer le drag
+          const expanded = expandToGroups(p.current.layersRef.current, [hitId!]);
+          setSelection(prev => [...prev, ...expanded.filter(x => !prev.includes(x))]);
+          selectionRef.current = [...selectionRef.current, ...expanded.filter(x => !selectionRef.current.includes(x))];
           isDraggingSelection.current = true;
           dragStartPos.current = snapPos;
           dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
@@ -715,7 +720,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
             );
           })
           .map(tb => tb.id);
-        setSelection([...selIds, ...selT]);
+        const allSel = expandToGroups(layers, [...selIds, ...selT]);
+        setSelection(allSel);
       }
       selRectStart.current = null; setSelRect(null);
       return;
@@ -773,11 +779,15 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const ts = toolStateRef.current;
     if (ts.canvasMode === 'select') {
       const sel = p.current.selectionRef.current;
+      const expanded = expandToGroups(layersRef.current, [tbId]);
       if (sel.includes(tbId)) {
-        // Déjà sélectionné → toggle dans le sous-groupe (focusedIds)
-        p.current.setFocusedIds(prev => prev.includes(tbId) ? prev.filter(x => x !== tbId) : [...prev, tbId]);
+        // Déjà sélectionné → toggle groupe dans focusedIds
+        p.current.setFocusedIds(prev => {
+          const allIn = expanded.every(x => prev.includes(x));
+          return allIn ? prev.filter(x => !expanded.includes(x)) : [...prev.filter(x => !expanded.includes(x)), ...expanded];
+        });
       } else {
-        setSelection(prev => [...prev, tbId]);
+        setSelection(prev => [...prev, ...expanded.filter(x => !prev.includes(x))]);
       }
       return;
     }
@@ -836,11 +846,19 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const handleSelectItem = useCallback((id: string) => {
     if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
     const sel = p.current.selectionRef.current;
+    const layers = p.current.layersRef.current;
     if (sel.includes(id)) {
       // Déjà sélectionné → toggle dans le sous-groupe (focusedIds)
-      p.current.setFocusedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+      // Si l'item est groupé, toggle tout le groupe dans focusedIds
+      const expanded = expandToGroups(layers, [id]);
+      p.current.setFocusedIds(prev => {
+        const allIn = expanded.every(x => prev.includes(x));
+        return allIn ? prev.filter(x => !expanded.includes(x)) : [...prev.filter(x => !expanded.includes(x)), ...expanded];
+      });
     } else {
-      p.current.setSelection(prev => [...prev, id]);
+      // Sélectionner tout le groupe si l'item est groupé
+      const expanded = expandToGroups(layers, [id]);
+      p.current.setSelection(prev => [...prev, ...expanded.filter(x => !prev.includes(x))]);
     }
   }, []);
 

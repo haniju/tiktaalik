@@ -9,6 +9,7 @@ import { useUndoRedo } from '../hooks/useUndoRedo';
 import { useStageViewport, clampStagePos } from '../hooks/useStageViewport';
 import { useCanvasGestures } from '../hooks/useCanvasGestures';
 import { exportSvg } from '../utils/export';
+import { expandToGroups, createGroup, ungroupLayers, autoDissolveGroups, getFocusedGroupId } from '../utils/groupUtils';
 import {
   TextBoxSelectionState,
   makeTextLayer,
@@ -305,7 +306,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [editingTextId, selectedTextId]);
 
   const deleteItem = useCallback((id: string) => {
-    const newL = layers.filter(l => l.id !== id);
+    const newL = autoDissolveGroups(layers.filter(l => l.id !== id));
     setLayers(newL);
     setSelection(prev => prev.filter(x => x !== id));
     if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'deleteItem');
@@ -333,6 +334,22 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'deleteSelected');
     pushUndo(newL); scheduleSave();
   }, [layers, selection, pushUndo, setTbStateWithLog]);
+
+  const handleGroup = useCallback(() => {
+    if (focusedIds.length < 2) return;
+    const newL = createGroup(layers, focusedIds, uuidv4());
+    setLayers(newL);
+    // Après groupement, les focusedIds restent (tout le groupe est focusé)
+    pushUndo(newL); scheduleSave();
+  }, [layers, focusedIds, pushUndo, scheduleSave]);
+
+  const handleUngroup = useCallback(() => {
+    const gid = getFocusedGroupId(layers, focusedIds);
+    if (!gid) return;
+    const newL = ungroupLayers(layers, gid);
+    setLayers(newL);
+    pushUndo(newL); scheduleSave();
+  }, [layers, focusedIds, pushUndo, scheduleSave]);
 
   const handleSave = () => {
     setIsSaving(true);
@@ -444,18 +461,37 @@ export function SketchScreen({ drawing, onBack }: Props) {
             focusedIds={focusedIds}
             selectSubMode={selectSubMode}
             onFocus={id => {
-              setFocusedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+              // Si l'item est groupé, toggle tout le groupe dans focusedIds
+              const expanded = expandToGroups(layers, [id]);
+              setFocusedIds(prev => {
+                const allIn = expanded.every(x => prev.includes(x));
+                return allIn ? prev.filter(x => !expanded.includes(x)) : [...prev.filter(x => !expanded.includes(x)), ...expanded];
+              });
               setSelectSubMode('none');
             }}
             onSetSelectSubMode={mode => {
               setSelectSubMode(prev => prev === mode ? 'none' : mode);
             }}
             onDeselect={id => {
-              setSelection(prev => prev.filter(x => x !== id));
-              if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:deselect');
+              // Si groupé, désélectionner tout le groupe
+              const expanded = expandToGroups(layers, [id]);
+              setSelection(prev => prev.filter(x => !expanded.includes(x)));
+              if (tbState.kind !== 'idle' && expanded.includes(tbState.id)) setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:deselect');
             }}
-            onDeleteItem={deleteItem}
+            onDeleteItem={id => {
+              // Si groupé, supprimer tout le groupe
+              const expanded = expandToGroups(layers, [id]);
+              const expandedSet = new Set(expanded);
+              const newL = autoDissolveGroups(layers.filter(l => !expandedSet.has(l.id)));
+              setLayers(newL);
+              setSelection(prev => prev.filter(x => !expandedSet.has(x)));
+              setFocusedIds(prev => prev.filter(x => !expandedSet.has(x)));
+              if (tbState.kind !== 'idle' && expandedSet.has(tbState.id)) setTbStateWithLog({ kind: 'idle' }, 'deleteGroupItem');
+              pushUndo(newL); scheduleSave();
+            }}
             onDeleteSelected={deleteSelected}
+            onGroup={handleGroup}
+            onUngroup={handleUngroup}
             onClearSelection={() => { setSelection([]); setFocusedIds([]); setSelectSubMode('none'); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
             onReorderByIds={orderedIds => {
               // orderedIds est en ordre panel (z décroissant, top-of-stack en premier).

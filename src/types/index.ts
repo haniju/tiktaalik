@@ -29,6 +29,7 @@ export interface Stroke {
   width: number;
   points: number[];
   opacity: number;
+  groupIds?: string[];
 }
 
 export interface AirbrushStroke {
@@ -39,6 +40,7 @@ export interface AirbrushStroke {
   centerOpacity: number;
   edgeOpacity: number;
   points: Array<{ x: number; y: number }>;
+  groupIds?: string[];
 }
 
 export interface TextBox {
@@ -58,6 +60,7 @@ export interface TextBox {
   opacity: number;
   padding: number;
   rotation?: number;
+  groupIds?: string[];
 }
 
 // TextBox dans la pile unifiée — discriminant tool: 'text'

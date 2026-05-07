@@ -126,6 +126,30 @@ Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange 
 
 `DrawingLayer.tsx` — rend `<BoundingBoxHandles>` quand focusedIds non vide + selectSubMode match. `TextBoxKonva.tsx` — `<Group rotation={tb.rotation ?? 0}>`.
 
+### Groupement de tracés
+
+**Modèle de données** : chaque `DrawLayer` (`Stroke`, `AirbrushStroke`, `TextBox`) possède un champ optionnel `groupIds?: string[]`. C'est une pile hiérarchique : l'index 0 est le groupe le plus interne (créé en premier), le dernier est le plus externe (groupe parent). Un layer sans `groupIds` (ou `undefined`) n'appartient à aucun groupe.
+
+**Utilitaires** (`src/utils/groupUtils.ts`) — fonctions pures :
+- `expandToGroups(layers, ids)` — étend les IDs par le groupId le plus externe de chaque layer touché
+- `createGroup(layers, memberIds, groupId)` — push le groupId dans la pile de chaque membre, rassemble en z-order contigu
+- `ungroupLayers(layers, groupId)` — retire un groupId spécifique de la pile (les sous-groupes subsistent)
+- `autoDissolveGroups(layers)` — dissout les groupIds qui ont < 2 membres (vérification sur tous les niveaux)
+- `getGroupPanelItems(layers, selection)` → `PanelDisplayItem[]` — collapse par groupId externe en items `'single'` ou `'group'`
+- `canGroup` / `canUngroup` / `getFocusedGroupId` — logique conditionnelle pour la toolbar
+
+**Sélection atomique** (`useCanvasGestures.ts`) : `expandToGroups` est appelé dans `handleSelectItem`, `handleTapById` (textbox), lasso (`handleMouseUp`), et long-press drag. Tap sur un membre → tout le groupe externe est sélectionné.
+
+**Gomme** : `eraseAt` applique `autoDissolveGroups` après filtrage pour dissoudre les groupes tombés < 2 membres.
+
+**Callbacks** (`SketchScreen.tsx`) :
+- `handleGroup()` — `createGroup(layers, focusedIds, uuidv4())` + pushUndo
+- `handleUngroup()` — `ungroupLayers(layers, getFocusedGroupId(...))` + pushUndo
+- `onFocus` — expand au groupe entier dans focusedIds
+- `onDeleteItem` — expand + autoDissolve après suppression
+
+**Panel** (`SelectionPanel.tsx`) : groupes collapsés en une vignette avec `StackedBorders` (2 divs offset en z-index négatif). Toolbar : bouton group visible si `canGroup`, ungroup si `canUngroup`. Drag-to-reorder expand les memberIds au callback.
+
 ### Lasso sur tracés existants
 
 En mode select, les tracés Konva écoutent les événements (`listening={true}` par défaut + `hitStrokeWidth` 20px). Un tap sur un tracé non sélectionné atteint le `Group`'s `onClick`/`onTap` → `handleSelectItem` → ajout à la sélection. Un drag (> 8px) sur un tracé non sélectionné annule le `dragLongPressTimer` et démarre un lasso depuis la position canvas du pointer-down (`longPressCanvasPos` ref).

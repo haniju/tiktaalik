@@ -164,6 +164,35 @@ En mode select, deux sous-modes disponibles via la toolbar du panneau sélection
 - Drag = rotation libre autour du centre du groupe.
 - Traits et aérographes : les points sont recalculés (rotation définitive). Textboxes : l'angle de rotation est cumulé sur l'objet.
 
+#### Groupement de tracés
+
+Les objets focusés (sous-sélection) peuvent être regroupés en un **groupe persistant** :
+
+**Créer un groupe** :
+- Sélectionner ≥ 2 objets sur le canvas, puis les focuser (tap dans le panel ou tap sur le canvas).
+- Un bouton « Grouper » (icône deux carrés superposés) apparaît dans la toolbar du panel.
+- Le tap crée le groupe : les membres sont rassemblés en z-order contigu.
+
+**Comportement des groupes** :
+- Un groupe est **atomique** sur le canvas : tap sur un membre → tout le groupe est sélectionné.
+- Le lasso sélectionne automatiquement tous les membres d'un groupe touché.
+- Drag, rotation, scale s'appliquent à l'ensemble du groupe.
+- Dans le panel de sélection, un groupe apparaît comme une **seule vignette** avec un effet de bordures empilées (pile de cartes).
+- Le label affiché est « Groupe ».
+
+**Groupes imbriqués** :
+- On peut sélectionner plusieurs groupes existants et les regrouper en un groupe parent.
+- Chaque layer maintient une pile de groupIds (innermost → outermost).
+- Le dégroupement ne retire que le niveau le plus externe : les groupes enfants subsistent.
+
+**Dégrouper** :
+- Quand tous les focusedIds appartiennent au même groupe externe, un bouton « Dégrouper » (icône carrés séparés) remplace le bouton « Grouper ».
+- Le tap ne dissout que le groupe externe : les sous-groupes restent intacts.
+
+**Suppression / gomme** :
+- Supprimer un groupe via le panel supprime tous ses membres.
+- Si la gomme efface un membre individuel et que le groupe tombe à < 2 membres, le groupe est automatiquement dissout.
+
 ### Panneaux & barres d'outils
 
 #### Barre d'outils de dessin (Drawingbar)
