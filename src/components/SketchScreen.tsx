@@ -490,6 +490,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
               pushUndo(newL); scheduleSave();
             }}
             onDeleteSelected={deleteSelected}
+            onSelectAll={() => { setFocusedIds([...selection]); setSelectSubMode('none'); }}
+            onUnselectAll={() => { setFocusedIds([]); setSelectSubMode('none'); }}
             onGroup={handleGroup}
             onUngroup={handleUngroup}
             onClearSelection={() => { setSelection([]); setFocusedIds([]); setSelectSubMode('none'); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}

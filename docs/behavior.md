@@ -140,7 +140,11 @@ En mode select :
 - **Tap sur un objet** déjà sélectionné : toggle dans le sous-groupe focus (niveau 2).
 - **Tap sur le fond** : désélectionne tout.
 
-Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut : compteur (nombre seul), rotate/scale, supprimer tout, fermer.
+Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut, de gauche à droite : supprimer tout, [spacer], group/ungroup + rotate/scale (visibles seulement quand des items sont focusés), select-all / unselect-all, compteur.
+
+**Select-all / Unselect-all** : un bouton bascule entre deux états :
+- Quand tous les items ne sont pas focusés → icône « select-all » (double checkmark) : focalise tous les items de la sélection (passage en niveau 2).
+- Quand tous les items sont focusés → icône « unselect-all » (cercle X) : défocalise tout (retour en niveau 1).
 
 #### Déplacement par drag
 

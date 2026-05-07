@@ -16,6 +16,8 @@ interface Props {
   onDeleteItem: (id: string) => void;
   onDeleteSelected: () => void;
   onClearSelection: () => void;
+  onSelectAll: () => void;
+  onUnselectAll: () => void;
   onReorderByIds: (orderedIds: string[]) => void;
   onGroup: () => void;
   onUngroup: () => void;
@@ -106,6 +108,7 @@ export function SelectionPanel({
   onFocus,
   onSetSelectSubMode,
   onDeselect, onDeleteItem, onDeleteSelected, onClearSelection,
+  onSelectAll, onUnselectAll,
   onReorderByIds,
   onGroup, onUngroup,
 }: Props) {
@@ -165,15 +168,20 @@ export function SelectionPanel({
   const showGroupBtn = canGroup(layers, focusedIds);
   const showUngroupBtn = canUngroup(layers, focusedIds);
 
+  const allFocused = focusedIds.length > 0 && focusedIds.length >= selection.length;
+
   return (
     <div style={st.root}>
       {/* Toolbar */}
       <div style={st.toolbar}>
-        <span style={st.count}>
-          {selection.length}
-        </span>
+        {/* Gauche : delete */}
+        <button style={st.toolbarBtn} onClick={onDeleteSelected} title="Tout supprimer">
+          <img src="/icons/delete.svg" width="15" height="15" alt="Supprimer" style={{ opacity: 0.6 }} />
+        </button>
 
-        {/* Group / Ungroup */}
+        {/* Centre : group/ungroup + rotate/scale (visibles seulement quand focusedIds > 0) */}
+        <div style={{ flex: 1 }} />
+
         {showGroupBtn && (
           <button style={st.toolbarBtn} onClick={onGroup} title="Grouper">
             <img src="/icons/group.svg" width="16" height="16" alt="Group" style={{ opacity: 0.6 }} />
@@ -187,6 +195,7 @@ export function SelectionPanel({
 
         {focusedIds.length > 0 && (
           <>
+            {(showGroupBtn || showUngroupBtn) && <div style={st.toolbarSep} />}
             <button
               style={{
                 ...st.toolbarBtn,
@@ -209,13 +218,24 @@ export function SelectionPanel({
             </button>
           </>
         )}
-        <div style={st.toolbarSep} />
-        <button style={st.toolbarBtn} onClick={onDeleteSelected} title="Tout supprimer">
-          <img src="/icons/delete.svg" width="15" height="15" alt="Supprimer" style={{ opacity: 0.6 }} />
-        </button>
-        <button style={st.toolbarBtn} onClick={onClearSelection} title="Tout désélectionner">
-          <img src="/icons/close.svg" width="13" height="13" alt="Fermer" style={{ opacity: 0.6 }} />
-        </button>
+
+        {(focusedIds.length > 0 || showGroupBtn || showUngroupBtn) && <div style={st.toolbarSep} />}
+
+        {/* Select-all / Unselect-all */}
+        {allFocused ? (
+          <button style={st.toolbarBtn} onClick={onUnselectAll} title="Tout défocaliser">
+            <img src="/icons/unselect-all.svg" width="18" height="18" alt="Unselect all" style={{ opacity: 0.6 }} />
+          </button>
+        ) : (
+          <button style={st.toolbarBtn} onClick={onSelectAll} title="Tout focaliser">
+            <img src="/icons/select-all.svg" width="18" height="18" alt="Select all" style={{ opacity: 0.6 }} />
+          </button>
+        )}
+
+        {/* Droite : compteur */}
+        <span style={st.count}>
+          {selection.length}
+        </span>
       </div>
 
       {/* Liste de vignettes */}
@@ -370,7 +390,7 @@ const st: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #f0f0f0',
     flexShrink: 0,
   },
-  count: { flex: 1, fontSize: 11, color: '#888' },
+  count: { fontSize: 11, color: '#888', minWidth: 20, textAlign: 'right' },
   toolbarBtn: {
     background: 'none',
     border: 'none',
