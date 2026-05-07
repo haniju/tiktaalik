@@ -30,17 +30,25 @@ Architecture **hybride React + Konva impratif** :
 
 3. **Au `mouseup`**, le stroke est commit dans `layers` avec `livePointsRef.current` comme points finaux, puis `setCurrentStroke(null)` dmonte le nud live.
 
-### Coalesced Events
+### Coalesced Events & compatibilit TouchEvent
 
-`PointerEvent.getCoalescedEvents()` est utilis dans `handleMouseMove` pour rcuprer **tous les points intermdiaires** que le browser a coaless entre deux frames. Sur un stylet haute frquence, cela peut reprsenter 4-8 points supplmentaires par frame.
+`handleMouseMove` extrait les coordonnes cran selon le type dvnement natif :
 
-Chaque point coalesc est converti de coordonnes cran en coordonnes monde :
+| Type dvnement | Source des coordonnes | Contexte |
+|---|---|---|
+| `PointerEvent` | `getCoalescedEvents()` (4-8 pts/frame stylet) | Desktop stylet, navigateurs modernes |
+| `TouchEvent` | `touches[0].clientX/clientY` | Mobile (Android/iOS) |
+| `MouseEvent` | `clientX/clientY` directement | Desktop souris, fallback |
+
+Chaque point est converti de coordonnes cran en coordonnes monde :
 ```ts
 const wx = (clientX - stageBox.left - stagePos.x) / scale;
 const wy = (clientY - stageBox.top - stagePos.y) / scale;
 ```
 
-Le filtre de distance minimale (smoothing) est appliqu individuellement  chaque point coalesc.
+**Pitfall** : `TouchEvent` na **pas** de `clientX`/`clientY` au niveau racine (contrairement  `PointerEvent`/`MouseEvent`). Accder directement  `e.evt.clientX` sur un `TouchEvent` renvoie `undefined`  les coords deviennent `NaN`  trait invisible pendant le dessin, puis lignes droites vers (0,0) au rechargement.
+
+Le filtre de distance minimale (smoothing) est appliqu individuellement  chaque point.
 
 ### Fichiers modifis
 

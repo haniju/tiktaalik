@@ -516,8 +516,20 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     }
 
     if (isDrawing.current && currentStrokeRef.current) {
-      // Récupérer les points coalescés (stylet haute fréquence) — fallback sur l'événement natif
-      const coalescedEvents = (e.evt as PointerEvent).getCoalescedEvents?.() ?? [e.evt];
+      // Récupérer les points coalescés (stylet haute fréquence)
+      // PointerEvent → getCoalescedEvents() ; TouchEvent → touches[] ; MouseEvent → clientX/clientY
+      const nativeEvt = e.evt;
+      let screenPoints: Array<{ clientX: number; clientY: number }>;
+      if ((nativeEvt as PointerEvent).getCoalescedEvents) {
+        const coalesced = (nativeEvt as PointerEvent).getCoalescedEvents();
+        screenPoints = coalesced.length > 0 ? coalesced : [nativeEvt as PointerEvent];
+      } else if ('touches' in nativeEvt && (nativeEvt as TouchEvent).touches.length > 0) {
+        // TouchEvent n'a pas clientX directement — lire touches[]
+        const t = (nativeEvt as TouchEvent).touches[0];
+        screenPoints = [{ clientX: t.clientX, clientY: t.clientY }];
+      } else {
+        screenPoints = [nativeEvt as MouseEvent];
+      }
       const stage = p.current.stageRef.current!;
       const scale = stage.scaleX();
       const stagePos = stage.position();
@@ -526,10 +538,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       const minDist = smoothing * 12;
       const minDistSq = minDist * minDist;
 
-      for (const ce of coalescedEvents) {
+      for (const ce of screenPoints) {
         // Convertir les coords écran → coords monde pour chaque point coalescé
-        const clientX = (ce as PointerEvent).clientX ?? (e.evt as MouseEvent).clientX;
-        const clientY = (ce as PointerEvent).clientY ?? (e.evt as MouseEvent).clientY;
+        const clientX = ce.clientX;
+        const clientY = ce.clientY;
         const wx = (clientX - stageBox.left - stagePos.x) / scale;
         const wy = (clientY - stageBox.top - stagePos.y) / scale;
 
