@@ -12,7 +12,7 @@ import {
   isRectIntersecting,
   roundTextBoxFontSize,
 } from '../utils/textboxUtils';
-import { getLayerBounds, getGroupBounds, applyScale, applyRotation } from '../utils/bounds';
+import { getLayerBounds, getGroupBounds, applyScale, applyRotation, isStrokeInRect, isAirbrushInRect } from '../utils/bounds';
 import { expandToGroups, autoDissolveGroups } from '../utils/groupUtils';
 import type { ContextPanel } from './useToolState';
 
@@ -715,10 +715,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         const selIds = layers.filter(layer => {
           if (layer.tool === 'text') return false; // géré par selT ci-dessous
           if (layer.tool === 'airbrush') {
-            return layer.points.some(pt => pt.x >= currentSelRect.x && pt.x <= currentSelRect.x + currentSelRect.w && pt.y >= currentSelRect.y && pt.y <= currentSelRect.y + currentSelRect.h);
+            return isAirbrushInRect(layer.points, currentSelRect);
           } else {
-            const pts = (layer as Stroke).points;
-            return pts.some((_, i) => i % 2 === 0 && pts[i] >= currentSelRect.x && pts[i] <= currentSelRect.x + currentSelRect.w && pts[i + 1] >= currentSelRect.y && pts[i + 1] <= currentSelRect.y + currentSelRect.h);
+            return isStrokeInRect((layer as Stroke).points, currentSelRect);
           }
         }).map(l => l.id);
         const selT = layers

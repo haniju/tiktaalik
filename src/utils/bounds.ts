@@ -247,3 +247,26 @@ export function getGroupBounds(layers: DrawLayer[], ids: string[]): Rect {
     height: maxY - minY,
   };
 }
+
+/**
+ * Vérifie si au moins un point d'un stroke (flat array [x,y,x,y,...]) tombe dans le rectangle.
+ */
+export function isStrokeInRect(points: number[], rect: { x: number; y: number; w: number; h: number }): boolean {
+  const rx2 = rect.x + rect.w;
+  const ry2 = rect.y + rect.h;
+  for (let i = 0; i < points.length; i += 2) {
+    if (points[i] >= rect.x && points[i] <= rx2 && points[i + 1] >= rect.y && points[i + 1] <= ry2) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Vérifie si au moins un point d'un airbrush ({x,y}[]) tombe dans le rectangle.
+ */
+export function isAirbrushInRect(points: Array<{ x: number; y: number }>, rect: { x: number; y: number; w: number; h: number }): boolean {
+  const rx2 = rect.x + rect.w;
+  const ry2 = rect.y + rect.h;
+  return points.some(pt => pt.x >= rect.x && pt.x <= rx2 && pt.y >= rect.y && pt.y <= ry2);
+}
