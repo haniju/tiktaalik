@@ -65,8 +65,6 @@ export function SelectionPanel({
   onDeselect, onDeleteItem, onDeleteSelected, onClearSelection,
   onReorderByIds,
 }: Props) {
-  if (selection.length === 0) return null;
-
   const scrollRef = useRef<HTMLDivElement>(null);
   const [panelSelected, setPanelSelected] = useState<string[]>([]);
 
@@ -89,6 +87,8 @@ export function SelectionPanel({
     onSelect: handleSelect,
     scrollContainerRef: scrollRef,
   });
+
+  if (selection.length === 0) return null;
 
   const isDraggingGroup = dragState.isDragging &&
     dragState.draggingId !== null &&
