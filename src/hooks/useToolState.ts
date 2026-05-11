@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Tool, DrawingTool, CanvasMode, ToolState, PreviousMode } from '../types';
+import { Tool, DrawingTool, CanvasMode, ToolState } from '../types';
 
 const STORAGE_KEY = 'sketchpad_tool_state';
 
@@ -33,7 +33,7 @@ function persist(state: ToolState) {
       toolSmoothings: state.toolSmoothings,
       airbrushEdgeOpacity: state.airbrushEdgeOpacity,
     }));
-  } catch {}
+  } catch { /* localStorage indisponible */ }
 }
 
 export type ContextPanel = 'drawing' | 'text' | 'background' | null;
@@ -59,13 +59,7 @@ export function useToolState() {
   const contextPanelRef = useRef(contextPanel);
   contextPanelRef.current = contextPanel;
 
-  // Helper : efface previousMode et persiste (choix explicite d'un mode/outil)
-  const clearPreviousMode = useCallback(() => {
-    setState(prev => {
-      const next = { ...prev, previousMode: null };
-      persist(next); return next;
-    });
-  }, []);
+
 
   const selectDrawingTool = useCallback((tool: DrawingTool) => {
     const { activeTool, canvasMode } = stateRef.current;
@@ -224,19 +218,12 @@ export function useToolState() {
   const activeWidth = state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool)
     ? state.toolWidths[state.activeTool as DrawingTool] : 5;
 
-  // Compat ancien code
-  const topbarMode = state.canvasMode as any;
-  const openPanel: any = contextPanel === 'background' ? 'colorpicker' : contextPanel === 'drawing' ? 'drawing' : contextPanel === 'text' ? 'text' : null;
-  const setOpenPanel = (p: any) => setContextPanel(p === 'colorpicker' ? 'background' : p === 'drawing' ? 'drawing' : p === 'text' ? 'text' : null);
-
   return {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
     setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
-    topbarMode, openPanel, setOpenPanel,
-    setTopbarMode: setCanvasMode,
     selectTool: (t: Tool) => setState(prev => ({ ...prev, activeTool: t })),
   };
 }

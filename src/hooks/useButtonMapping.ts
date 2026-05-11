@@ -29,7 +29,7 @@ function loadMappings(): ButtonMapping[] {
 function persistMappings(mappings: ButtonMapping[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(mappings));
-  } catch {}
+  } catch { /* localStorage indisponible */ }
 }
 
 // Label lisible pour un event.key

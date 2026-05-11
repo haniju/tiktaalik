@@ -134,11 +134,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const setTbStateWithLogRef = useRef(setTbStateWithLog);
   setTbStateWithLogRef.current = setTbStateWithLog;
   const [isDirty, setIsDirty] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, drawingNameRef, isDirtyRef } = useAutosave({
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, drawingNameRef } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
@@ -305,14 +304,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
     scheduleSave();
   }, [editingTextId, selectedTextId]);
 
-  const deleteItem = useCallback((id: string) => {
-    const newL = autoDissolveGroups(layers.filter(l => l.id !== id));
-    setLayers(newL);
-    setSelection(prev => prev.filter(x => x !== id));
-    if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'deleteItem');
-    pushUndo(newL); scheduleSave();
-  }, [layers, tbState, pushUndo, setTbStateWithLog]);
-
   const duplicateTextBox = useCallback(() => {
     const id = tbState.kind === 'selected' ? tbState.id : tbState.kind === 'editing' ? tbState.id : null;
     if (!id) return;
@@ -351,12 +342,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     pushUndo(newL); scheduleSave();
   }, [layers, focusedIds, pushUndo, scheduleSave]);
 
-  const handleSave = () => {
-    setIsSaving(true);
-    isDirtyRef.current = true; // force save même si déjà propre
-    saveNow();
-    setIsSaving(false);
-  };
+
 
   const handleExportSvg = () => {
     exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`, canvasBackground);
@@ -598,7 +584,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           {'\n'}
           {activePointers.size === 0
             ? 'pointers: none'
-            : Array.from(activePointers.entries()).map(([id, p], i) =>
+            : Array.from(activePointers.entries()).map(([, p], i) =>
                 `${i === 0 ? 'A' : i === 1 ? 'B' : String.fromCharCode(65 + i)}:${p.target}(${p.x},${p.y})`
               ).join(' | ')
           }

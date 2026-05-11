@@ -573,7 +573,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     const { stageRef, tbStateRef, editingTextIdRef, editingCreatedAtRef,
             toolStateRef, layersRef, setLayers, setSelection, setContextPanel,
-            setTbStateWithLogRef, centerViewOnRef, addTextBox, pushUndo, scheduleSave } = p.current;
+            setTbStateWithLogRef, addTextBox, pushUndo, scheduleSave } = p.current;
     const toolState = toolStateRef.current;
 
     // Créer la textbox si c'était un vrai tap.
@@ -602,7 +602,6 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         }
         setTbStateWithLogRef.current(next, 'handleMouseUp:tap');
         if (next.kind !== 'idle') {
-          const tbH = heights.get(hitTb.id) ?? estimateTextHeight(hitTb);
           const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
           const stage = stageRef.current;
           if (stage) {
@@ -787,7 +786,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
     if (mouseUpHandledTapRef.current) { mouseUpHandledTapRef.current = false; return; }
     const { toolStateRef, layersRef, tbStateRef, editingCreatedAtRef, stageRef,
-            setLayers, setSelection, setContextPanel, setTbStateWithLogRef, centerViewOnRef } = p.current;
+            setLayers, setSelection, setContextPanel, setTbStateWithLogRef } = p.current;
     const ts = toolStateRef.current;
     if (ts.canvasMode === 'select') {
       const sel = p.current.selectionRef.current;

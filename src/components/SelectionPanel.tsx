@@ -107,7 +107,7 @@ export function SelectionPanel({
   selectSubMode,
   onFocus,
   onSetSelectSubMode,
-  onDeselect, onDeleteItem, onDeleteSelected, onClearSelection,
+  onDeselect, onDeleteItem, onDeleteSelected,
   onSelectAll, onUnselectAll,
   onReorderByIds,
   onGroup, onUngroup,

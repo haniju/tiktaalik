@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Konva from 'konva';
 import { Rect, Text, Group } from 'react-konva';
 import { DrawLayer, TextLayer } from '../types';
-import { TextBoxSelectionState, estimateTextHeight } from '../utils/textboxUtils';
+import { estimateTextHeight } from '../utils/textboxUtils';
 import { ResizeHandle } from './ResizeHandle';
 
 const HANDLE_W = 12;
