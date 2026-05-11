@@ -4,6 +4,7 @@ import { Drawing } from '../types';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useDrawingOrder } from '../hooks/useDrawingOrder';
 import { useDragToReorder } from '../hooks/useDragToReorder';
+import { AboutModal } from './AboutModal';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -69,6 +70,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [showAbout, setShowAbout] = useState(false);
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const galerieRef = useRef<HTMLDivElement>(null);
@@ -345,7 +347,9 @@ export function HomeScreen({ onOpen, onNew }: Props) {
         </div>
       )}
 
-      <div style={styles.versionBadge}>v{APP_VERSION} BETA — MAJ {BUILD_TIME}</div>
+      <div style={styles.versionBadge} onClick={() => setShowAbout(true)}>v{APP_VERSION} BETA — MAJ {BUILD_TIME}</div>
+
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
     </div>
   );
 }
@@ -436,5 +440,5 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 16px', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer',
   },
 
-  versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0 },
+  versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0, cursor: 'pointer' },
 };

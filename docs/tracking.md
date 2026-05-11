@@ -8,8 +8,8 @@
 |---|---|---|
 | `main` | — | Branche principale |
 | `dev` | main | Branche de développement active |
-| `refactor/sketchscreen-decomp` | main | COMPLETE — en attente de validation PO pour merge |
-| `feat/unified-color-picker` | refactor/sketchscreen-decomp | Branche feature active (v2.0.0+) |
+| `refactor/sketchscreen-decomp` | main | COMPLETE — mergé dans main |
+| `feat/unified-color-picker` | refactor/sketchscreen-decomp | COMPLETE — mergé dans main via dev |
 
 ## Phases complétées
 
@@ -63,11 +63,22 @@ Branche créée depuis refactor/sketchscreen-decomp (v2.0.0).
 - Phase 3 (scale) : BoundingBoxHandles 4 coins, applyScale, scaleTextBox, 3 handlers scale
 - Phase 4 (rotate) : handle circulaire, applyRotation, rotatePoint, hit-test TB rotées, rendu Konva rotation
 
+### v2.1.0 — Groupes, About, qualité (branche `dev`)
+
+- Groupement d'objets avec hiérarchie imbriquée (groupUtils.ts)
+- Select all/unselect all toggle dans SelectionPanel
+- Panneau À propos (AboutModal) — accessible Home + Topbar dropdown
+- Performance : rendu impératif pen/marker (bypass React state, coalesced events)
+- Nettoyage ESLint complet (19 erreurs → 0)
+- Suppression stubs Playwright
+- Tests unitaires : bounds.ts (34) + groupUtils.ts (33)
+- Fix pen/marker mobile (TouchEvent clientX)
+- Fix button mapping vs clavier virtuel
+- Fix lasso + rotation handle jumps
+
 ## Issues connues
 
-- ESLint ~16 erreurs : vars inutilisées, types `any`, un catch vide — cleanup en cours
 - `react-hooks/exhaustive-deps` rule référencée mais plugin non installé
-- Stubs de test Playwright (`e2e/example.spec.ts`, `tests/example.spec.ts`) échouent dans Vitest — pré-existants, pas de vrais tests
 - Pinch zoom pendant édition texte sort du mode editing — limitation connue, différée
 
 ## Cibles d'architecture (décisions en attente)
@@ -93,6 +104,4 @@ Référence : chaque ligne du gesture map spec correspond à une action nommée 
 ## Dette technique
 
 - Types `any` à éliminer progressivement
-- Un seul fichier de test unitaire (`textboxUtils.test.ts`)
-- ESLint non clean (~16 erreurs)
 - Plugin `react-hooks/exhaustive-deps` non installé

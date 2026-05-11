@@ -23,6 +23,7 @@ import { ActionFABs } from './ActionFABs';
 import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
 import { ButtonMappingModal } from './ButtonMappingModal';
+import { AboutModal } from './AboutModal';
 import { useButtonMapping } from '../hooks/useButtonMapping';
 
 
@@ -236,18 +237,26 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [setCanvasMode, exitEditing]);
 
   const handleTogglePan = useCallback(() => {
-    if (tbStateRef.current.kind !== 'idle') exitEditing();
+    // En editing → downgrade vers selected (pas idle) pour conserver le cadre
+    if (tbStateRef.current.kind === 'editing') {
+      collapseEditingToSelected();
+    }
+    // selected → on conserve tbState tel quel
     togglePan();
     setSelection([]);
     setFocusedIds([]);
     setSelectSubMode('none');
-  }, [togglePan, exitEditing]);
+  }, [togglePan, collapseEditingToSelected]);
 
   // Ref synchrone pour le hold-to-pan (pas de latence React)
   const holdPanActiveRef = useRef(false);
 
   const handleEnterPan = useCallback(() => {
-    if (tbStateRef.current.kind !== 'idle') exitEditing();
+    // En editing → downgrade vers selected (pas idle) pour conserver le cadre
+    if (tbStateRef.current.kind === 'editing') {
+      collapseEditingToSelected();
+    }
+    // selected → on conserve tbState tel quel
     holdPanActiveRef.current = true;
     // En mode select avec sélection active, on conserve la sélection pendant le flash pan
     const preserveSelection = toolStateRef.current.canvasMode === 'select' && selectionRef.current.length > 0;
@@ -257,7 +266,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       setFocusedIds([]);
       setSelectSubMode('none');
     }
-  }, [enterPan, exitEditing]);
+  }, [enterPan, collapseEditingToSelected]);
 
   const handleExitPan = useCallback(() => {
     holdPanActiveRef.current = false;
@@ -266,6 +275,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   // ─── Button mapping (boutons physiques → actions) ──────────────────────────
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const buttonMapping = useButtonMapping({
     toggle: { toggle_pan: handleTogglePan },
     enter: { toggle_pan: handleEnterPan },
@@ -400,6 +410,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onToggleDebug={() => setDebug(d => !d)}
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
           onOpenButtonMapping={() => setMappingModalOpen(true)}
+          onOpenAbout={() => setAboutModalOpen(true)}
         />
 
         {!(toolState.canvasMode === 'select' && selection.length > 0) && (
@@ -613,6 +624,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onClearAll={buttonMapping.clearAll}
           onClose={() => { buttonMapping.stopListening(); setMappingModalOpen(false); }}
         />
+      )}
+
+      {aboutModalOpen && (
+        <AboutModal onClose={() => setAboutModalOpen(false)} />
       )}
     </div>
   );

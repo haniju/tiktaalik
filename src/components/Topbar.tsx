@@ -16,9 +16,10 @@ interface Props {
   onToggleDebug: () => void;
   onTogglePinchZoom: () => void;
   onOpenButtonMapping: () => void;
+  onOpenAbout: () => void;
 }
 
-export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping }: Props) {
+export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping, onOpenAbout }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(drawingName);
@@ -121,6 +122,7 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
               </span>
             </button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenButtonMapping(); }}>Mapping boutons</button>
+            <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenAbout(); }}>À propos</button>
             <button style={{ ...styles.dropdownItem, color: '#e63946' }} onClick={() => { setMenuOpen(false); onDelete(); }}>Supprimer</button>
           </div>
         )}

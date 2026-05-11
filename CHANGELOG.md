@@ -1,5 +1,46 @@
 # Changelog
 
+## v2.1.0 (2026-05-12)
+
+Version mineure — groupement d'objets, panneau About, performance, qualit\u00e9 code.
+
+### Groupement d'objets (nouveau)
+
+- **Groupes** : s\u00e9lectionner \u22652 objets focus\u00e9s et cliquer "Grouper" pour cr\u00e9er un groupe atomique
+- **D\u00e9groupement** : retrait du niveau groupe le plus externe, sous-groupes pr\u00e9serv\u00e9s
+- **Groupes imbriqu\u00e9s** : hi\u00e9rarchie multi-niveaux support\u00e9e
+- **S\u00e9lection atomique** : tap sur un membre s\u00e9lectionne le groupe entier
+- **Auto-dissolve** : groupes avec <2 membres supprim\u00e9s automatiquement
+
+### S\u00e9lection am\u00e9lior\u00e9e
+
+- **Select all / Unselect all** : toggle dans le SelectionPanel
+- **Refonte layout** : toolbar s\u00e9lection simplifi\u00e9e avec compteur
+- **Flash pan** : pr\u00e9serve la s\u00e9lection et le sous-mode pendant le hold-to-pan
+
+### Panneau \u00c0 propos (nouveau)
+
+- **AboutModal** : accessible depuis le badge version (HomeScreen) et le dropdown menu (Topbar)
+- Affiche : nom, version, build date, et liste compl\u00e8te des 65 fonctionnalit\u00e9s organis\u00e9es par cat\u00e9gorie
+
+### Performance
+
+- **Rendu imp\u00e9ratif** : bypass du React state pour les traits pen/marker — Konva imp\u00e9ratif + coalesced events
+
+### Qualit\u00e9 code
+
+- Nettoyage ESLint : 19 erreurs corrig\u00e9es (dead code, imports inutilis\u00e9s, types `any`)
+- Suppression des stubs Playwright d\u00e9tect\u00e9s par Vitest
+- Tests unitaires : `bounds.ts` (34 tests) + `groupUtils.ts` (33 tests)
+
+### Bug fixes
+
+- Fix pen/marker cass\u00e9 sur mobile (TouchEvent sans `clientX`)
+- Fix mobile TB editing tu\u00e9 par le button mapping interceptant le clavier virtuel
+- Fix lasso selection sur strokes existants + rotation handle jumps/snap-back
+
+---
+
 ## v2.0.0 (2026-04-24)
 
 Version majeure — lissage configurable, rotation/scale, gestion galerie, hold-to-pan, mapping boutons physiques.
