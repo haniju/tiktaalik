@@ -305,7 +305,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     handleTapById, handleDragEnd, handleSelectItem,
     handleScaleStart, handleScaleMove, handleScaleEnd,
     handleRotateStart, handleRotateMove, handleRotateEnd,
-    selRect, currentStroke, currentAirbrush, liveLineRef, textNodesRef,
+    selRect, currentStroke, currentAirbrush, liveLineRef, eraserCursorRef, eraserActive, textNodesRef,
   } = useCanvasGestures({
     stageRef, layersRef,
     toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef, focusedIdsRef,
@@ -352,6 +352,35 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'deleteSelected');
     pushUndo(newL); scheduleSave();
   }, [layers, selection, pushUndo, setTbStateWithLog]);
+
+  const duplicateFocused = useCallback(() => {
+    if (focusedIds.length === 0) return;
+    const focusedSet = new Set(focusedIds);
+    const toDuplicate = layers.filter(l => focusedSet.has(l.id));
+    if (toDuplicate.length === 0) return;
+    // Mapping layer id → new layer id
+    const layerIdMap = new Map<string, string>();
+    toDuplicate.forEach(l => layerIdMap.set(l.id, uuidv4()));
+    // Mapping group id → new group id (pour préserver les groupes entre copies)
+    const groupIdMap = new Map<string, string>();
+    const duplicated: DrawLayer[] = toDuplicate.map(l => {
+      const newLayer = { ...l, id: layerIdMap.get(l.id)! };
+      if (newLayer.groupIds && newLayer.groupIds.length > 0) {
+        newLayer.groupIds = newLayer.groupIds.map(gid => {
+          if (!groupIdMap.has(gid)) groupIdMap.set(gid, uuidv4());
+          return groupIdMap.get(gid)!;
+        });
+      }
+      return newLayer;
+    });
+    const newLayers = [...layers, ...duplicated];
+    const newIds = duplicated.map(l => l.id);
+    setLayers(newLayers);
+    setSelection(prev => [...prev, ...newIds]);
+    setFocusedIds(newIds);
+    pushUndo(newLayers);
+    scheduleSave();
+  }, [layers, focusedIds, pushUndo, scheduleSave]);
 
   const handleGroup = useCallback(() => {
     if (focusedIds.length < 2) return;
@@ -506,6 +535,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
               pushUndo(newL); scheduleSave();
             }}
             onDeleteSelected={deleteSelected}
+            onDuplicateFocused={duplicateFocused}
             onSelectAll={() => { setFocusedIds([...selection]); setSelectSubMode('none'); }}
             onUnselectAll={() => { setFocusedIds([]); setSelectSubMode('none'); }}
             onGroup={handleGroup}
@@ -565,6 +595,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
             currentStroke={currentStroke}
             currentAirbrush={currentAirbrush}
             liveLineRef={liveLineRef}
+            eraserCursorRef={eraserCursorRef}
+            eraserActive={eraserActive}
             selRect={selRect}
             stageRef={stageRef}
             textNodesRef={textNodesRef}

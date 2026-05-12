@@ -132,6 +132,10 @@ Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange 
 - Scale : `handleScaleStart` (snapshot + centre), `handleScaleMove(sf)`, `handleScaleEnd` (arrondi fontSize + undo + save)
 - Rotate : `handleRotateStart` (snapshot + centre), `handleRotateMove(angleDeg)` (stocke aussi dans `rotateLatestRef` pour accès synchrone), `handleRotateEnd` (lit `rotateLatestRef` au lieu de `layersRef` pour éviter le stale state si React n'a pas rendu entre le dernier move et le end)
 
+## Duplication d'objets
+
+`duplicateFocused` dans `SketchScreen.tsx` — duplique tous les layers focusés. Deux maps d'IDs : `layerIdMap` (layer id → new id) et `groupIdMap` (group id → new id, lazy-created). Les groupIds sont remappés pour que les copies forment des groupes indépendants des originaux. Les copies sont ajoutées en fin de pile (z-index max), ajoutées à la sélection, et deviennent les nouveaux focusedIds.
+
 **Piège rotation — react-konva reset position** : pendant un Konva drag, `setLayers` change les bounds → react-konva re-rend le Circle avec de nouveaux `x`/`y` → reset la position du nœud en plein drag. Fix : le hit Circle utilise `x={dragPos?.x ?? handleX}` pour que react-konva reçoive la position de drag courante et ne la reset pas.
 
 `DrawingLayer.tsx` — rend `<BoundingBoxHandles>` quand focusedIds non vide + selectSubMode match. `TextBoxKonva.tsx` — `<Group rotation={tb.rotation ?? 0}>`.

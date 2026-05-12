@@ -151,7 +151,7 @@ En mode select :
 - **Tap sur un objet** déjà sélectionné : toggle dans le sous-groupe focus (niveau 2).
 - **Tap sur le fond** : désélectionne tout.
 
-Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut, de gauche à droite : supprimer tout, [spacer], group/ungroup + rotate/scale (visibles seulement quand des items sont focusés), select-all / unselect-all, compteur.
+Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut, de gauche à droite : supprimer tout, [spacer], group/ungroup + rotate/scale + dupliquer (visibles seulement quand des items sont focusés), select-all / unselect-all, compteur.
 
 **Select-all / Unselect-all** : un bouton bascule entre deux états :
 - Quand tous les items ne sont pas focusés → icône « select-all » (double checkmark) : focalise tous les items de la sélection (passage en niveau 2).
@@ -178,6 +178,14 @@ En mode select, deux sous-modes disponibles via la toolbar du panneau sélection
 - 1 poignée circulaire au-dessus du coin haut-droit avec ligne pointillée de liaison.
 - Drag = rotation libre autour du centre du groupe.
 - Traits et aérographes : les points sont recalculés (rotation définitive). Textboxes : l'angle de rotation est cumulé sur l'objet.
+
+#### Duplication
+
+En mode select, un bouton « Dupliquer » (icône copie) apparaît dans la toolbar du panneau sélection, à côté de rotate/scale, quand des items sont focusés. Le tap duplique tous les objets focusés :
+- Chaque objet copié reçoit un nouvel identifiant unique.
+- Les copies sont ajoutées en haut de la pile (z-index max).
+- Si les objets originaux forment un groupe, les copies forment un **nouveau groupe indépendant** (les groupIds sont remappés).
+- Après duplication, les copies deviennent les nouveaux éléments focusés.
 
 #### Groupement de tracés
 

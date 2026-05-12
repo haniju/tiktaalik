@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { DrawLayer, Stroke, AirbrushStroke, TextLayer } from '../types';
 import { useDragToReorder } from '../hooks/useDragToReorder';
 import { getGroupPanelItems, canGroup, canUngroup, PanelDisplayItem } from '../utils/groupUtils';
@@ -15,6 +15,7 @@ interface Props {
   onDeselect: (id: string) => void;
   onDeleteItem: (id: string) => void;
   onDeleteSelected: () => void;
+  onDuplicateFocused: () => void;
   onClearSelection: () => void;
   onSelectAll: () => void;
   onUnselectAll: () => void;
@@ -108,6 +109,7 @@ export function SelectionPanel({
   onFocus,
   onSetSelectSubMode,
   onDeselect, onDeleteItem, onDeleteSelected,
+  onDuplicateFocused,
   onSelectAll, onUnselectAll,
   onReorderByIds,
   onGroup, onUngroup,
@@ -124,6 +126,20 @@ export function SelectionPanel({
     id: di.type === 'single' ? di.id : di.groupId,
     displayItem: di,
   }));
+
+  // Sync panelSelected avec focusedIds — quand on sur-sélectionne depuis le canevas,
+  // le panel doit afficher les options (badge bar) automatiquement
+  useEffect(() => {
+    const synced = flatItems
+      .filter(fi => {
+        const di = fi.displayItem;
+        return di.type === 'single'
+          ? focusedIds.includes(di.id)
+          : di.memberIds.every(mid => focusedIds.includes(mid));
+      })
+      .map(fi => fi.id);
+    setPanelSelected(synced);
+  }, [focusedIds]);
 
   const handleSelect = (id: string) => {
     setPanelSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -215,6 +231,10 @@ export function SelectionPanel({
               title="Redimensionner"
             >
               <img src="/icons/scale.svg" width="16" height="16" alt="Scale" style={{ opacity: selectSubMode === 'scale' ? 1 : 0.6 }} />
+            </button>
+            <div style={st.toolbarSep} />
+            <button style={st.toolbarBtn} onClick={onDuplicateFocused} title="Dupliquer">
+              <img src="/icons/duplicate.svg" width="16" height="16" alt="Duplicate" style={{ opacity: 0.6 }} />
             </button>
           </>
         )}
