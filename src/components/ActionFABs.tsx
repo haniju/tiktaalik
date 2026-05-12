@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { CanvasMode } from '../types';
 import { Icon } from './Icon';
 
@@ -6,19 +6,48 @@ const MIN_ZOOM = 10;
 const MAX_ZOOM = 400;
 const ZOOM_STEP = 10;
 const LABEL_TIMEOUT = 5000;
+const HOLD_THRESHOLD = 250;
 
 interface Props {
   canvasMode: CanvasMode;
   zoomPct: number;
   onSetMode: (mode: CanvasMode) => void;
+  onTogglePan: () => void;
+  onEnterPan: () => void;
+  onExitPan: () => void;
   onZoomChange: (pct: number) => void;
 }
 
-export function ActionFABs({ canvasMode, zoomPct, onSetMode, onZoomChange }: Props) {
+export function ActionFABs({ canvasMode, zoomPct, onSetMode, onTogglePan, onEnterPan, onExitPan, onZoomChange }: Props) {
   const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomPct));
   const [showLabel, setShowLabel] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevZoomRef = useRef(clamped);
+
+  // Hold-to-pan sur le FAB
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoldingRef = useRef(false);
+
+  const handlePanPointerDown = useCallback(() => {
+    isHoldingRef.current = false;
+    holdTimerRef.current = setTimeout(() => {
+      isHoldingRef.current = true;
+      onEnterPan();
+    }, HOLD_THRESHOLD);
+  }, [onEnterPan]);
+
+  const handlePanPointerUp = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (isHoldingRef.current) {
+      isHoldingRef.current = false;
+      onExitPan();
+    } else {
+      onTogglePan();
+    }
+  }, [onTogglePan, onExitPan]);
 
   useEffect(() => {
     if (clamped !== prevZoomRef.current) {
@@ -64,10 +93,13 @@ export function ActionFABs({ canvasMode, zoomPct, onSetMode, onZoomChange }: Pro
         </div>
       </div>
 
-      {/* Mode move */}
+      {/* Mode move — tap: toggle, hold: pan momentané */}
       <button
-        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}) }}
-        onClick={() => onSetMode(canvasMode === 'move' ? 'draw' : 'move')}
+        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}), WebkitTouchCallout: 'none', userSelect: 'none', touchAction: 'none' }}
+        onPointerDown={handlePanPointerDown}
+        onPointerUp={handlePanPointerUp}
+        onPointerCancel={handlePanPointerUp}
+        onContextMenu={e => e.preventDefault()}
         title="Déplacer"
       >
         <Icon name="drag" size={20} style={{ opacity: canvasMode === 'move' ? 0.9 : 0.6 }} />

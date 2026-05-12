@@ -10,7 +10,10 @@ import {
   estimateTextHeight,
   findTextBoxAtPoint,
   isRectIntersecting,
+  roundTextBoxFontSize,
 } from '../utils/textboxUtils';
+import { getLayerBounds, getGroupBounds, applyScale, applyRotation, isStrokeInRect, isAirbrushInRect } from '../utils/bounds';
+import { expandToGroups, autoDissolveGroups } from '../utils/groupUtils';
 import type { ContextPanel } from './useToolState';
 
 export interface UseCanvasGesturesParams {
@@ -21,11 +24,13 @@ export interface UseCanvasGesturesParams {
   editingTextIdRef: React.MutableRefObject<string | null>;
   editingCreatedAtRef: React.MutableRefObject<number>;
   selectionRef: React.MutableRefObject<string[]>;
+  focusedIdsRef: React.MutableRefObject<string[]>;
   setTbStateWithLogRef: React.MutableRefObject<(next: TextBoxSelectionState, source: string) => void>;
   centerViewOnRef: React.MutableRefObject<(cx: number, cy: number, immediate?: boolean, topOffsetPx?: number) => void>;
   barsRef: React.RefObject<HTMLDivElement>;
   setLayers: React.Dispatch<React.SetStateAction<DrawLayer[]>>;
   setSelection: React.Dispatch<React.SetStateAction<string[]>>;
+  setFocusedIds: React.Dispatch<React.SetStateAction<string[]>>;
   setContextPanel: React.Dispatch<React.SetStateAction<ContextPanel>>;
   setZoomPct: React.Dispatch<React.SetStateAction<number>>;
   exitEditing: () => void;
@@ -35,6 +40,7 @@ export interface UseCanvasGesturesParams {
   pushUndo: (layers: DrawLayer[]) => void;
   scheduleSave: () => void;
   pinchZoomEnabledRef: React.MutableRefObject<boolean>;
+  holdPanActiveRef: React.MutableRefObject<boolean>;
   activeColor: string;
   activeWidth: number;
 }
@@ -47,9 +53,16 @@ export interface UseCanvasGesturesReturn {
   handleTapById: (tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => void;
   handleDragEnd: () => void;
   handleSelectItem: (id: string) => void;
+  handleScaleStart: () => void;
+  handleScaleMove: (scaleFactor: number) => void;
+  handleScaleEnd: () => void;
+  handleRotateStart: () => void;
+  handleRotateMove: (angleDeg: number) => void;
+  handleRotateEnd: () => void;
   selRect: { x: number; y: number; w: number; h: number } | null;
   currentStroke: Stroke | null;
   currentAirbrush: AirbrushStroke | null;
+  liveLineRef: React.MutableRefObject<Konva.Line | null>;
   textNodesRef: React.MutableRefObject<Map<string, Konva.Text>>;
 }
 
@@ -75,16 +88,20 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const selRectStart = useRef<{ x: number; y: number } | null>(null);
   const isDraggingSelection = useRef(false);
   const dragArmed = useRef(false);
+  const dragArmedHitId = useRef<string | null>(null);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragPointerStart = useRef<{ x: number; y: number } | null>(null);
   const dragLayerSnapshot = useRef<DrawLayer[]>([]);
   const dragSelectionRef = useRef<string[]>([]);
   const dragLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressCanvasPos = useRef<{ x: number; y: number } | null>(null); // position canvas au mouseDown (pour lasso différé)
   const isDrawing = useRef(false);
   const isErasing = useRef(false);
   const lastAirbrushPt = useRef<{ x: number; y: number } | null>(null);
   const isPanning = useRef(false);
   const panStart = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
+  // Hold-to-pan : identifier du touch du doigt B sur le canvas (pour bypasser Konva getPointerPosition)
+  const holdPanTouchId = useRef<number | null>(null);
   const pendingTextboxRef = useRef<{ x: number; y: number } | null>(null);
   // Guard : empêche le tap Konva (synthétique post-touchend) de déclencher une transition après un drag
   const dragJustEndedRef = useRef(false);
@@ -97,25 +114,63 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const pinchCenter = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   // Refs vers les nœuds Text Konva — lecture directe des dimensions au render
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
+  // Scale — snapshot pattern (même approche que drag-to-move)
+  const scaleSnapshotRef = useRef<DrawLayer[]>([]);
+  const scaleCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Rotate — snapshot pattern
+  const rotateSnapshotRef = useRef<DrawLayer[]>([]);
+  const rotateCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const rotateLatestRef = useRef<DrawLayer[]>([]); // résultat synchrone du dernier handleRotateMove
+  // Bypass React — tracé pen/marker directement via l'API impérative Konva
+  const liveLineRef = useRef<Konva.Line | null>(null);
+  const livePointsRef = useRef<number[]>([]);
+  // Smoothing — filtre de distance minimale pour pen/marker
+  const lastAcceptedPt = useRef<{ x: number; y: number } | null>(null);
+  const lastRawPt = useRef<{ x: number; y: number } | null>(null);
+  // Mount guard — bloque les événements fantômes (synthetic mouse events post-touch sur la vignette HomeScreen)
+  const mountReadyRef = useRef(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => { mountReadyRef.current = true; }, 300);
+    return () => { clearTimeout(timer); mountReadyRef.current = false; };
+  }, []);
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Cherche un touch par identifier dans evt.touches et retourne sa position relative au stage container.
+   *  Retourne null si le touch n'est plus actif (doigt levé). */
+  const getTouchScreenPos = useCallback((nativeEvt: TouchEvent, touchId: number, stage: Konva.Stage): { x: number; y: number } | null => {
+    for (let i = 0; i < nativeEvt.touches.length; i++) {
+      if (nativeEvt.touches[i].identifier === touchId) {
+        const stageBox = stage.container().getBoundingClientRect();
+        return { x: nativeEvt.touches[i].clientX - stageBox.left, y: nativeEvt.touches[i].clientY - stageBox.top };
+      }
+    }
+    return null;
+  }, []);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
   const eraseAt = useCallback((pos: { x: number; y: number }) => {
-    p.current.setLayers(prev => prev.filter(layer => {
-      if (layer.tool === 'text') return true; // les textboxes ne s'effacent pas à la gomme
-      if (layer.tool === 'airbrush') {
-        return !layer.points.some(pt => Math.hypot(pt.x - pos.x, pt.y - pos.y) < layer.radius * 0.8);
-      } else {
-        const pts = (layer as Stroke).points;
-        for (let i = 0; i < pts.length - 2; i += 2) {
-          if (Math.hypot(pts[i] - pos.x, pts[i + 1] - pos.y) < 20) return false;
+    p.current.setLayers(prev => {
+      const filtered = prev.filter(layer => {
+        if (layer.tool === 'text') return true; // les textboxes ne s'effacent pas à la gomme
+        if (layer.tool === 'airbrush') {
+          return !layer.points.some(pt => Math.hypot(pt.x - pos.x, pt.y - pos.y) < layer.radius * 0.8);
+        } else {
+          const pts = (layer as Stroke).points;
+          for (let i = 0; i < pts.length - 2; i += 2) {
+            if (Math.hypot(pts[i] - pos.x, pts[i + 1] - pos.y) < 20) return false;
+          }
+          return true;
         }
-        return true;
-      }
-    }));
+      });
+      return autoDissolveGroups(filtered);
+    });
   }, []);
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    // Guard : ignore les événements fantômes pendant les 300ms après le mount
+    if (!mountReadyRef.current) return;
     const { stageRef, toolStateRef, editingTextIdRef, tbStateRef, selectionRef,
             setSelection, setContextPanel, setTbStateWithLogRef,
             exitEditing, collapseEditingToSelected, collapsePanel,
@@ -125,8 +180,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const toolState = toolStateRef.current;
 
     // Pinch zoom — détection de deux doigts
+    // Guard : si holdPan est actif, les 2 touches = doigt A sur FAB + doigt B sur canvas, pas un vrai pinch
     const nativeEvt = e.evt;
-    if (pinchZoomEnabledRef.current && 'touches' in nativeEvt && nativeEvt.touches.length >= 2) {
+    if (pinchZoomEnabledRef.current && !p.current.holdPanActiveRef.current && 'touches' in nativeEvt && nativeEvt.touches.length >= 2) {
       e.evt.preventDefault();
       const t1 = nativeEvt.touches[0], t2 = nativeEvt.touches[1];
       lastPinchDist.current = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
@@ -147,7 +203,16 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const screenPos = stage.getPointerPosition()!;
 
     // En mode text : si on édite et qu'on tape sur le canvas → collapse vers selected
+    // SAUF si le tap est sur le TB en cours d'édition (zone Konva rotée qui dépasse la textarea)
     if (editingTextIdRef.current && toolState.activeTool === 'text') {
+      let node: Konva.Node | null = e.target;
+      let hitId: string | null = null;
+      while (node) {
+        const nid = node.id?.();
+        if (nid) { hitId = nid; break; }
+        node = node.getParent?.() ?? null;
+      }
+      if (hitId === editingTextIdRef.current) return; // tap sur le TB en édition → ignorer
       collapseEditingToSelected();
       return;
     }
@@ -159,15 +224,27 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const targetName = (e.target as Konva.Node).name();
     const isBackground = e.target === stage || targetName === 'background-rect';
 
-    if (toolState.canvasMode === 'move') {
+    if (toolState.canvasMode === 'move' || p.current.holdPanActiveRef.current) {
+      // En hold-to-pan multi-touch, Konva getPointerPosition() lit touches[0] = doigt A (FAB, immobile).
+      // On tracke le touch identifier du doigt B pour lire sa position directement dans evt.touches.
+      let panScreenPos = screenPos;
+      if (p.current.holdPanActiveRef.current && 'changedTouches' in nativeEvt && nativeEvt.changedTouches.length > 0) {
+        const ct = nativeEvt.changedTouches[0];
+        holdPanTouchId.current = ct.identifier;
+        const stageBox = stage.container().getBoundingClientRect();
+        panScreenPos = { x: ct.clientX - stageBox.left, y: ct.clientY - stageBox.top };
+      } else {
+        holdPanTouchId.current = null;
+      }
       isPanning.current = true;
-      panStart.current = { x: screenPos.x, y: screenPos.y, sx: stage.x(), sy: stage.y() };
+      panStart.current = { x: panScreenPos.x, y: panScreenPos.y, sx: stage.x(), sy: stage.y() };
       return;
     }
 
     if (toolState.canvasMode === 'select') {
       if (isBackground) {
         setSelection([]);
+        p.current.setFocusedIds([]);
         selRectStart.current = pos;
         setSelRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
         return;
@@ -189,17 +266,20 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (alreadySelected) {
         // Armer le drag — confirmé seulement si le doigt bouge > seuil
         dragArmed.current = true;
+        dragArmedHitId.current = hitId;
         dragStartPos.current = snapPos;
         dragPointerStart.current = snapScreen;
         dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
       } else {
         // Long-press (350ms) pour les objets non sélectionnés
         dragPointerStart.current = snapScreen;
+        longPressCanvasPos.current = snapPos;
         dragLongPressTimer.current = setTimeout(() => {
           dragLongPressTimer.current = null;
-          // Sélectionner l'objet puis démarrer le drag
-          setSelection(prev => prev.includes(hitId!) ? prev : [...prev, hitId!]);
-          selectionRef.current = selectionRef.current.includes(hitId!) ? selectionRef.current : [...selectionRef.current, hitId!];
+          // Sélectionner l'objet (+ groupe) puis démarrer le drag
+          const expanded = expandToGroups(p.current.layersRef.current, [hitId!]);
+          setSelection(prev => [...prev, ...expanded.filter(x => !prev.includes(x))]);
+          selectionRef.current = [...selectionRef.current, ...expanded.filter(x => !selectionRef.current.includes(x))];
           isDraggingSelection.current = true;
           dragStartPos.current = snapPos;
           dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
@@ -242,6 +322,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           }
           // Sinon armer le drag pour déplacer la textbox
           dragArmed.current = true;
+          dragArmedHitId.current = hitId;
           dragStartPos.current = pos;
           dragPointerStart.current = screenPos;
           dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
@@ -251,9 +332,20 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         // Tap sur une autre textbox ou sur le fond → désélectionner (pas de création)
         exitEditing();
         if (hitId) {
-          // Tap sur une autre textbox → la sélectionner
+          // Tap sur une autre textbox → la sélectionner + recentrer le viewport
           setTbStateWithLogRef.current({ kind: 'selected', id: hitId }, 'handleMouseDown:otherTextbox');
           setContextPanel('text');
+          const textLayers = p.current.layersRef.current.filter((l): l is TextLayer => l.tool === 'text');
+          const hitTb = textLayers.find(t => t.id === hitId);
+          if (hitTb) {
+            const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
+            const sc = stage.scaleX();
+            const aabb = getLayerBounds(hitTb);
+            stage.position(clampStagePos({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc }, sc, stage.width(), stage.height()));
+            stage.batchDraw();
+          }
+          // Guard : empêcher handleTapById de re-traiter ce même tap (sinon selected→editing)
+          mouseUpHandledTapRef.current = true;
         }
         return;
       }
@@ -277,16 +369,22 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (editingTextIdRef.current) exitEditing();
       const opacity = toolState.toolOpacities[toolState.activeTool];
       const w = toolState.activeTool === 'marker' ? activeWidth * 4 : activeWidth;
-      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x, pos.y] };
-      // Mise à jour directe du ref : handleMouseUp peut arriver avant le re-render (tap court)
+      // Micro-offset 0.1px sur le 2e point : Konva <Line tension> ne rend rien pour un segment
+      // de longueur zéro (tap court), le décalage force un segment minimal → point rond via lineCap="round"
+      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1] };
+      // Bypass React : on stocke seulement dans le ref miroir (pas de setCurrentStroke ici).
+      // setCurrentStroke monte le nœud <Line> vide dans DrawingLayer, puis liveLineRef prend le relais.
       currentStrokeRef.current = stroke;
       setCurrentStroke(stroke);
+      livePointsRef.current = [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1];
+      lastAcceptedPt.current = { x: pos.x, y: pos.y };
+      lastRawPt.current = { x: pos.x, y: pos.y };
       isDrawing.current = true;
     }
   }, [eraseAt]);
 
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const { stageRef, editingTextIdRef, toolStateRef, setZoomPct, setLayers, selectionRef, pinchZoomEnabledRef } = p.current;
+    const { stageRef, editingTextIdRef, toolStateRef, setZoomPct, setLayers, setSelection, selectionRef, pinchZoomEnabledRef } = p.current;
     const stage = stageRef.current!;
     const toolState = toolStateRef.current;
 
@@ -319,8 +417,15 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const pos = stage.getRelativePointerPosition()!;
     const screenPos = stage.getPointerPosition()!;
 
-    if (toolState.canvasMode === 'move' && isPanning.current && panStart.current) {
-      const raw = { x: panStart.current.sx + screenPos.x - panStart.current.x, y: panStart.current.sy + screenPos.y - panStart.current.y };
+    if ((toolState.canvasMode === 'move' || holdPanTouchId.current !== null) && isPanning.current && panStart.current) {
+      // Hold-to-pan : chercher le touch tracké par identifier (indépendant de Konva getPointerPosition)
+      let panScreenPos = screenPos;
+      if (holdPanTouchId.current !== null && 'touches' in nativeEvt) {
+        const found = getTouchScreenPos(nativeEvt as TouchEvent, holdPanTouchId.current, stage);
+        if (!found) return; // touch plus actif (doigt levé) → ignorer, handleMouseUp nettoiera
+        panScreenPos = found;
+      }
+      const raw = { x: panStart.current.sx + panScreenPos.x - panStart.current.x, y: panStart.current.sy + panScreenPos.y - panStart.current.y };
       stage.position(clampStagePos(raw, stage.scaleX(), stage.width(), stage.height()));
       stage.batchDraw();
       return;
@@ -335,7 +440,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         isDraggingSelection.current = true;
       }
     }
-    // Annuler le long-press si le doigt a bougé
+    // Annuler le long-press si le doigt a bougé → démarrer le lasso en mode select
     if (dragLongPressTimer.current && dragPointerStart.current) {
       const ddx = screenPos.x - dragPointerStart.current.x;
       const ddy = screenPos.y - dragPointerStart.current.y;
@@ -343,6 +448,15 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         clearTimeout(dragLongPressTimer.current);
         dragLongPressTimer.current = null;
         dragPointerStart.current = null;
+        // En mode select, convertir en lasso depuis la position originale du pointer
+        if (toolState.canvasMode === 'select' && longPressCanvasPos.current) {
+          const startP = longPressCanvasPos.current;
+          setSelection([]);
+          p.current.setFocusedIds([]);
+          selRectStart.current = startP;
+          setSelRect({ x: Math.min(startP.x, pos.x), y: Math.min(startP.y, pos.y), w: Math.abs(pos.x - startP.x), h: Math.abs(pos.y - startP.y) });
+        }
+        longPressCanvasPos.current = null;
       }
     }
     if (isDraggingSelection.current && dragStartPos.current) {
@@ -384,7 +498,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       if (last) {
         const dx = pos.x - last.x, dy = pos.y - last.y;
         const dist = Math.hypot(dx, dy);
-        const step = currentAB.radius * (1 - AIRBRUSH_CONFIG.pointDensity + 0.1);
+        // Densité de pas contrôlée par le lissage : 0% → 0.6 (actuel), 100% → 0.15 (chevauchement dense)
+        const abSmoothing = toolState.toolSmoothings.airbrush ?? 0;
+        const stepFactor = 0.6 - abSmoothing * 0.45;
+        const step = Math.max(currentAB.radius * stepFactor, 1);
         const steps = Math.max(1, Math.floor(dist / step));
         const newPts: Array<{ x: number; y: number }> = [];
         for (let i = 1; i <= steps; i++) {
@@ -399,7 +516,50 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     }
 
     if (isDrawing.current && currentStrokeRef.current) {
-      setCurrentStroke(prev => prev ? { ...prev, points: [...prev.points, pos.x, pos.y] } : null);
+      // Récupérer les points coalescés (stylet haute fréquence)
+      // PointerEvent → getCoalescedEvents() ; TouchEvent → touches[] ; MouseEvent → clientX/clientY
+      const nativeEvt = e.evt;
+      let screenPoints: Array<{ clientX: number; clientY: number }>;
+      if ((nativeEvt as PointerEvent).getCoalescedEvents) {
+        const coalesced = (nativeEvt as PointerEvent).getCoalescedEvents();
+        screenPoints = coalesced.length > 0 ? coalesced : [nativeEvt as PointerEvent];
+      } else if ('touches' in nativeEvt && (nativeEvt as TouchEvent).touches.length > 0) {
+        // TouchEvent n'a pas clientX directement — lire touches[]
+        const t = (nativeEvt as TouchEvent).touches[0];
+        screenPoints = [{ clientX: t.clientX, clientY: t.clientY }];
+      } else {
+        screenPoints = [nativeEvt as MouseEvent];
+      }
+      const stage = p.current.stageRef.current!;
+      const scale = stage.scaleX();
+      const stagePos = stage.position();
+      const stageBox = stage.container().getBoundingClientRect();
+      const smoothing = toolState.toolSmoothings[toolState.activeTool as 'pen' | 'marker'] ?? 0;
+      const minDist = smoothing * 12;
+      const minDistSq = minDist * minDist;
+
+      for (const ce of screenPoints) {
+        // Convertir les coords écran → coords monde pour chaque point coalescé
+        const clientX = ce.clientX;
+        const clientY = ce.clientY;
+        const wx = (clientX - stageBox.left - stagePos.x) / scale;
+        const wy = (clientY - stageBox.top - stagePos.y) / scale;
+
+        lastRawPt.current = { x: wx, y: wy };
+        // Filtre de distance minimale — élimine le micro-jitter tactile
+        if (minDistSq > 0 && lastAcceptedPt.current) {
+          const dx = wx - lastAcceptedPt.current.x;
+          const dy = wy - lastAcceptedPt.current.y;
+          if (dx * dx + dy * dy < minDistSq) continue;
+        }
+        lastAcceptedPt.current = { x: wx, y: wy };
+        livePointsRef.current.push(wx, wy);
+      }
+      // Mise à jour impérative Konva — zéro re-render React
+      if (liveLineRef.current) {
+        liveLineRef.current.points(livePointsRef.current);
+        liveLineRef.current.getLayer()?.batchDraw();
+      }
     }
   }, [eraseAt]);
 
@@ -413,7 +573,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     const { stageRef, tbStateRef, editingTextIdRef, editingCreatedAtRef,
             toolStateRef, layersRef, setLayers, setSelection, setContextPanel,
-            setTbStateWithLogRef, centerViewOnRef, addTextBox, pushUndo, scheduleSave } = p.current;
+            setTbStateWithLogRef, addTextBox, pushUndo, scheduleSave } = p.current;
     const toolState = toolStateRef.current;
 
     // Créer la textbox si c'était un vrai tap.
@@ -442,12 +602,12 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         }
         setTbStateWithLogRef.current(next, 'handleMouseUp:tap');
         if (next.kind !== 'idle') {
-          const tbH = heights.get(hitTb.id) ?? estimateTextHeight(hitTb);
           const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
           const stage = stageRef.current;
           if (stage) {
             const sc = stage.scaleX();
-            stage.position({ x: 20 - hitTb.x * sc, y: barsH + 20 - hitTb.y * sc });
+            const aabb = getLayerBounds(hitTb as TextLayer);
+            stage.position({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc });
             stage.batchDraw();
           }
           setContextPanel('text');
@@ -461,7 +621,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (editingTextIdRef.current) return;
 
-    if (isPanning.current) { isPanning.current = false; panStart.current = null; return; }
+    if (isPanning.current) { isPanning.current = false; panStart.current = null; holdPanTouchId.current = null; return; }
 
     if (toolState.activeTool === 'eraser' && isErasing.current) {
       isErasing.current = false;
@@ -474,22 +634,77 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       clearTimeout(dragLongPressTimer.current);
       dragLongPressTimer.current = null;
     }
+    longPressCanvasPos.current = null;
+    // Sauvegarder la position de départ AVANT nettoyage pour vérifier le déplacement total
+    const savedPointerStart = dragPointerStart.current;
     if (dragArmed.current) {
       dragArmed.current = false;
+      const hitId = dragArmedHitId.current;
+      dragArmedHitId.current = null;
       dragStartPos.current = null;
       dragPointerStart.current = null;
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
+
+      // Mode texte : tap sans drag sur la TB selected → passer en editing
+      if (toolState.activeTool === 'text' && hitId && tbStateRef.current.kind === 'selected' && tbStateRef.current.id === hitId) {
+        editingCreatedAtRef.current = Date.now();
+        setTbStateWithLogRef.current({ kind: 'editing', id: hitId }, 'handleMouseUp:textTap');
+        const textLayers = layersRef.current.filter((l): l is TextLayer => l.tool === 'text');
+        const tb = textLayers.find(t => t.id === hitId);
+        if (tb) {
+          const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
+          const stage = stageRef.current;
+          if (stage) {
+            const sc = stage.scaleX();
+            stage.position({ x: 20 - tb.x * sc, y: barsH + 20 - tb.y * sc });
+            stage.batchDraw();
+          }
+          setContextPanel('text');
+        }
+        // Bloquer handleTapById pour éviter double-fire
+        mouseUpHandledTapRef.current = true;
+      } else {
+        // Mode select : tap sans drag → toggle dans le sous-groupe (focusedIds)
+        if (hitId) {
+          p.current.setFocusedIds(prev => prev.includes(hitId) ? prev.filter(x => x !== hitId) : [...prev, hitId]);
+        }
+        // Bloquer le click/tap Konva suivant pour éviter double toggle
+        dragJustEndedRef.current = true;
+      }
     }
     dragPointerStart.current = null;
     if (isDraggingSelection.current) {
       isDraggingSelection.current = false;
+      const snapshot = dragLayerSnapshot.current;
       dragStartPos.current = null;
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
-      dragJustEndedRef.current = true; // bloque le tap Konva synthétique post-drag
-      pushUndo(layersRef.current);
-      scheduleSave();
+
+      // Vérifier si c'était un vrai drag ou juste du micro-jitter (< 15px)
+      const stage = stageRef.current;
+      const screenPos = stage?.getPointerPosition();
+      const totalDisp = (screenPos && savedPointerStart)
+        ? Math.hypot(screenPos.x - savedPointerStart.x, screenPos.y - savedPointerStart.y)
+        : Infinity;
+
+      if (totalDisp > 15) {
+        // Vrai drag — bloquer le tap Konva synthétique post-drag
+        dragJustEndedRef.current = true;
+        dragArmedHitId.current = null;
+        pushUndo(layersRef.current);
+        scheduleSave();
+      } else {
+        // Micro-jitter → traiter comme un tap : restaurer les positions d'origine
+        setLayers(snapshot);
+        // Toggle dans le sous-groupe + bloquer le click Konva (peut ne pas fire sur desktop)
+        const hitId = dragArmedHitId.current;
+        if (hitId) {
+          p.current.setFocusedIds(prev => prev.includes(hitId) ? prev.filter(x => x !== hitId) : [...prev, hitId]);
+        }
+        dragArmedHitId.current = null;
+        dragJustEndedRef.current = true;
+      }
       return;
     }
 
@@ -500,10 +715,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         const selIds = layers.filter(layer => {
           if (layer.tool === 'text') return false; // géré par selT ci-dessous
           if (layer.tool === 'airbrush') {
-            return layer.points.some(pt => pt.x >= currentSelRect.x && pt.x <= currentSelRect.x + currentSelRect.w && pt.y >= currentSelRect.y && pt.y <= currentSelRect.y + currentSelRect.h);
+            return isAirbrushInRect(layer.points, currentSelRect);
           } else {
-            const pts = (layer as Stroke).points;
-            return pts.some((_, i) => i % 2 === 0 && pts[i] >= currentSelRect.x && pts[i] <= currentSelRect.x + currentSelRect.w && pts[i + 1] >= currentSelRect.y && pts[i + 1] <= currentSelRect.y + currentSelRect.h);
+            return isStrokeInRect((layer as Stroke).points, currentSelRect);
           }
         }).map(l => l.id);
         const selT = layers
@@ -516,7 +730,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
             );
           })
           .map(tb => tb.id);
-        setSelection([...selIds, ...selT]);
+        const allSel = expandToGroups(layers, [...selIds, ...selT]);
+        setSelection(allSel);
       }
       selRectStart.current = null; setSelRect(null);
       return;
@@ -533,10 +748,21 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (currentStrokeRef.current && isDrawing.current) {
       isDrawing.current = false;
-      const cs = currentStrokeRef.current;
+      // Utiliser les points accumulés dans livePointsRef (bypass React)
+      let finalPoints = livePointsRef.current;
+      // Ajouter le dernier point brut si le filtre de distance l'avait ignoré
+      if (lastRawPt.current && lastAcceptedPt.current &&
+          (lastRawPt.current.x !== lastAcceptedPt.current.x || lastRawPt.current.y !== lastAcceptedPt.current.y)) {
+        finalPoints = [...finalPoints, lastRawPt.current.x, lastRawPt.current.y];
+      }
+      lastAcceptedPt.current = null;
+      lastRawPt.current = null;
+      const cs = { ...currentStrokeRef.current, points: finalPoints };
       const newL = [...layersRef.current, cs];
       setLayers(newL); pushUndo(newL);
-      setCurrentStroke(null); scheduleSave();
+      setCurrentStroke(null);
+      livePointsRef.current = [];
+      scheduleSave();
     }
   }, []);
 
@@ -559,10 +785,20 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
     if (mouseUpHandledTapRef.current) { mouseUpHandledTapRef.current = false; return; }
     const { toolStateRef, layersRef, tbStateRef, editingCreatedAtRef, stageRef,
-            setLayers, setSelection, setContextPanel, setTbStateWithLogRef, centerViewOnRef } = p.current;
+            setLayers, setSelection, setContextPanel, setTbStateWithLogRef } = p.current;
     const ts = toolStateRef.current;
     if (ts.canvasMode === 'select') {
-      setSelection(prev => prev.includes(tbId) ? prev : [...prev, tbId]);
+      const sel = p.current.selectionRef.current;
+      const expanded = expandToGroups(layersRef.current, [tbId]);
+      if (sel.includes(tbId)) {
+        // Déjà sélectionné → toggle groupe dans focusedIds
+        p.current.setFocusedIds(prev => {
+          const allIn = expanded.every(x => prev.includes(x));
+          return allIn ? prev.filter(x => !expanded.includes(x)) : [...prev.filter(x => !expanded.includes(x)), ...expanded];
+        });
+      } else {
+        setSelection(prev => [...prev, ...expanded.filter(x => !prev.includes(x))]);
+      }
       return;
     }
     if (ts.activeTool !== 'text') return;
@@ -606,7 +842,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         const s = stageRef.current;
         if (s) {
           const sc = s.scaleX();
-          s.position({ x: 20 - tb.x * sc, y: barsH + 20 - tb.y * sc });
+          const aabb = getLayerBounds(tb);
+          s.position({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc });
           s.batchDraw();
         }
       }
@@ -617,7 +854,83 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const handleDragEnd = useCallback(() => p.current.scheduleSave(), []);
 
   const handleSelectItem = useCallback((id: string) => {
-    p.current.setSelection(prev => prev.includes(id) ? prev : [...prev, id]);
+    if (dragJustEndedRef.current) { dragJustEndedRef.current = false; return; }
+    const sel = p.current.selectionRef.current;
+    const layers = p.current.layersRef.current;
+    if (sel.includes(id)) {
+      // Déjà sélectionné → toggle dans le sous-groupe (focusedIds)
+      // Si l'item est groupé, toggle tout le groupe dans focusedIds
+      const expanded = expandToGroups(layers, [id]);
+      p.current.setFocusedIds(prev => {
+        const allIn = expanded.every(x => prev.includes(x));
+        return allIn ? prev.filter(x => !expanded.includes(x)) : [...prev.filter(x => !expanded.includes(x)), ...expanded];
+      });
+    } else {
+      // Sélectionner tout le groupe si l'item est groupé
+      const expanded = expandToGroups(layers, [id]);
+      p.current.setSelection(prev => [...prev, ...expanded.filter(x => !prev.includes(x))]);
+    }
+  }, []);
+
+  // ─── Scale handlers (appelés par BoundingBoxHandles via Konva drag) ────────
+  const handleScaleStart = useCallback(() => {
+    const { layersRef, focusedIdsRef } = p.current;
+    scaleSnapshotRef.current = layersRef.current.map(l => ({ ...l }));
+    const bounds = getGroupBounds(layersRef.current, focusedIdsRef.current);
+    scaleCenterRef.current = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  }, []);
+
+  const handleScaleMove = useCallback((scaleFactor: number) => {
+    const { setLayers, focusedIdsRef } = p.current;
+    const snapshot = scaleSnapshotRef.current;
+    const center = scaleCenterRef.current;
+    const ids = new Set(focusedIdsRef.current);
+    setLayers(snapshot.map(layer =>
+      ids.has(layer.id) ? applyScale(layer, scaleFactor, scaleFactor, center.x, center.y) : layer
+    ));
+  }, []);
+
+  const handleScaleEnd = useCallback(() => {
+    const { layersRef, setLayers, pushUndo, scheduleSave } = p.current;
+    // Arrondir le fontSize des TextLayer au relâchement
+    const finalLayers = layersRef.current.map(l =>
+      l.tool === 'text' ? roundTextBoxFontSize(l) : l
+    );
+    setLayers(finalLayers);
+    pushUndo(finalLayers);
+    scheduleSave();
+    scaleSnapshotRef.current = [];
+  }, []);
+
+  // ─── Rotate handlers (appelés par BoundingBoxHandles mode rotate via Konva drag) ──
+  const handleRotateStart = useCallback(() => {
+    const { layersRef, focusedIdsRef } = p.current;
+    rotateSnapshotRef.current = layersRef.current.map(l => ({ ...l }));
+    const bounds = getGroupBounds(layersRef.current, focusedIdsRef.current);
+    rotateCenterRef.current = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  }, []);
+
+  const handleRotateMove = useCallback((angleDeg: number) => {
+    const { setLayers, focusedIdsRef } = p.current;
+    const snapshot = rotateSnapshotRef.current;
+    const center = rotateCenterRef.current;
+    const ids = new Set(focusedIdsRef.current);
+    const rotated = snapshot.map(layer =>
+      ids.has(layer.id) ? applyRotation(layer, angleDeg, center.x, center.y) : layer
+    );
+    rotateLatestRef.current = rotated; // mise à jour synchrone
+    setLayers(rotated);
+  }, []);
+
+  const handleRotateEnd = useCallback(() => {
+    const { setLayers, pushUndo, scheduleSave } = p.current;
+    // Utiliser rotateLatestRef (synchrone) au lieu de layersRef (stale si React n'a pas rendu)
+    const finalLayers = rotateLatestRef.current;
+    setLayers(finalLayers);
+    pushUndo(finalLayers);
+    scheduleSave();
+    rotateSnapshotRef.current = [];
+    rotateLatestRef.current = [];
   }, []);
 
   return {
@@ -628,9 +941,16 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     handleTapById,
     handleDragEnd,
     handleSelectItem,
+    handleScaleStart,
+    handleScaleMove,
+    handleScaleEnd,
+    handleRotateStart,
+    handleRotateMove,
+    handleRotateEnd,
     selRect,
     currentStroke,
     currentAirbrush,
+    liveLineRef,
     textNodesRef,
   };
 }

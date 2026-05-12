@@ -4,6 +4,7 @@ import { Drawing } from '../types';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useDrawingOrder } from '../hooks/useDrawingOrder';
 import { useDragToReorder } from '../hooks/useDragToReorder';
+import { AboutModal } from './AboutModal';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -69,6 +70,8 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [showAbout, setShowAbout] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const galerieRef = useRef<HTMLDivElement>(null);
@@ -77,6 +80,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   useEffect(() => {
     setDrawings(drawingOrder.applyOrder(storage.getAll()));
   }, []);
+
 
   // PWA install
   useEffect(() => {
@@ -188,11 +192,26 @@ export function HomeScreen({ onOpen, onNew }: Props) {
     <div style={styles.home}>
       {/* Topbar */}
       <div style={styles.topBar}>
-        <span style={styles.title}>Mes dessins</span>
+        <span style={styles.title}>Mes dessins <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#e63946', borderRadius: 6, padding: '2px 6px', marginLeft: 6, verticalAlign: 'middle' }}>BETA</span></span>
         {showInstall && (
           <button style={styles.installBtn} onClick={handleInstall}>Installer</button>
         )}
         <button style={styles.newBtn} onClick={handleNew}>+ Nouveau</button>
+        <div style={{ position: 'relative' }}>
+          <button style={{ ...styles.burgerBtn, ...(menuOpen ? styles.burgerBtnActive : {}) }} onClick={() => setMenuOpen(p => !p)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          {menuOpen && (
+            <>
+            <div style={styles.dropdownOverlay} onClick={() => setMenuOpen(false)} onTouchEnd={e => { e.preventDefault(); setMenuOpen(false); }} />
+            <div style={styles.dropdown}>
+              <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); setShowAbout(true); }}>À propos</button>
+            </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Galerie */}
@@ -345,7 +364,9 @@ export function HomeScreen({ onOpen, onNew }: Props) {
         </div>
       )}
 
-      <div style={styles.versionBadge}>v{APP_VERSION} — MAJ {BUILD_TIME}</div>
+      <div style={styles.versionBadge} onClick={() => setShowAbout(true)}>v{APP_VERSION} BETA — MAJ {BUILD_TIME}</div>
+
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
     </div>
   );
 }
@@ -436,5 +457,25 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 16px', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer',
   },
 
-  versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0 },
+  // Burger menu
+  burgerBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'none', border: 'none', cursor: 'pointer',
+    padding: '8px 10px', borderRadius: 8, color: '#555',
+  },
+  burgerBtnActive: { background: '#f0f0f0' },
+  dropdownOverlay: { position: 'fixed', inset: 0, zIndex: 199 },
+  dropdown: {
+    position: 'absolute', top: 'calc(100% + 4px)', right: 0,
+    background: '#fff', borderRadius: 12,
+    boxShadow: '0 4px 24px rgba(0,0,0,0.13)',
+    minWidth: 180, overflow: 'hidden', zIndex: 200,
+  },
+  dropdownItem: {
+    display: 'block', width: '100%', background: 'none', border: 'none',
+    padding: '12px 16px', fontSize: 15, color: '#1a1a1a',
+    textAlign: 'left', cursor: 'pointer',
+  },
+
+  versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0, cursor: 'pointer' },
 };

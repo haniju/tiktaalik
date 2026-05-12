@@ -3,6 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
+
 ```bash
 npm run dev          # Start dev server (Vite)
 npm run build        # TypeScript check + production build (tsc && vite build)
@@ -15,103 +16,28 @@ npx playwright test  # Run e2e tests
 
 To run a single test file: `npx vitest run src/utils/textboxUtils.test.ts`
 
-## Architecture
+## Project Overview
 
-**Tiktaalik** is a mobile-first web-based sketchpad app (React + TypeScript + Konva) with two screens:
+**Tiktaalik** is a mobile-first web-based sketchpad app (React + TypeScript + Konva) with two screens: **HomeScreen** (gallery of drawings) and **SketchScreen** (canvas drawing interface). All data lives in `localStorage`. Tests: Vitest (unit) + Playwright (e2e). Setup: `src/test/setup.ts`.
 
-- **HomeScreen** — Home screen (topbar + galerie). Galerie = flex-wrap grid of vignettes. Vignette = thumbnail image (300px) + footer (title | timing). Long-press: select (badge bar with delete/rename), long-press+drag: reorder. Multi-select supported.
-- **SketchScreen** — canvas drawing interface (Konva.Stage) with tools and panels
+## Documentation
 
-### State & Persistence
+| Document | Contenu | Public cible |
+|---|---|---|
+| `docs/behavior.md` | **Spec comportementale** — ce que fait l'app (tech-agnostique) | PO, designer, portage |
+| `docs/implementation.md` | **Notes d'implémentation** — comment ça marche (React/Konva) | Développeur |
+| `docs/stroke-quality.md` | **Qualité des tracés** — optimisations fluidité/précision stylet | Développeur |
+| `docs/tracking.md` | **Suivi projet** — branches, phases, issues, cibles archi | Équipe |
+| `CHANGELOG.md` | Historique des releases | Tous |
 
-All data lives in `localStorage`:
-- `sketchpad_drawings` — serialized `Drawing[]` (layers, background, metadata)
-- `sketchpad_drawing_order` — array of drawing IDs for custom gallery order (Option A: separate from Drawing objects, filtered on load)
-- `sketchpad_tool_state` — active tool settings (colors, widths) across sessions
+## Where to Document New Work
 
-Custom hooks handle state:
-- `useDrawingStorage` — CRUD for drawings in localStorage, with automatic migration of legacy formats
-- `useToolState` — active tool, canvas mode, colors, widths, opacities per tool (canvas background is per-Drawing, not here)
-- `useDragToReorder` — drag-to-reorder, supports `layout: 'horizontal'` (SelectionPanel) and `layout: 'grid'` (HomeScreen galerie). Two-phase long-press: `onLongPressRelease` for select, move after long-press for drag. Vibrate on long-press ready. On long-press, `blockNativeScroll()` intercepts `touchmove` (non-passive) on the scroll container to prevent the browser from claiming the gesture for scrolling (which would fire `pointercancel` and kill the drag).
-- `useDrawingOrder` — persistence of custom gallery order in `sketchpad_drawing_order` (array of IDs). `applyOrder()` sorts drawings, filters stale IDs, puts new drawings first.
-- `useAutosave` — debounced autosave timer, saveNow/scheduleSave, visibilitychange/beforeunload listeners
-- `useUndoRedo` — undoStack, pushUndo, undo/redo, Cmd+Z keyboard shortcut
-- `useStageViewport` — stageRef, stageSize, zoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn
-
-### Canvas
-
-The canvas is a fixed A4 size (794×1123px) rendered via `react-konva`. The navigable world is 3×3 A4 (one page of margin on each side). Drawing data is a unified layer stack: `DrawLayer = Stroke | AirbrushStroke | TextLayer`. Each `Drawing` has a `layers` array (chronological order = z-index) and a `background` color.
-
-`AirbrushLayer.tsx` handles airbrush rendering separately from regular strokes due to the radial gradient compositing it requires.
-
-### Autosave
-
-Managed by `useAutosave` hook. Debounced 4s timer after each mutation (`scheduleSave`). Immediate save (`saveNow`) on: visibility change (app backgrounded), `beforeunload`, and return to gallery. Manual save button remains as fallback. Console logs `[autosave]` on each automatic save.
-
-**Key pattern — `saveNowRef`**: `useDrawingStorage` returns a new object on every render (not memoized), which would cause `saveNow` to be recreated every render, which would cancel the autosave timer on every render. Fix: `saveNowRef` is a stable ref always pointing to the current `saveNow`. The timer and event listeners read through this ref.
-
-### Viewport
-
-Managed by `useStageViewport` hook. Returns `stageRef` (Konva.Stage), `stageSize` (window resize listener), `zoomPct`/`setZoomPct`, `canvasH` (stageSize.height - TOPBAR_H - DRAWINGBAR_H), `centerViewOn(cx, cy)`, and `zoomTo(pct)`.
-
-Default zoom is 100%. Min zoom 10% (ActionFABs slider), max 400%. Pan/zoom is clamped to a 3×3 A4 world area via `clampStagePos()` (exported from `useStageViewport.ts`).
-
-Pinch-to-zoom (two-finger gesture) is available but disabled by default — toggle in the Topbar dropdown. Controlled via `pinchZoomEnabledRef` passed to `useCanvasGestures`.
-
-`TOPBAR_H = 48`, `DRAWINGBAR_H = 48` are exported constants from `useStageViewport.ts`.
-
-### Tools & Modes
-
-- **CanvasMode**: `draw | select | move` — selected in `ActionFABs.tsx` (bottom bar)
-- **Tool**: `pen | marker | airbrush | eraser | text` — selected in `Drawingbar.tsx`
-- Tool-specific options (color, width, opacity) rendered in `DrawingPanel.tsx` or `TextPanel.tsx`
-- `TextPanel` actions: font, size, bold/italic/underline, alignment, color picker, **duplicate** (copies selected TB 20px above, same X, new TB becomes selected)
-- Per-tool opacity in `toolOpacities` (marker, airbrush center); airbrush edge opacity separate (`airbrushEdgeOpacity`)
-- Color selection: `UnifiedColorPicker` component shared across all contexts (drawing, background, text) — preset swatches + expandable `HslColorPicker` (HSL sliders). Mode prop selects preset palette (vivid for drawing/text, neutral for background).
-- `ContextToolbar.tsx` surfaces context-aware options depending on active tool/mode. Swipe up to close. Hit area (60px invisible zone below toolbar) captures touch to prevent accidental strokes on canvas.
-
-### TextBox State Machine
-
-TextBoxes follow four canonical states managed by a unified `TextBoxSelectionState`:
-1. **idle** — no textbox selected
-2. **selected** — textbox selected, showing handles
-3. **editing** — inline text editing active
-4. **dragging** — textbox being moved
-
-This replaces the previous architecture that used three desynchronized state variables. Any textbox-related work should respect this state machine.
-
-**Key pitfalls:**
-- Konva fires `onTap` then `onClick` for the same touch on mobile. Guard: `if (elapsed < 80ms) return` in `handleTap` to ignore the duplicate event.
-- `tbState` captured in JSX closures can be stale. Always use `tbStateRef.current` (not `tbState`) in `handleTap` when calling `nextSelectionState`.
-- Konva fires a synthetic `tap` after `touchend` even when a drag occurred. Guard: `dragJustEndedRef`.
-
-### EditingTextarea
-
-`EditingTextarea` component renders a fixed-position `<textarea>` overlaid on the canvas for text editing. Positioning depends on context:
-- **Web mobile**: fixed position (left:20, top:topOffset+20). The stage is repositioned before mount so the TB lands at this position. Avoids `getBoundingClientRect()` which captures transitional values during keyboard animation.
-- **PWA standalone**: uses `getBoundingClientRect()` on the stage container for true screen position, because the standalone viewport has no browser chrome changes.
-
-Detection via `window.matchMedia('(display-mode: standalone)')` at module load.
-
-Known limitation: pinch zoom while the textarea is focused triggers `exitEditing` because the first touch finger hitting the canvas fires `handleMouseDown` → `exitEditing` before the second finger confirms the pinch.
-
-### Export
-
-`src/utils/export.ts` handles:
-- SVG export with stroke styles, airbrush radial gradients, text with word wrap, and canvas background color
-- Thumbnail generation for gallery previews (canvas 2D)
-- Both outputs are clipped to A4 bounds (clipPath in SVG, `ctx.clip()` in thumbnail) — no overflow
-- `wrapText()` utility in `textboxUtils.ts` is shared between canvas rendering, SVG export, and thumbnails
-
-### App Version
-
-The app version from `package.json` is injected at build time as the global `__APP_VERSION__` via `vite.config.ts`. The build timestamp is injected as `__BUILD_TIME__` (fr-FR locale, short date+time). Both are displayed in the HomeScreen version badge (`v1.9.1 — MAJ 16/04/2026 14:32`).
-
-### Tests
-
-- **Unit/integration**: Vitest with jsdom. Setup: `src/test/setup.ts`
-- **E2E**: Playwright (config at `playwright.config.ts`)
-- Currently only `src/utils/textboxUtils.test.ts` exists
+After implementing a feature or fix:
+1. **Comportement utilisateur modifié ?** → Ajouter/mettre à jour la section correspondante dans `docs/behavior.md` (décrire CE QUI change du point de vue utilisateur, pas de code)
+2. **Nouveau pattern, guard, pitfall ou workaround ?** → Ajouter dans `docs/implementation.md` (décrire COMMENT ça marche techniquement, inclure les chemins de fichiers)
+3. **Branche mergée, issue résolue, nouvelle issue ?** → Mettre à jour `docs/tracking.md`
+4. **Nouvelle release ?** → Mettre à jour `CHANGELOG.md`
+5. **Nouvelle convention ou interdit ?** → Ajouter dans la section Conventions ci-dessous
 
 ## Conventions
 
@@ -122,76 +48,7 @@ The app version from `package.json` is injected at build time as the global `__A
 - **Styling**: Inline styles (no CSS files); global slider CSS injected via `<style>` in `App.tsx`
 - **No `any`**: Use proper types — existing `any` in the codebase is tech debt to fix
 - **Unused code**: Remove dead imports and variables, don't comment them out
-- **Commits**: Conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`)
-
-## Known Issues & In Progress
-
-- ESLint shows ~16 errors: unused vars, `any` types, one empty catch block — cleanup in progress
-- `react-hooks/exhaustive-deps` rule referenced in code but plugin not installed
-- `DrawingSecondaryToolbar` supprimé → remplacé par `HslColorPicker` → unifié dans `UnifiedColorPicker`
-- `ColorPickerPanel` supprimé, remplacé par `UnifiedColorPicker mode="background"`
-- Playwright demo test stubs (`e2e/example.spec.ts`, `tests/example.spec.ts`) fail in Vitest — pre-existing, not real tests
-- Pinch zoom while textarea is focused exits editing (first touch fires handleMouseDown before second touch confirms pinch) — known limitation, deferred
-
-## Refactoring Phase 1 — COMPLETE — branch `refactor/sketchscreen-decomp`
-
-Phase 1: decompose `SketchScreen.tsx` (was ~1274 lines → ~430 lines). Awaiting PO validation before merge to main.
-
-**All steps completed:**
-- Step 0–9: see git history for details
-
-**Features added on this branch (v1.5.0 → v1.8.3):**
-- `HslColorPicker` replaces deleted `DrawingSecondaryToolbar`
-- Per-tool opacity sliders (marker, airbrush center/edge) with `toolOpacities` + `airbrushEdgeOpacity`
-- Debug overlay toggle in dropdown (off by default)
-- Zoom: initial 100%, min 10%, world clamped to 3×3 A4 (`clampStagePos`)
-- Pinch-to-zoom two-finger gesture (toggle in dropdown, off by default)
-- Toolbar icons: spraypaint (airbrush), highlight (marker)
-- Modernized slider design (global CSS `app-slider` in App.tsx)
-- PWA install button (HomeScreen)
-- Zoom slider integrated into ActionFABs bottom bar with +/− buttons and floating percentage label (5s timeout)
-- Inline rename: tap drawing title in Topbar to edit (replaces `prompt()`)
-- Swipe gestures on Drawingbar: swipe ↓ on any icon opens its panel + switches tool, swipe ↑ closes panel (also works on ContextToolbar surface). `data-tool` attributes on buttons, `guardClick` prevents click after swipe.
-- ContextToolbar slide animation (translateY) for open/close
-- HomeScreen: galerie flex-wrap 2-col, vignettes (thumbnail 400px + titre | timing footer), overflowY:scroll
-- ActionFABs: gradient background on active mode (blue→green)
-- TextPanel: font size stepper (+/−) buttons alongside input; "Nouveau texte" button removed
-- ColorPickerPanel: label removed, colors in flex grid matching DrawingPanel layout
-
-**Bug fixes landed on this branch (not yet on main):**
-- `autosave`: saveNowRef pattern — timer no longer cancelled on every render
-- `ResizeHandle`: X clamping in dragBoundFunc (minimum width 150px enforced visually)
-- `ResizeHandle` left side: effectiveDx keeps right edge fixed at minimum
-- `handleMouseUp` → `handleTap`: dragJustEndedRef guards synthetic tap after drag
-- `handleTap`: onTap+onClick double-fire guard (elapsed < 80ms → early return)
-- `handleTap`: tbStateRef.current instead of stale tbState closure
-- `EditingTextarea`: position fixe web (left:20, top:topOffset+20) + getBoundingClientRect en PWA standalone
-- HslColorPicker: thumb centrage fix (margin-top: -9px → 1px), restored white 22px thumb with border
-- TB double-fire idle→selected→editing: `mouseUpHandledTapRef` guard prevents `handleMouseUp` + `handleTapById` both firing on same touch
-
-## Unified Color Picker — branch `feat/unified-color-picker`
-
-Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color selection into a single `UnifiedColorPicker` component.
-
-**Changes:**
-- `UnifiedColorPicker.tsx` — single component with `mode` prop (`drawing` | `background` | `text`), preset swatches + expandable `HslColorPicker`
-- `DrawingPanel` — replaced inline presets + chevron + `HslColorPicker` with `UnifiedColorPicker mode="drawing"`
-- `ContextToolbar` — replaced `ColorPickerPanel` with `UnifiedColorPicker mode="background"`
-- `TextPanel` — replaced native `<input type="color">` with `UnifiedColorPicker mode="text"` (shown when textbox selected)
-- `ColorPickerPanel.tsx` — deleted (superseded)
-- `HslColorPicker.tsx` — kept as internal sub-component of `UnifiedColorPicker`
-- HomeScreen: drag-to-reorder vignettes (long-press+drag), vignette selection with badge bar (delete + rename), multi-select, ghost flottant, order persistence via `useDrawingOrder`
-- `useDragToReorder` — adapted for 2D grid layout, two-phase long-press (`onLongPressRelease`), vertical auto-scroll
-- `useDrawingOrder` — new hook, `sketchpad_drawing_order` localStorage key (Option A: separate array of IDs)
-- Rename dialog (popup) and delete confirmation dialog on HomeScreen
-- Thumbnail resolution doubled (200px → 400px wide) for sharper vignettes
-- `ContextToolbar` — hit area 60px sous la toolbar (zone invisible, `position: absolute`, `zIndex: 10`) pour attraper le swipe up sans déclencher de trait sur le canvas
-- Vignettes: `onContextMenu` preventDefault + `WebkitTouchCallout: none` + `userSelect: none` to block native long-press popup
-- Vignette thumbnail height changed from fixed 300px to `28vh` for consistent mobile sizing
-- Build timestamp (`__BUILD_TIME__`) displayed next to version badge on HomeScreen
-- `useDragToReorder`: `blockNativeScroll` / `unblockNativeScroll` — prevents scroll/drag conflict on mobile
-- `TextPanel`: duplicate button — copies selected textbox 20px above, same X, new TB in `selected` state
-- `SketchScreen`: `activeTextBox` derived from `editingTextId ?? selectedTextId` — TextPanel controls work in both selected and editing states
+- **Commits**: Conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`)
 
 ## Do Not
 
@@ -200,25 +57,3 @@ Branch created from `refactor/sketchscreen-decomp` (v1.9.1). Unifies all color s
 - Do not introduce new `any` types
 - Do not break the TextBoxSelectionState state machine by adding separate boolean flags
 - Do not put `canvasBackground` back into `useToolState` — it is per-Drawing state
-
-## Architecture cible — Phase 2 (ne pas implémenter avant décision explicite)
-
-### Librairie : Jotai + atomWithReducer
-`npm install jotai`
-
-### Deux machines d'état explicites à implémenter
-
-**textToolState** : `'inactive' | 'initial' | 'active'`
-- Actuellement écrasé dans `idle` de tbState
-- Chaque état du gesture map doit correspondre à un cas de cette machine
-
-**tbState** : `'idle' | 'not-selected' | 'selected' | 'editing'`
-- Actuellement `idle` couvre deux cas distincts
-- La distinction inactive/initial sera corrigée ici
-
-### Hooks cibles
-- `useTextToolState` avec `atomWithReducer`
-- `useDrawingLayers` avec `atom` Jotai
-
-### Référence
-Chaque ligne du gesture map spec correspond à une action nommée du reducer.

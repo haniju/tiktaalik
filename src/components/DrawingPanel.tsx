@@ -7,15 +7,17 @@ interface Props {
   width: number;
   opacity: number;
   airbrushEdgeOpacity: number;
+  smoothing: number;
   onColorChange: (color: string) => void;
   onWidthChange: (width: number) => void;
   onOpacityChange: (opacity: number) => void;
   onAirbrushEdgeOpacityChange: (opacity: number) => void;
+  onSmoothingChange: (smoothing: number) => void;
 }
 
 const SIZES = [1, 2, 4, 7, 11, 18, 28];
 
-export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity, onColorChange, onWidthChange, onOpacityChange, onAirbrushEdgeOpacityChange }: Props) {
+export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity, smoothing, onColorChange, onWidthChange, onOpacityChange, onAirbrushEdgeOpacityChange, onSmoothingChange }: Props) {
 
   return (
     <div style={styles.root}>
@@ -62,6 +64,15 @@ export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity,
           <span style={styles.opacityValue}>{Math.round(airbrushEdgeOpacity * 100)}%</span>
         </div>
       </>)}
+
+      {/* Lissage — tous les outils */}
+      <div style={styles.opacityRow}>
+        <span style={styles.opacityLabel}>Lissage</span>
+        <input type="range" className="app-slider" min={0} max={100} step={5}
+          value={Math.round(smoothing * 100)}
+          onChange={e => onSmoothingChange(+e.target.value / 100)} />
+        <span style={styles.opacityValue}>{Math.round(smoothing * 100)}%</span>
+      </div>
 
     </div>
   );
