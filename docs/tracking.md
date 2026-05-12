@@ -76,10 +76,24 @@ Branche créée depuis refactor/sketchscreen-decomp (v2.0.0).
 - Fix button mapping vs clavier virtuel
 - Fix lasso + rotation handle jumps
 
+### Session nettoyage dette technique (2026-05-12)
+
+Diagnostic et nettoyage de la dette technique documentée :
+
+1. **Stubs Playwright supprimés** — `e2e/example.spec.ts` et `tests/example.spec.ts` étaient des fichiers générés par `npm init playwright` (exemples playwright.dev). Vitest les ramassait via son pattern par défaut `**/*.spec.ts`, provoquant 2 erreurs systématiques à chaque `npm run test`. Supprimés car sans valeur (aucun test réel de l'app).
+
+2. **Tests unitaires étendus** — Extraction de `isStrokeInRect`/`isAirbrushInRect` depuis le code inline de `useCanvasGestures.ts` vers `bounds.ts` (fonctions pures testables). Ajout de `bounds.test.ts` (34 tests) et `groupUtils.test.ts` (33 tests). Mock canvas 2D dans `setup.ts` pour supporter `wrapText` en jsdom. Exclusion des fichiers test du build `tsc` via `tsconfig.json`.
+
+3. **Plugin `eslint-plugin-react-hooks` installé** — Activation de `rules-of-hooks` (error) et `exhaustive-deps` (warn). Installation via `--legacy-peer-deps` (conflit peer avec eslint v10 + eslint-plugin-react).
+
+4. **Fix `rules-of-hooks` dans `SelectionPanel.tsx`** — Les hooks (`useRef`, `useState`, `useDragToReorder`) étaient appelés après un early return (`if (selection.length === 0) return null`). Déplacé le `return null` après les appels de hooks.
+
+5. **Types `any` vérifiés** — Aucun `any` restant dans le code source (le seul est dans `setup.ts` pour le mock canvas, avec `eslint-disable` justifié).
+
 ## Issues connues
 
-- `react-hooks/exhaustive-deps` rule référencée mais plugin non installé
 - Pinch zoom pendant édition texte sort du mode editing — limitation connue, différée
+- ESLint 14 erreurs restantes (`no-unused-vars`, `no-empty`, `no-explicit-any` dans useToolState) — pre-existantes, à traiter progressivement
 
 ## Cibles d'architecture (décisions en attente)
 
@@ -103,5 +117,5 @@ Référence : chaque ligne du gesture map spec correspond à une action nommée 
 
 ## Dette technique
 
-- Types `any` à éliminer progressivement
-- Plugin `react-hooks/exhaustive-deps` non installé
+- ESLint 14 erreurs restantes (vars inutilisées, `any` dans useToolState, catch vide)
+- Aucun test e2e réel (config Playwright présente mais 0 test — stubs supprimés)
