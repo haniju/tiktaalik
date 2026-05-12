@@ -6,6 +6,7 @@ import { TextBoxSelectionState } from '../utils/textboxUtils';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
 import { TextBoxKonva } from './TextBoxKonva';
 import { BoundingBoxHandles } from './BoundingBoxHandles';
+import { CanvasGrid } from './CanvasGrid';
 import { getGroupBounds } from '../utils/bounds';
 
 const A4_WIDTH = 794;
@@ -15,6 +16,7 @@ type SelectSubMode = 'none' | 'rotate' | 'scale';
 
 interface DrawingLayerProps {
   canvasBackground: string;
+  showGrid: boolean;
   layers: DrawLayer[];
   selection: string[];
   focusedIds: string[];
@@ -41,7 +43,7 @@ interface DrawingLayerProps {
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
-  canvasBackground, layers, selection, focusedIds, selectSubMode, stageScale,
+  canvasBackground, showGrid, layers, selection, focusedIds, selectSubMode, stageScale,
   tbState, canvasMode,
   currentStroke, currentAirbrush, liveLineRef, selRect,
   stageRef, textNodesRef,
@@ -55,6 +57,8 @@ export const DrawingLayer = React.memo(function DrawingLayer({
   return (
     <Layer>
       <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
+
+      {showGrid && <CanvasGrid width={A4_WIDTH} height={A4_HEIGHT} canvasBackground={canvasBackground} />}
 
       {/* Pile unifiée — ordre chronologique = z-index réel (tracés + textboxes) */}
       {layers.map(layer => {

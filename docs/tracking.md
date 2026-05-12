@@ -90,6 +90,13 @@ Diagnostic et nettoyage de la dette technique documentée :
 
 5. **Types `any` vérifiés** — Aucun `any` restant dans le code source (le seul est dans `setup.ts` pour le mock canvas, avec `eslint-disable` justifié).
 
+### Grille canvas (branche `dev`, 2026-05-12)
+
+- Grille de points superposée au canvas (Konva.Shape custom sceneFunc)
+- Espacement 20px (seuil eraser) + majeure 100px
+- Couleur adaptative selon le fond du canvas
+- Toggle dans le dropdown Topbar, persisté par dessin (Drawing.showGrid)
+
 ## Issues connues
 
 - Pinch zoom pendant édition texte sort du mode editing — limitation connue, différée

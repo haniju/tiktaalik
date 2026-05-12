@@ -74,6 +74,7 @@ export interface Drawing {
   name: string;
   layers: DrawLayer[];
   background: string; // couleur de fond du canvas (propre à chaque dessin)
+  showGrid?: boolean; // affichage de la grille de pixels canvas
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;

@@ -32,6 +32,16 @@ Zoom : défaut 100%, min 10%, max 400%. Pinch-to-zoom controlé par `pinchZoomEn
 
 Pile de calques unifiée : `DrawLayer = Stroke | AirbrushStroke | TextLayer`. `AirbrushLayer.tsx` gère le rendu aérographe séparément (compositing gradient radial).
 
+## Grille canvas
+
+`CanvasGrid.tsx` — un seul `Konva.Shape` avec `sceneFunc` qui dessine des points (`fillRect`) aux intersections de la grille. `listening={false}`, `React.memo`. Rendu dans `DrawingLayer` juste après le `background-rect`.
+
+Espacement : `MINOR_STEP = 20` (aligné sur le seuil eraser de `eraseAt()` dans `useCanvasGestures.ts`), `MAJOR_STEP = 100`. Points majeurs : rayon 1.5px, opacité plus forte. Points mineurs : rayon 0.8px.
+
+Couleur adaptative : détection de luminance du fond via formule ITU-R BT.601 (`isDark()`). Fond sombre → points blancs semi-transparents, fond clair → points noirs semi-transparents.
+
+Persistance : `Drawing.showGrid` (booléen optionnel) sauvegardé via `useAutosave` (`showGridRef`). Toggle dans le dropdown de la Topbar.
+
 ## Outils de dessin
 
 Gestion centralisée dans `useCanvasGestures.ts` — hook ~850 lignes qui gère mouseDown/Move/Up, tap, pinch, pan, eraser, text, select, drag, scale, rotate.

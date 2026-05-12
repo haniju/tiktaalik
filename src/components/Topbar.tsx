@@ -5,6 +5,7 @@ interface Props {
   drawingName: string;
   canUndo: boolean;
   canRedo: boolean;
+  showGrid: boolean;
   debug: boolean;
   pinchZoom: boolean;
   onBack: () => void;
@@ -13,13 +14,14 @@ interface Props {
   onExportSvg: () => void;
   onRename: (newName: string) => void;
   onDelete: () => void;
+  onToggleGrid: () => void;
   onToggleDebug: () => void;
   onTogglePinchZoom: () => void;
   onOpenButtonMapping: () => void;
   onOpenAbout: () => void;
 }
 
-export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping, onOpenAbout }: Props) {
+export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZoom, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete, onToggleGrid, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping, onOpenAbout }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(drawingName);
@@ -83,6 +85,21 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
           <div style={styles.dropdown}>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onExportSvg(); }}>Exporter en SVG</button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); startEditing(); }}>Renommer</button>
+            <button style={styles.dropdownItem} onClick={() => { onToggleGrid(); }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                Grille
+                <span style={{
+                  display: 'inline-block', width: 36, height: 20, borderRadius: 10,
+                  background: showGrid ? '#118ab2' : '#ccc', position: 'relative', transition: 'background 0.2s',
+                }}>
+                  <span style={{
+                    position: 'absolute', top: 2, left: showGrid ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }} />
+                </span>
+              </span>
+            </button>
             <button style={styles.dropdownItem} onClick={() => { onTogglePinchZoom(); }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 Zoom pinch

@@ -110,6 +110,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const pinchZoomEnabledRef = useRef(pinchZoom);
   pinchZoomEnabledRef.current = pinchZoom;
   const [canvasBackground, setCanvasBackground] = useState(drawing.background ?? '#ffffff');
+  const [showGrid, setShowGrid] = useState(drawing.showGrid ?? false);
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>(selection);
@@ -138,11 +139,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, drawingNameRef } = useAutosave({
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, drawingNameRef } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
   canvasBgRef.current = canvasBackground;
+  showGridRef.current = showGrid;
   drawingNameRef.current = drawingName;
 
   selectionRef.current = selection;
@@ -414,6 +416,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           drawingName={drawingName}
           canUndo={canUndo}
           canRedo={canRedo}
+          showGrid={showGrid}
           debug={debug}
           pinchZoom={pinchZoom}
           onBack={() => { saveNow(); onBack(); }}
@@ -422,6 +425,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onExportSvg={handleExportSvg}
           onRename={handleRename}
           onDelete={handleDeleteDrawing}
+          onToggleGrid={() => { setShowGrid(g => !g); scheduleSave(); }}
           onToggleDebug={() => setDebug(d => !d)}
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
           onOpenButtonMapping={() => setMappingModalOpen(true)}
@@ -550,6 +554,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
         >
           <DrawingLayer
             canvasBackground={canvasBackground}
+            showGrid={showGrid}
             layers={layers}
             selection={selection}
             focusedIds={focusedIds}

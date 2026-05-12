@@ -233,6 +233,15 @@ Le pan et le zoom sont contraints au monde 3x3 A4 (pas de défilement infini).
 
 **Pinch-to-zoom** (geste deux doigts) : disponible mais désactivé par défaut (toggle dans le menu déroulant de la topbar).
 
+### Grille
+
+Une grille de points peut être superposée au canvas pour visualiser les unités de mesure. Toggle « Grille » dans le menu déroulant de la topbar.
+
+- **Grille mineure** : points tous les 20 px canvas (correspond au seuil de détection de la gomme).
+- **Grille majeure** : points plus gros et plus visibles tous les 100 px canvas.
+- **Couleur adaptative** : points sombres sur fond clair, points clairs sur fond sombre.
+- **Persistance par dessin** : l'état du toggle est sauvegardé avec le dessin et restauré à la prochaine ouverture.
+
 ### Export (SVG + Vignette)
 
 - **SVG** : export complet avec styles de traits, gradients radiaux (aérographe), texte avec retour à la ligne, couleur de fond. Clippé aux bornes A4 (pas de débordement).
