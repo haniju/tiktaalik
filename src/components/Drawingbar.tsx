@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Tool, DrawingTool, CanvasMode, ToolState } from '../types';
+import { Tool, DrawingTool, ToolState } from '../types';
 import { ContextPanel } from '../hooks/useToolState';
 import { Icon } from './Icon';
 

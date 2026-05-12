@@ -2,12 +2,20 @@ export type DrawingTool = 'airbrush' | 'pen' | 'marker';
 export type Tool = DrawingTool | 'eraser' | 'text' | null;
 export type CanvasMode = 'draw' | 'select' | 'move'; // mode actif du canvas
 
+// Contexte sauvegardé avant activation du mode pan (move)
+export interface PreviousMode {
+  canvasMode: CanvasMode;
+  activeTool: Tool;
+}
+
 export interface ToolState {
   activeTool: Tool;          // null quand mode move/select
   canvasMode: CanvasMode;
+  previousMode: PreviousMode | null; // mémoire du mode avant pan
   toolColors: Record<DrawingTool, string>;
   toolWidths: Record<DrawingTool, number>;
   toolOpacities: Record<DrawingTool, number>;
+  toolSmoothings: Record<DrawingTool, number>;
   airbrushEdgeOpacity: number;
 }
 
@@ -21,6 +29,7 @@ export interface Stroke {
   width: number;
   points: number[];
   opacity: number;
+  groupIds?: string[];
 }
 
 export interface AirbrushStroke {
@@ -31,6 +40,7 @@ export interface AirbrushStroke {
   centerOpacity: number;
   edgeOpacity: number;
   points: Array<{ x: number; y: number }>;
+  groupIds?: string[];
 }
 
 export interface TextBox {
@@ -49,6 +59,8 @@ export interface TextBox {
   background: string;
   opacity: number;
   padding: number;
+  rotation?: number;
+  groupIds?: string[];
 }
 
 // TextBox dans la pile unifiée — discriminant tool: 'text'

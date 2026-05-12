@@ -2,12 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import Konva from 'konva';
 import { Rect, Text, Group } from 'react-konva';
 import { DrawLayer, TextLayer } from '../types';
-import { TextBoxSelectionState, estimateTextHeight } from '../utils/textboxUtils';
+import { estimateTextHeight } from '../utils/textboxUtils';
 import { ResizeHandle } from './ResizeHandle';
 
 const HANDLE_W = 12;
 const HANDLE_H = 28;
 const BORDER_HIT = 14;
+const HIT_PAD = 10; // Marge tactile autour du TB (améliore le hit-test pour les TBs rotées)
 
 interface TextBoxKonvaProps {
   tb: TextLayer;
@@ -15,6 +16,7 @@ interface TextBoxKonvaProps {
   isTextSelected: boolean;
   isSelected: boolean;
   isFocused: boolean;
+  isLevel2: boolean;
   stageRef: React.RefObject<Konva.Stage>;
   textNodesRef: React.MutableRefObject<Map<string, Konva.Text>>;
   onTap: (tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => void;
@@ -23,7 +25,7 @@ interface TextBoxKonvaProps {
 }
 
 export const TextBoxKonva = React.memo(function TextBoxKonva({
-  tb, isEditing, isTextSelected, isSelected, isFocused,
+  tb, isEditing, isTextSelected, isSelected, isFocused, isLevel2,
   stageRef, textNodesRef, onTap, onLayerUpdate, onDragEnd,
 }: TextBoxKonvaProps): JSX.Element {
   // Quand isEditing passe true→false, le nœud Konva vient de repasser à text={tb.text}
@@ -39,7 +41,7 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
   const tbH = konvaNode ? Math.max(konvaNode.height(), 20) : estimateTextHeight(tb);
 
   return (
-    <Group id={tb.id} x={tb.x} y={tb.y}>
+    <Group id={tb.id} x={tb.x} y={tb.y} rotation={tb.rotation ?? 0}>
       {tb.background !== '' && (
         <Rect x={0} y={0} width={tb.width} height={tbH} fill={tb.background} opacity={tb.opacity} />
       )}
@@ -55,19 +57,20 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         listening={false}
       />
 
-      {/* Zone intérieure principale — tap / double-tap */}
-      <Rect x={0} y={0} width={tb.width} height={tbH}
+      {/* Zone intérieure principale — tap / double-tap
+           Marge HIT_PAD autour du contenu pour tolérance tactile (surtout TBs rotées) */}
+      <Rect x={-HIT_PAD} y={-HIT_PAD} width={tb.width + HIT_PAD * 2} height={tbH + HIT_PAD * 2}
         fill="rgba(0,0,0,0)"
         onClick={e => onTap(tb.id, tbH, e)}
         onTap={e => onTap(tb.id, tbH, e)}
       />
 
-      {/* Bordure select mode (canvas selection) */}
+      {/* Bordure select mode (canvas selection) — orange si niveau 2 */}
       {isSelected && !isTextSelected && !isEditing && (
         <Rect x={-2} y={-2} width={tb.width + 4} height={tbH + 4}
-          stroke={isFocused ? '#e63946' : '#118ab2'}
-          strokeWidth={1.5}
-          dash={[5, 3]}
+          stroke={isLevel2 ? '#f4a261' : isFocused ? '#e63946' : '#118ab2'}
+          strokeWidth={isLevel2 ? 2 : 1.5}
+          dash={isLevel2 ? undefined : [5, 3]}
           fill="transparent"
           cornerRadius={3}
           listening={false}
@@ -89,6 +92,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
       {isTextSelected && !isEditing && <>
         <Rect x={HANDLE_W} y={-BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -101,6 +106,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
         <Rect x={HANDLE_W} y={tbH - BORDER_HIT / 2} width={tb.width - HANDLE_W * 2} height={BORDER_HIT}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -113,6 +120,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
         <Rect x={-BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -125,6 +134,8 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
         <Rect x={tb.width - BORDER_HIT / 2} y={HANDLE_H} width={BORDER_HIT} height={tbH - HANDLE_H * 2}
           fill="transparent" draggable
+          onClick={e => onTap(tb.id, tbH, e)}
+          onTap={e => onTap(tb.id, tbH, e)}
           onDragMove={e => {
             const stage = stageRef.current!;
             const sc = stage.scaleX(), sp = stage.position();
@@ -137,22 +148,24 @@ export const TextBoxKonva = React.memo(function TextBoxKonva({
         />
       </>}
 
-      {/* Handles resize milieu gauche et droit */}
-      {isTextSelected && !isEditing && <>
+      {/* Handles resize milieu gauche et droit — visibles en mode texte OU select niveau 2 */}
+      {(isTextSelected || isLevel2) && !isEditing && <>
         <ResizeHandle
           cx={0} cy={tbH / 2} side="left"
-          tb={{ x: tb.x, y: tb.y, width: tb.width }}
+          tb={{ x: tb.x, y: tb.y, width: tb.width, rotation: tb.rotation }}
           stageRef={stageRef}
           onDragEnd={onDragEnd}
+          onTap={e => onTap(tb.id, tbH, e)}
           onMove={(newX, newWidth) => onLayerUpdate(prev => prev.map(l =>
             l.id !== tb.id || l.tool !== 'text' ? l : { ...l, x: newX, width: newWidth },
           ))}
         />
         <ResizeHandle
           cx={tb.width} cy={tbH / 2} side="right"
-          tb={{ x: tb.x, y: tb.y, width: tb.width }}
+          tb={{ x: tb.x, y: tb.y, width: tb.width, rotation: tb.rotation }}
           stageRef={stageRef}
           onDragEnd={onDragEnd}
+          onTap={e => onTap(tb.id, tbH, e)}
           onMove={(_, newWidth) => onLayerUpdate(prev => prev.map(l =>
             l.id !== tb.id || l.tool !== 'text' ? l : { ...l, width: newWidth },
           ))}

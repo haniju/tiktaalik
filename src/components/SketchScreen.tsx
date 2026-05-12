@@ -9,6 +9,7 @@ import { useUndoRedo } from '../hooks/useUndoRedo';
 import { useStageViewport, clampStagePos } from '../hooks/useStageViewport';
 import { useCanvasGestures } from '../hooks/useCanvasGestures';
 import { exportSvg } from '../utils/export';
+import { expandToGroups, createGroup, ungroupLayers, autoDissolveGroups, getFocusedGroupId } from '../utils/groupUtils';
 import {
   TextBoxSelectionState,
   makeTextLayer,
@@ -21,6 +22,9 @@ import { SelectionPanel } from './SelectionPanel';
 import { ActionFABs } from './ActionFABs';
 import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
+import { ButtonMappingModal } from './ButtonMappingModal';
+import { AboutModal } from './AboutModal';
+import { useButtonMapping } from '../hooks/useButtonMapping';
 
 
 const DEBUG_DEFAULT = false;
@@ -41,13 +45,67 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
-    setCanvasMode, collapsePanel,
-    setToolColor, setToolWidth, setToolOpacity, setAirbrushEdgeOpacity,
+    setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
+    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
   } = useToolState();
 
   const [debug, setDebug] = useState(DEBUG_DEFAULT);
+
+  // ─── Debug : tracking des pointers actifs ──────────────────────────────────
+  const [activePointers, setActivePointers] = useState<Map<number, { x: number; y: number; target: string }>>(new Map());
+  useEffect(() => {
+    if (!debug) { setActivePointers(new Map()); return; }
+    const getTarget = (e: PointerEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.closest?.('[data-fabs]')) return 'FAB';
+      if (el.closest?.('.konvajs-content')) return 'canvas';
+      return el.tagName?.toLowerCase() ?? '?';
+    };
+    const down = (e: PointerEvent) => {
+      setActivePointers(prev => new Map(prev).set(e.pointerId, { x: Math.round(e.clientX), y: Math.round(e.clientY), target: getTarget(e) }));
+    };
+    const move = (e: PointerEvent) => {
+      setActivePointers(prev => {
+        if (!prev.has(e.pointerId)) return prev;
+        const next = new Map(prev);
+        next.set(e.pointerId, { x: Math.round(e.clientX), y: Math.round(e.clientY), target: getTarget(e) });
+        return next;
+      });
+    };
+    const up = (e: PointerEvent) => {
+      setActivePointers(prev => { const next = new Map(prev); next.delete(e.pointerId); return next; });
+    };
+    document.addEventListener('pointerdown', down, true);
+    document.addEventListener('pointermove', move, true);
+    document.addEventListener('pointerup', up, true);
+    document.addEventListener('pointercancel', up, true);
+    return () => {
+      document.removeEventListener('pointerdown', down, true);
+      document.removeEventListener('pointermove', move, true);
+      document.removeEventListener('pointerup', up, true);
+      document.removeEventListener('pointercancel', up, true);
+    };
+  }, [debug]);
+
+  // ─── Debug : offset bas pour rester au-dessus du clavier virtuel ───────────
+  const [debugBottomOffset, setDebugBottomOffset] = useState(0);
+  useEffect(() => {
+    if (!debug) { setDebugBottomOffset(0); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      setDebugBottomOffset(window.innerHeight - vv.height - vv.offsetTop);
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, [debug]);
+
   const [pinchZoom, setPinchZoom] = useState(false);
   const pinchZoomEnabledRef = useRef(pinchZoom);
   pinchZoomEnabledRef.current = pinchZoom;
@@ -55,6 +113,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>(selection);
+  // ─── Sélection niveau 2 (sous-groupe pour rotate/scale) ───
+  const [focusedIds, setFocusedIds] = useState<string[]>([]);
+  const focusedIdsRef = useRef(focusedIds);
+  focusedIdsRef.current = focusedIds;
+  const [selectSubMode, setSelectSubMode] = useState<'none' | 'rotate' | 'scale'>('none');
   // ─── État textbox unifié — remplace editingTextId + selectedTextId + focusedId ───
   const [tbState, setTbState] = useState<TextBoxSelectionState>({ kind: 'idle' });
   const tbStateRef = useRef(tbState);
@@ -63,20 +126,19 @@ export function SketchScreen({ drawing, onBack }: Props) {
   toolStateRef.current = toolState;
   const [lastAction, setLastAction] = useState<string>('—');
   const setTbStateWithLog = useCallback((next: TextBoxSelectionState, source: string) => {
+    console.log(`[tbState] ${tbState.kind} → ${next.kind} (${source})`);
     if (debug) {
-      console.log(`[tbState] ${tbState.kind} → ${next.kind} (${source})`);
       setLastAction(source);
     }
     setTbState(next);
-  }, [tbState.kind]);
+  }, [tbState.kind, debug]);
   const setTbStateWithLogRef = useRef(setTbStateWithLog);
   setTbStateWithLogRef.current = setTbStateWithLog;
   const [isDirty, setIsDirty] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, drawingNameRef, isDirtyRef } = useAutosave({
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, drawingNameRef } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
@@ -84,6 +146,15 @@ export function SketchScreen({ drawing, onBack }: Props) {
   drawingNameRef.current = drawingName;
 
   selectionRef.current = selection;
+
+  // Nettoyer focusedIds — retirer les objets qui ne sont plus dans la sélection
+  useEffect(() => {
+    const filtered = focusedIds.filter(id => selection.includes(id));
+    if (filtered.length !== focusedIds.length) {
+      setFocusedIds(filtered);
+      if (filtered.length === 0) setSelectSubMode('none');
+    }
+  }, [selection, focusedIds]);
 
   // ─── Refs DOM ──────────────────────────────────────────────────────────────
   const barsRef = useRef<HTMLDivElement>(null);
@@ -101,6 +172,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
   });
 
   const editingCreatedAtRef = useRef<number>(0);
+  // Guard : timestamp de la dernière saisie texte — empêche un blur parasite (mobile)
+  // de tuer l'édition avant que React ait rendu le nouveau layers (layersRef stale)
+  const lastInputRef = useRef<number>(0);
 
   // Dériver les IDs courants depuis tbState (source unique de vérité)
   const editingTextId = tbState.kind === 'editing' ? tbState.id : null;
@@ -120,6 +194,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   const collapseEditingToSelected = useCallback(() => {
     if (Date.now() - editingCreatedAtRef.current < 300) return;
+    // Guard : ignorer les blurs parasites qui arrivent juste après une saisie
+    // (layersRef.current n'a pas encore été mis à jour par le re-render React)
+    if (Date.now() - lastInputRef.current < 150) return;
     const id = editingTextIdRef.current;
     if (!id) return;
     const layer = layersRef.current.find(l => l.id === id && l.tool === 'text') as TextLayer | undefined;
@@ -155,21 +232,87 @@ export function SketchScreen({ drawing, onBack }: Props) {
     if (tbStateRef.current.kind !== 'idle') exitEditing();
     setCanvasMode(mode);
     setSelection([]);
+    setFocusedIds([]);
+    setSelectSubMode('none');
   }, [setCanvasMode, exitEditing]);
+
+  const handleTogglePan = useCallback(() => {
+    // En editing → downgrade vers selected (pas idle) pour conserver le cadre
+    if (tbStateRef.current.kind === 'editing') {
+      collapseEditingToSelected();
+    }
+    // selected → on conserve tbState tel quel
+    togglePan();
+    setSelection([]);
+    setFocusedIds([]);
+    setSelectSubMode('none');
+  }, [togglePan, collapseEditingToSelected]);
+
+  // Ref synchrone pour le hold-to-pan (pas de latence React)
+  const holdPanActiveRef = useRef(false);
+  // Sauvegarde du tbState avant hold-pan pour restauration au release
+  const savedTbStateForPanRef = useRef<TextBoxSelectionState | null>(null);
+
+  const handleEnterPan = useCallback(() => {
+    setLastAction(`enterPan:tb=${tbStateRef.current.kind}`);
+    // Sauvegarder l'état courant pour restauration au release
+    savedTbStateForPanRef.current = tbStateRef.current;
+    // En editing → forcer le downgrade vers selected (bypass les guards de collapseEditingToSelected)
+    if (tbStateRef.current.kind === 'editing') {
+      setTbStateWithLog({ kind: 'selected', id: tbStateRef.current.id }, 'enterPan:downgrade');
+    }
+    // selected → on conserve tbState tel quel
+    holdPanActiveRef.current = true;
+    // En mode select avec sélection active, on conserve la sélection pendant le flash pan
+    const preserveSelection = toolStateRef.current.canvasMode === 'select' && selectionRef.current.length > 0;
+    enterPan();
+    if (!preserveSelection) {
+      setSelection([]);
+      setFocusedIds([]);
+      setSelectSubMode('none');
+    }
+  }, [enterPan, setTbStateWithLog]);
+
+  const handleExitPan = useCallback(() => {
+    const saved = savedTbStateForPanRef.current;
+    setLastAction(`exitPan:tb=${tbStateRef.current.kind}→${saved?.kind ?? 'null'}`);
+    holdPanActiveRef.current = false;
+    // Restaurer l'état sauvegardé (ex: editing → le textarea se remonte avec autoFocus)
+    if (saved && saved.kind !== 'idle') {
+      setTbStateWithLog(saved, 'exitPan:restore');
+      if (saved.kind === 'editing') {
+        editingCreatedAtRef.current = Date.now();
+      }
+    }
+    savedTbStateForPanRef.current = null;
+    exitPan();
+  }, [exitPan, setTbStateWithLog]);
+
+  // ─── Button mapping (boutons physiques → actions) ──────────────────────────
+  const [mappingModalOpen, setMappingModalOpen] = useState(false);
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
+  const buttonMapping = useButtonMapping({
+    toggle: { toggle_pan: handleTogglePan },
+    enter: { toggle_pan: handleEnterPan },
+    exit: { toggle_pan: handleExitPan },
+  });
 
   // ─── Gestures canvas ───────────────────────────────────────────────────────
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel,
     handleTapById, handleDragEnd, handleSelectItem,
-    selRect, currentStroke, currentAirbrush, textNodesRef,
+    handleScaleStart, handleScaleMove, handleScaleEnd,
+    handleRotateStart, handleRotateMove, handleRotateEnd,
+    selRect, currentStroke, currentAirbrush, liveLineRef, textNodesRef,
   } = useCanvasGestures({
     stageRef, layersRef,
-    toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef,
+    toolStateRef, tbStateRef, editingTextIdRef, editingCreatedAtRef, selectionRef, focusedIdsRef,
     setTbStateWithLogRef, centerViewOnRef, barsRef,
-    setLayers, setSelection, setContextPanel, setZoomPct,
+    setLayers, setSelection, setFocusedIds, setContextPanel, setZoomPct,
     exitEditing, collapseEditingToSelected, addTextBox, collapsePanel,
     pushUndo, scheduleSave,
     pinchZoomEnabledRef,
+    holdPanActiveRef,
     activeColor, activeWidth,
   });
 
@@ -178,20 +321,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const updateTextBox = useCallback((patch: Partial<TextBox>) => {
     const targetId = editingTextId ?? selectedTextId;
     if (!targetId) return;
+    if ('text' in patch) lastInputRef.current = Date.now();
     setLayers(prev => prev.map(l => {
       if (l.tool !== 'text' || l.id !== targetId) return l;
       return { ...l, ...patch };
     }));
     scheduleSave();
   }, [editingTextId, selectedTextId]);
-
-  const deleteItem = useCallback((id: string) => {
-    const newL = layers.filter(l => l.id !== id);
-    setLayers(newL);
-    setSelection(prev => prev.filter(x => x !== id));
-    if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'deleteItem');
-    pushUndo(newL); scheduleSave();
-  }, [layers, tbState, pushUndo, setTbStateWithLog]);
 
   const duplicateTextBox = useCallback(() => {
     const id = tbState.kind === 'selected' ? tbState.id : tbState.kind === 'editing' ? tbState.id : null;
@@ -215,12 +351,23 @@ export function SketchScreen({ drawing, onBack }: Props) {
     pushUndo(newL); scheduleSave();
   }, [layers, selection, pushUndo, setTbStateWithLog]);
 
-  const handleSave = () => {
-    setIsSaving(true);
-    isDirtyRef.current = true; // force save même si déjà propre
-    saveNow();
-    setIsSaving(false);
-  };
+  const handleGroup = useCallback(() => {
+    if (focusedIds.length < 2) return;
+    const newL = createGroup(layers, focusedIds, uuidv4());
+    setLayers(newL);
+    // Après groupement, les focusedIds restent (tout le groupe est focusé)
+    pushUndo(newL); scheduleSave();
+  }, [layers, focusedIds, pushUndo, scheduleSave]);
+
+  const handleUngroup = useCallback(() => {
+    const gid = getFocusedGroupId(layers, focusedIds);
+    if (!gid) return;
+    const newL = ungroupLayers(layers, gid);
+    setLayers(newL);
+    pushUndo(newL); scheduleSave();
+  }, [layers, focusedIds, pushUndo, scheduleSave]);
+
+
 
   const handleExportSvg = () => {
     exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`, canvasBackground);
@@ -277,27 +424,31 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onDelete={handleDeleteDrawing}
           onToggleDebug={() => setDebug(d => !d)}
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
+          onOpenButtonMapping={() => setMappingModalOpen(true)}
+          onOpenAbout={() => setAboutModalOpen(true)}
         />
 
-        <Drawingbar
-          state={toolState}
-          canvasBackground={canvasBackground}
-          contextPanel={contextPanel}
-          onSelectDrawingTool={t => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectDrawingTool(t); }}
-          onSelectText={selectTextTool}
-          onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
-          onSelectBackground={selectBackground}
-          onSwipeOpen={(target) => {
-            if (target === 'eraser') return;
-            if (target === 'text') { selectTextTool(); setContextPanel('text'); }
-            else if (target === 'background') { selectBackground(); }
-            else if (['airbrush', 'pen', 'marker'].includes(target)) {
-              selectDrawingTool(target as DrawingTool);
-              setContextPanel('drawing');
-            }
-          }}
-          onSwipeClose={collapsePanel}
-        />
+        {!(toolState.canvasMode === 'select' && selection.length > 0) && (
+          <Drawingbar
+            state={toolState}
+            canvasBackground={canvasBackground}
+            contextPanel={contextPanel}
+            onSelectDrawingTool={t => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectDrawingTool(t); }}
+            onSelectText={selectTextTool}
+            onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
+            onSelectBackground={selectBackground}
+            onSwipeOpen={(target) => {
+              if (target === 'eraser') return;
+              if (target === 'text') { selectTextTool(); setContextPanel('text'); }
+              else if (target === 'background') { selectBackground(); }
+              else if (['airbrush', 'pen', 'marker'].includes(target)) {
+                selectDrawingTool(target as DrawingTool);
+                setContextPanel('drawing');
+              }
+            }}
+            onSwipeClose={collapsePanel}
+          />
+        )}
 
         <ContextToolbar
           contextPanel={contextPanel}
@@ -308,6 +459,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onSetToolWidth={setToolWidth}
           onSetToolOpacity={setToolOpacity}
           onSetAirbrushEdgeOpacity={setAirbrushEdgeOpacity}
+          onSetToolSmoothing={setToolSmoothing}
           onSetBackground={setCanvasBackground}
           onUpdateTextBox={updateTextBox}
           onDuplicateTextBox={duplicateTextBox}
@@ -318,20 +470,43 @@ export function SketchScreen({ drawing, onBack }: Props) {
           <SelectionPanel
             layers={layers}
             selection={selection}
-            focusedId={tbState.kind !== 'idle' ? tbState.id : null}
+            focusedIds={focusedIds}
+            selectSubMode={selectSubMode}
             onFocus={id => {
-              const next: TextBoxSelectionState = tbState.kind !== 'idle' && tbState.id === id
-                ? { kind: 'idle' }
-                : { kind: 'selected', id };
-              setTbStateWithLog(next, 'selectionPanel:focus');
+              // Si l'item est groupé, toggle tout le groupe dans focusedIds
+              const expanded = expandToGroups(layers, [id]);
+              setFocusedIds(prev => {
+                const allIn = expanded.every(x => prev.includes(x));
+                return allIn ? prev.filter(x => !expanded.includes(x)) : [...prev.filter(x => !expanded.includes(x)), ...expanded];
+              });
+              setSelectSubMode('none');
+            }}
+            onSetSelectSubMode={mode => {
+              setSelectSubMode(prev => prev === mode ? 'none' : mode);
             }}
             onDeselect={id => {
-              setSelection(prev => prev.filter(x => x !== id));
-              if (tbState.kind !== 'idle' && tbState.id === id) setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:deselect');
+              // Si groupé, désélectionner tout le groupe
+              const expanded = expandToGroups(layers, [id]);
+              setSelection(prev => prev.filter(x => !expanded.includes(x)));
+              if (tbState.kind !== 'idle' && expanded.includes(tbState.id)) setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:deselect');
             }}
-            onDeleteItem={deleteItem}
+            onDeleteItem={id => {
+              // Si groupé, supprimer tout le groupe
+              const expanded = expandToGroups(layers, [id]);
+              const expandedSet = new Set(expanded);
+              const newL = autoDissolveGroups(layers.filter(l => !expandedSet.has(l.id)));
+              setLayers(newL);
+              setSelection(prev => prev.filter(x => !expandedSet.has(x)));
+              setFocusedIds(prev => prev.filter(x => !expandedSet.has(x)));
+              if (tbState.kind !== 'idle' && expandedSet.has(tbState.id)) setTbStateWithLog({ kind: 'idle' }, 'deleteGroupItem');
+              pushUndo(newL); scheduleSave();
+            }}
             onDeleteSelected={deleteSelected}
-            onClearSelection={() => { setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
+            onSelectAll={() => { setFocusedIds([...selection]); setSelectSubMode('none'); }}
+            onUnselectAll={() => { setFocusedIds([]); setSelectSubMode('none'); }}
+            onGroup={handleGroup}
+            onUngroup={handleUngroup}
+            onClearSelection={() => { setSelection([]); setFocusedIds([]); setSelectSubMode('none'); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
             onReorderByIds={orderedIds => {
               // orderedIds est en ordre panel (z décroissant, top-of-stack en premier).
               // layers est en z croissant → inverser pour aligner les deux ordres.
@@ -354,11 +529,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
         )}
       </div>
 
-      {/* Canvas — position absolue, top = hauteur des barres fixe (topbar + drawingbar) */}
-      {/* On utilise paddingTop pour pousser le contenu sous les barres sans que le canvas resize */}
+      {/* Canvas — position absolue, top = hauteur des barres fixe */}
+      {/* Drawingbar masquée quand le SelectionPanel est affiché → top = TOPBAR_H seul */}
       <div style={{
         position: 'absolute',
-        top: TOPBAR_H + DRAWINGBAR_H,
+        top: (toolState.canvasMode === 'select' && selection.length > 0) ? TOPBAR_H : TOPBAR_H + DRAWINGBAR_H,
         left: 0, right: 0, bottom: 0,
         background: '#e0e0e0',
         overflow: 'hidden',
@@ -377,10 +552,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
             canvasBackground={canvasBackground}
             layers={layers}
             selection={selection}
+            focusedIds={focusedIds}
+            selectSubMode={selectSubMode}
+            stageScale={zoomPct / 100}
             tbState={tbState}
             canvasMode={toolState.canvasMode}
             currentStroke={currentStroke}
             currentAirbrush={currentAirbrush}
+            liveLineRef={liveLineRef}
             selRect={selRect}
             stageRef={stageRef}
             textNodesRef={textNodesRef}
@@ -388,6 +567,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onTapById={handleTapById}
             onLayerUpdate={setLayers}
             onDragEnd={handleDragEnd}
+            onScaleStart={handleScaleStart}
+            onScaleMove={handleScaleMove}
+            onScaleEnd={handleScaleEnd}
+            onRotateStart={handleRotateStart}
+            onRotateMove={handleRotateMove}
+            onRotateEnd={handleRotateEnd}
           />
         </Stage>
 
@@ -407,7 +592,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
       {debug && (
         <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
+          position: 'fixed', left: 0, right: 0,
+          bottom: debugBottomOffset,
           background: 'rgba(0,0,0,0.82)',
           color: '#0f0', fontFamily: 'monospace', fontSize: 11,
           padding: '6px 10px', zIndex: 9999,
@@ -416,10 +602,18 @@ export function SketchScreen({ drawing, onBack }: Props) {
           {`tbState=${tbState.kind}${tbState.kind !== 'idle' ? ` id=${(tbState as { kind: string; id: string }).id?.slice(0, 6)}` : ''}`}
           {` | tool=${toolState.activeTool}`}
           {` | mode=${toolState.canvasMode}`}
+          {` | holdPan=${holdPanActiveRef.current ? '●' : '○'}`}
           {` | zoom=${Math.round(zoomPct)}%`}
           {` | layers=${layers.length}`}
           {` | dirty=${isDirty ? '●' : '○'}`}
           {` | action=${lastAction}`}
+          {'\n'}
+          {activePointers.size === 0
+            ? 'pointers: none'
+            : Array.from(activePointers.entries()).map(([, p], i) =>
+                `${i === 0 ? 'A' : i === 1 ? 'B' : String.fromCharCode(65 + i)}:${p.target}(${p.x},${p.y})`
+              ).join(' | ')
+          }
         </div>
       )}
 
@@ -427,8 +621,29 @@ export function SketchScreen({ drawing, onBack }: Props) {
         canvasMode={toolState.canvasMode}
         zoomPct={zoomPct}
         onSetMode={handleSetCanvasMode}
+        onTogglePan={handleTogglePan}
+        onEnterPan={handleEnterPan}
+        onExitPan={handleExitPan}
         onZoomChange={zoomTo}
       />
+
+      {mappingModalOpen && (
+        <ButtonMappingModal
+          mappings={buttonMapping.mappings}
+          listening={buttonMapping.listening}
+          actionLabels={buttonMapping.ACTION_LABELS}
+          onStartListening={buttonMapping.startListening}
+          onStopListening={buttonMapping.stopListening}
+          onSetAction={buttonMapping.setAction}
+          onRemoveMapping={buttonMapping.removeMapping}
+          onClearAll={buttonMapping.clearAll}
+          onClose={() => { buttonMapping.stopListening(); setMappingModalOpen(false); }}
+        />
+      )}
+
+      {aboutModalOpen && (
+        <AboutModal onClose={() => setAboutModalOpen(false)} />
+      )}
     </div>
   );
 }

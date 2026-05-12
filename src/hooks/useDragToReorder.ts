@@ -57,7 +57,7 @@ export function useDragToReorder<T>({
   const pointerYRef = useRef(0);
   const activePointerId = useRef<number | null>(null);
   const docCleanupRef = useRef<(() => void) | null>(null);
-  const pointerTargetRef = useRef<HTMLElement | null>(null);
+
   const touchMoveCleanupRef = useRef<(() => void) | null>(null);
 
   const isGrid = layout === 'grid';

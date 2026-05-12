@@ -1,61 +1,45 @@
 import React, { useRef } from 'react';
 import Konva from 'konva';
-import { Rect } from 'react-konva';
+import { Rect, Group } from 'react-konva';
 
 export interface ResizeHandleProps {
   cx: number; cy: number;
   side: 'left' | 'right';
-  tb: { x: number; y: number; width: number };
+  tb: { x: number; y: number; width: number; rotation?: number };
   stageRef: React.RefObject<Konva.Stage>;
   onMove: (newX: number, newWidth: number) => void;
   onDragEnd: () => void;
+  onTap?: (e: Konva.KonvaEventObject<Event>) => void;
 }
 
-// Taille fixe des handles à l'écran (px) — indépendante du zoom
-const HANDLE_SCREEN_W = 30;
-const HANDLE_SCREEN_H = 36;
+// Taille visuelle du petit carré (px écran)
+const KNOB_SCREEN = 10;
+// Taille de la zone d'accroche invisible (px écran)
+const HIT_SCREEN = 30;
 
-// Handle de resize horizontal — milieu bord gauche ou droit
-export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: ResizeHandleProps) {
+export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd, onTap }: ResizeHandleProps) {
   const dragStartRef = useRef<{
-    pointerX: number;      // position écran (absolutePosition) au démarrage
-    lockedScreenY: number; // position Y écran verrouillée pour toute la durée du drag
-    tbX: number;           // tb.x au démarrage
-    tbWidth: number;       // tb.width au démarrage
+    pointerX: number;
+    pointerY: number;
+    lockedScreenY: number;
+    tbX: number;
+    tbWidth: number;
   } | null>(null);
-  // Compenser le zoom : la taille en coordonnées canvas augmente quand on dézoome
+  const knobRef = useRef<Konva.Rect>(null);
+
   const sc = stageRef.current?.scaleX() ?? 1;
-  const hw = HANDLE_SCREEN_W / sc;
-  const hh = HANDLE_SCREEN_H / sc;
+  const knob = KNOB_SCREEN / sc;
+  const hit = HIT_SCREEN / sc;
 
   return (
-    <Rect
-      x={cx - hw / 2} y={cy - hh / 2}
-      width={hw} height={hh}
-      fill="#118ab2" opacity={0.85} cornerRadius={4}
+    <Group
+      x={cx} y={cy}
       draggable
-      dragBoundFunc={pos => {
-        const start = dragStartRef.current;
-        const lockedY = start?.lockedScreenY ?? pos.y;
-        if (!start || !stageRef.current) return { x: pos.x, y: lockedY };
-        const stage = stageRef.current;
-        const scl = stage.scaleX();
-        const stageX = stage.x();
-        let clampedX = pos.x;
-        if (side === 'left') {
-          // Le handle gauche ne peut pas dépasser vers la droite au-delà de tbX + tbWidth - 150
-          const maxAbsX = stageX + (start.tbX + start.tbWidth - 150) * scl - HANDLE_SCREEN_W / 2;
-          clampedX = Math.min(pos.x, maxAbsX);
-        } else {
-          // Le handle droit ne peut pas aller en-dessous de tbX + 150
-          const minAbsX = stageX + (start.tbX + 150) * scl - HANDLE_SCREEN_W / 2;
-          clampedX = Math.max(pos.x, minAbsX);
-        }
-        return { x: clampedX, y: lockedY };
-      }}
+      dragBoundFunc={pos => pos}
       onDragStart={e => {
         dragStartRef.current = {
           pointerX: e.target.absolutePosition().x,
+          pointerY: e.target.absolutePosition().y,
           lockedScreenY: e.target.absolutePosition().y,
           tbX: tb.x,
           tbWidth: tb.width,
@@ -66,11 +50,16 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: 
         const stage = stageRef.current!;
         const scl = stage.scaleX();
         const abs = e.target.absolutePosition();
-        const dxCanvas = (abs.x - dragStartRef.current.pointerX) / scl;
+        const dxScreen = (abs.x - dragStartRef.current.pointerX) / scl;
+        const dyScreen = (abs.y - dragStartRef.current.pointerY) / scl;
+
+        // Projeter le déplacement écran sur l'axe local X du TB (tient compte de la rotation)
+        const rotation = tb.rotation ?? 0;
+        const rad = (rotation * Math.PI) / 180;
+        const dxCanvas = dxScreen * Math.cos(rad) + dyScreen * Math.sin(rad);
 
         if (side === 'left') {
           const newWidth = Math.max(dragStartRef.current.tbWidth - dxCanvas, 150);
-          // effectiveDx : déplacement réel du bord gauche — plafonné pour garder le bord droit fixe
           const effectiveDx = dragStartRef.current.tbWidth - newWidth;
           const newX = dragStartRef.current.tbX + effectiveDx;
           onMove(newX, newWidth);
@@ -78,14 +67,38 @@ export function ResizeHandle({ cx, cy, side, tb, stageRef, onMove, onDragEnd }: 
           const newWidth = Math.max(dragStartRef.current.tbWidth + dxCanvas, 150);
           onMove(dragStartRef.current.tbX, newWidth);
         }
+
+        // Compenser le déplacement du Group pour que le knob reste accroché au bord de la TB
+        const groupPos = e.target.position();
+        if (knobRef.current) {
+          knobRef.current.position({ x: -knob / 2 - groupPos.x + cx, y: -knob / 2 - groupPos.y + cy });
+        }
       }}
       onDragEnd={e => {
         dragStartRef.current = null;
-        e.target.position({ x: cx - hw / 2, y: cy - hh / 2 });
+        e.target.position({ x: cx, y: cy });
+        if (knobRef.current) knobRef.current.position({ x: -knob / 2, y: -knob / 2 });
         onDragEnd();
       }}
+      onClick={onTap}
+      onTap={onTap}
       onMouseEnter={() => { if (stageRef.current) stageRef.current.container().style.cursor = 'ew-resize'; }}
       onMouseLeave={() => { if (stageRef.current) stageRef.current.container().style.cursor = ''; }}
-    />
+    >
+      {/* Zone d'accroche invisible — hit area large */}
+      <Rect
+        x={-hit / 2} y={-hit / 2}
+        width={hit} height={hit}
+        fill="transparent"
+      />
+      {/* Poignée visible — petit carré plein, reste accroché au bord de la TB pendant le drag */}
+      <Rect
+        ref={knobRef}
+        x={-knob / 2} y={-knob / 2}
+        width={knob} height={knob}
+        fill="#333" cornerRadius={2 / sc}
+        listening={false}
+      />
+    </Group>
   );
 }

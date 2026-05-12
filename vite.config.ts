@@ -13,8 +13,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/**/*.svg'],
       manifest: {
-        name: 'Tiktaalik — Sketchpad',
-        short_name: 'Tiktaalik',
+        name: 'Tiktaalik BETA — Sketchpad',
+        short_name: 'Tiktaalik β',
         description: 'Application de dessin mobile-first',
         theme_color: '#1a1a2e',
         background_color: '#1a1a2e',
@@ -46,10 +46,19 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-konva': ['konva', 'react-konva'],
+        },
+      },
+    },
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    exclude: ['node_modules', 'tests'],
   },
 })

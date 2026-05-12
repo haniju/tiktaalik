@@ -118,7 +118,20 @@ export function isPointInTextBox(
   pad = 4,
 ): boolean {
   const r = getTextBoxHitRect(tb, height, pad);
-  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+  // Si le TB est rotaté, dé-rotater le point dans le repère local du TB.
+  // Le pivot de rotation Konva est (tb.x, tb.y) — l'origin du Group.
+  let lpx = px, lpy = py;
+  const rotation = (tb as TextLayer).rotation ?? 0;
+  if (rotation !== 0) {
+    const rad = (-rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const dx = px - tb.x;
+    const dy = py - tb.y;
+    lpx = dx * cos - dy * sin + tb.x;
+    lpy = dx * sin + dy * cos + tb.y;
+  }
+  return lpx >= r.x && lpx <= r.x + r.w && lpy >= r.y && lpy <= r.y + r.h;
 }
 
 /**
@@ -207,6 +220,41 @@ export function exitState(
 ): TextBoxSelectionState {
   if (current.kind === 'idle') return current;
   return { kind: 'idle' };
+}
+
+// ─── Scale ─────────────────────────────────────────────────────────────────
+
+/**
+ * Scale une textbox par `scaleFactor` autour d'un centre optionnel (cx, cy).
+ * - fontSize scalé (min 8, max 200) — PAS arrondi ici (arrondi au relâchement)
+ * - width scalé proportionnellement → conserve le lineCount naturellement
+ * - position ajustée si centre de groupe fourni
+ */
+export function scaleTextBox(
+  tb: TextLayer,
+  scaleFactor: number,
+  cx?: number,
+  cy?: number,
+): TextLayer {
+  const newFontSize = Math.max(8, Math.min(200, tb.fontSize * scaleFactor));
+  const newWidth = Math.max(50, tb.width * scaleFactor);
+
+  let newX = tb.x;
+  let newY = tb.y;
+  if (cx !== undefined && cy !== undefined) {
+    newX = (tb.x - cx) * scaleFactor + cx;
+    newY = (tb.y - cy) * scaleFactor + cy;
+  }
+
+  return { ...tb, fontSize: newFontSize, width: newWidth, x: newX, y: newY };
+}
+
+/**
+ * Arrondit le fontSize d'une TextLayer à l'entier le plus proche.
+ * Appelé une seule fois au relâchement du handle scale.
+ */
+export function roundTextBoxFontSize(tb: TextLayer): TextLayer {
+  return { ...tb, fontSize: Math.round(tb.fontSize) };
 }
 
 // ─── Factory & migration ────────────────────────────────────────────────────
