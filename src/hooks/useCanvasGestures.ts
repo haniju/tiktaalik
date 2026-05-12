@@ -63,6 +63,8 @@ export interface UseCanvasGesturesReturn {
   currentStroke: Stroke | null;
   currentAirbrush: AirbrushStroke | null;
   liveLineRef: React.MutableRefObject<Konva.Line | null>;
+  eraserCursorRef: React.MutableRefObject<Konva.Circle | null>;
+  eraserActive: boolean;
   textNodesRef: React.MutableRefObject<Map<string, Konva.Text>>;
 }
 
@@ -123,6 +125,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const rotateLatestRef = useRef<DrawLayer[]>([]); // résultat synchrone du dernier handleRotateMove
   // Bypass React — tracé pen/marker directement via l'API impérative Konva
   const liveLineRef = useRef<Konva.Line | null>(null);
+  // Eraser cursor — cercle montrant la zone d'effacement
+  const eraserCursorRef = useRef<Konva.Circle | null>(null);
+  const [eraserActive, setEraserActive] = useState(false);
   const livePointsRef = useRef<number[]>([]);
   // Smoothing — filtre de distance minimale pour pen/marker
   const lastAcceptedPt = useRef<{ x: number; y: number } | null>(null);
@@ -150,7 +155,17 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
+  const moveEraserCursor = useCallback((pos: { x: number; y: number }) => {
+    const cursor = eraserCursorRef.current;
+    if (cursor) {
+      cursor.x(pos.x);
+      cursor.y(pos.y);
+      cursor.getLayer()?.batchDraw();
+    }
+  }, []);
+
   const eraseAt = useCallback((pos: { x: number; y: number }) => {
+    moveEraserCursor(pos);
     p.current.setLayers(prev => {
       const filtered = prev.filter(layer => {
         if (layer.tool === 'text') return true; // les textboxes ne s'effacent pas à la gomme
@@ -301,6 +316,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (toolState.activeTool === 'eraser') {
       isErasing.current = true;
+      setEraserActive(true);
       eraseAt(pos);
       return;
     }
@@ -625,6 +641,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (toolState.activeTool === 'eraser' && isErasing.current) {
       isErasing.current = false;
+      setEraserActive(false);
       setLayers(prev => { pushUndo(prev); return prev; });
       return;
     }
@@ -951,6 +968,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     currentStroke,
     currentAirbrush,
     liveLineRef,
+    eraserCursorRef,
+    eraserActive,
     textNodesRef,
   };
 }

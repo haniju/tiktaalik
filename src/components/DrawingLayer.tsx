@@ -1,6 +1,6 @@
 import React from 'react';
 import Konva from 'konva';
-import { Layer, Line, Rect, Group } from 'react-konva';
+import { Layer, Line, Rect, Group, Circle } from 'react-konva';
 import { DrawLayer, Stroke, AirbrushStroke, TextLayer, CanvasMode } from '../types';
 import { TextBoxSelectionState } from '../utils/textboxUtils';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
@@ -27,6 +27,8 @@ interface DrawingLayerProps {
   currentStroke: Stroke | null;
   currentAirbrush: AirbrushStroke | null;
   liveLineRef: React.MutableRefObject<Konva.Line | null>;
+  eraserCursorRef: React.MutableRefObject<Konva.Circle | null>;
+  eraserActive: boolean;
   selRect: { x: number; y: number; w: number; h: number } | null;
   stageRef: React.RefObject<Konva.Stage>;
   textNodesRef: React.MutableRefObject<Map<string, Konva.Text>>;
@@ -45,7 +47,7 @@ interface DrawingLayerProps {
 export const DrawingLayer = React.memo(function DrawingLayer({
   canvasBackground, showGrid, layers, selection, focusedIds, selectSubMode, stageScale,
   tbState, canvasMode,
-  currentStroke, currentAirbrush, liveLineRef, selRect,
+  currentStroke, currentAirbrush, liveLineRef, eraserCursorRef, eraserActive, selRect,
   stageRef, textNodesRef,
   onSelectItem, onTapById, onLayerUpdate, onDragEnd,
   onScaleStart, onScaleMove, onScaleEnd,
@@ -144,6 +146,18 @@ export const DrawingLayer = React.memo(function DrawingLayer({
         />
       )}
       {currentAirbrush && <AirbrushShape stroke={currentAirbrush} />}
+
+      {/* Curseur eraser — cercle montrant la zone d'effacement (rayon 20 = seuil eraseAt) */}
+      {eraserActive && (
+        <Circle
+          ref={eraserCursorRef}
+          radius={20}
+          stroke="rgba(255,60,60,0.6)"
+          strokeWidth={1.5 / stageScale}
+          dash={[4 / stageScale, 3 / stageScale]}
+          listening={false}
+        />
+      )}
 
       {/* Bounding box + handles scale/rotate */}
       {showHandles && handleBounds && handleBounds.width > 0 && selectSubMode === 'scale' && (
