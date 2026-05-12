@@ -153,6 +153,15 @@ En mode select :
 
 Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut, de gauche à droite : supprimer tout, [spacer], group/ungroup + rotate/scale + dupliquer (visibles seulement quand des items sont focusés), select-all / unselect-all, compteur.
 
+#### Sur-sélection (focus niveau 2) — canvas et panel synchronisés
+
+Quand un objet sélectionné est « sur-sélectionné » (passé en focus niveau 2), le comportement visuel est identique quelle que soit l'origine de l'interaction (tap sur le canvas ou tap sur la vignette dans le panel) :
+
+- **Sur le canvas** : le contour de l'objet passe en orange (`#f4a261`).
+- **Dans le panel** : la vignette reçoit une bordure orange, et les options d'objet (badge bar avec suppression et déselection) apparaissent en dessous.
+
+Ces deux effets sont **toujours couplés** : sur-sélectionner depuis le canvas met à jour le panel (badge bar visible + bordure orange), et sur-sélectionner depuis le panel met à jour le canvas (contour orange). Il n'y a pas d'état intermédiaire où seul l'un des deux est actif.
+
 **Select-all / Unselect-all** : un bouton bascule entre deux états :
 - Quand tous les items ne sont pas focusés → icône « select-all » (double checkmark) : focalise tous les items de la sélection (passage en niveau 2).
 - Quand tous les items sont focusés → icône « unselect-all » (cercle X) : défocalise tout (retour en niveau 1).

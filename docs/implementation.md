@@ -164,6 +164,14 @@ Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange 
 
 **Panel** (`SelectionPanel.tsx`) : groupes collapsés en une vignette avec `StackedBorders` (2 divs offset en z-index négatif). Toolbar : bouton group visible si `canGroup`, ungroup si `canUngroup`. Drag-to-reorder expand les memberIds au callback.
 
+### Synchronisation panelSelected ↔ focusedIds
+
+Le panel de sélection maintient un état interne `panelSelected` qui contrôle la visibilité du badge bar (suppression/déselection) et le style `thumbSelected` (bordure noire). Cet état est **synchronisé automatiquement avec `focusedIds`** via un `useEffect`.
+
+**Problème résolu** : avant le fix, sur-sélectionner un objet depuis le canvas mettait à jour `focusedIds` (contour orange sur le canvas) mais pas `panelSelected` (pas de badge bar dans le panel). L'utilisateur devait re-taper la vignette pour voir les options.
+
+**Fix** : un `useEffect([focusedIds])` dans `SelectionPanel` recalcule `panelSelected` à partir de `focusedIds` — pour chaque item du panel, si ses membres sont tous dans `focusedIds`, il est marqué comme sélectionné dans le panel. Cela unifie les deux chemins (canvas et panel) : `handleSelect` dans le panel appelle `onFocus` → met à jour `focusedIds` → l'effect sync `panelSelected`.
+
 ### Lasso sur tracés existants
 
 En mode select, les tracés Konva écoutent les événements (`listening={true}` par défaut + `hitStrokeWidth` 20px). Un tap sur un tracé non sélectionné atteint le `Group`'s `onClick`/`onTap` → `handleSelectItem` → ajout à la sélection. Un drag (> 8px) sur un tracé non sélectionné annule le `dragLongPressTimer` et démarre un lasso depuis la position canvas du pointer-down (`longPressCanvasPos` ref).
