@@ -250,12 +250,16 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
   // Ref synchrone pour le hold-to-pan (pas de latence React)
   const holdPanActiveRef = useRef(false);
+  // Sauvegarde du tbState avant hold-pan pour restauration au release
+  const savedTbStateForPanRef = useRef<TextBoxSelectionState | null>(null);
 
   const handleEnterPan = useCallback(() => {
     setLastAction(`enterPan:tb=${tbStateRef.current.kind}`);
-    // En editing → downgrade vers selected (pas idle) pour conserver le cadre
+    // Sauvegarder l'état courant pour restauration au release
+    savedTbStateForPanRef.current = tbStateRef.current;
+    // En editing → forcer le downgrade vers selected (bypass les guards de collapseEditingToSelected)
     if (tbStateRef.current.kind === 'editing') {
-      collapseEditingToSelected();
+      setTbStateWithLog({ kind: 'selected', id: tbStateRef.current.id }, 'enterPan:downgrade');
     }
     // selected → on conserve tbState tel quel
     holdPanActiveRef.current = true;
@@ -267,13 +271,22 @@ export function SketchScreen({ drawing, onBack }: Props) {
       setFocusedIds([]);
       setSelectSubMode('none');
     }
-  }, [enterPan, collapseEditingToSelected]);
+  }, [enterPan, setTbStateWithLog]);
 
   const handleExitPan = useCallback(() => {
-    setLastAction(`exitPan:tb=${tbStateRef.current.kind}`);
+    const saved = savedTbStateForPanRef.current;
+    setLastAction(`exitPan:tb=${tbStateRef.current.kind}→${saved?.kind ?? 'null'}`);
     holdPanActiveRef.current = false;
+    // Restaurer l'état sauvegardé (ex: editing → le textarea se remonte avec autoFocus)
+    if (saved && saved.kind !== 'idle') {
+      setTbStateWithLog(saved, 'exitPan:restore');
+      if (saved.kind === 'editing') {
+        editingCreatedAtRef.current = Date.now();
+      }
+    }
+    savedTbStateForPanRef.current = null;
     exitPan();
-  }, [exitPan]);
+  }, [exitPan, setTbStateWithLog]);
 
   // ─── Button mapping (boutons physiques → actions) ──────────────────────────
   const [mappingModalOpen, setMappingModalOpen] = useState(false);

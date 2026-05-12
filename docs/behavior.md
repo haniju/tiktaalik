@@ -127,13 +127,15 @@ Le mode pan (move) permet de déplacer le viewport par drag sur le canvas. Deux 
 **1. Pan comme outil permanent (toggle)**
 - Sélectionner le pan via le bouton FAB ou un bouton physique mappé (tap court <250ms) bascule en mode move.
 - Un second tap (ou la sélection d'un autre outil/mode) quitte le pan.
+- Si une textbox est en cours d'édition, elle est rétrogradée en mode selected (le cadre reste visible).
 - Entrer en pan permanent **efface** la sélection en cours et réinitialise le sous-mode select.
 
 **2. Pan momentané / flash (hold-to-pan)**
 - Maintenir le bouton FAB ou un bouton physique mappé (>=250ms) active le pan immédiatement.
 - Relâcher le bouton restaure le mode et l'outil précédents.
-- Si l'utilisateur était en mode select avec des objets sélectionnés, la sélection est **conservée** pendant le pan flash — y compris le sous-mode actif (rotate, scale) et les objets focusés. Au relâchement, l'utilisateur retrouve sa sélection et son sous-mode intacts.
-- Si l'utilisateur était en mode draw ou sans sélection active, le comportement est identique au pan permanent (reset).
+- **Conservation de la sélection d'objets** : si l'utilisateur était en mode select avec des objets sélectionnés, la sélection est **conservée** pendant le pan flash — y compris le sous-mode actif (rotate, scale) et les objets focusés. Au relâchement, l'utilisateur retrouve sa sélection et son sous-mode intacts.
+- **Conservation de l'état textbox** : si une textbox est en mode selected, elle reste selected pendant le pan flash (cadre visible). Si elle est en mode editing, elle est temporairement rétrogradée en selected (le textarea se ferme et le clavier disparaît), puis **restaurée en editing au relâchement** (le textarea se remonte automatiquement avec focus).
+- Si l'utilisateur était en mode draw ou sans sélection/textbox active, le comportement est identique au pan permanent (reset).
 
 #### Mémoire du mode pan
 
@@ -253,6 +255,7 @@ Système de mapping de boutons physiques vers des actions de l'app. Destiné aux
 - **Configuration** : modale accessible depuis le menu de la topbar. Phase détection (capturer les pressions de touches) puis assignation d'action via un sélecteur.
 - **Actions disponibles** : toggle pan (extensible).
 - **Hold-to-pan** : les boutons physiques mappés supportent le même geste hold-to-pan que le bouton FAB (tap court = toggle, appui long = pan momentané).
+- **Priorité sur le focus texte** : les boutons mappés fonctionnent même quand une textarea d'édition est focusée — la touche est interceptée avant d'être transmise au champ de saisie.
 - Le comportement natif des touches mappées (volume, etc.) est bloqué.
 - Persisté entre sessions.
 

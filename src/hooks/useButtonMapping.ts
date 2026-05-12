@@ -84,14 +84,15 @@ export function useButtonMapping(actions: HoldAwareActions) {
     const keyId = (e: KeyboardEvent) => `${e.key}:${e.code}`;
 
     const downHandler = (e: KeyboardEvent) => {
-      // Ignorer les keydown qui viennent d'un champ de saisie (clavier virtuel)
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
-
       const match = mappingsRef.current.find(
         m => m.key === e.key && m.code === e.code && m.action !== null
       );
-      if (!match) return;
+      // Ignorer les keydown qui viennent d'un champ de saisie, SAUF si c'est un bouton mappé
+      if (!match) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+        return;
+      }
       console.log('[buttonMapping] keydown intercepté:', e.key, e.code, '→', match.action);
       e.preventDefault();
       e.stopPropagation();
@@ -113,13 +114,14 @@ export function useButtonMapping(actions: HoldAwareActions) {
     };
 
     const upHandler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
-
       const match = mappingsRef.current.find(
         m => m.key === e.key && m.code === e.code && m.action !== null
       );
-      if (!match) return;
+      if (!match) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
 
