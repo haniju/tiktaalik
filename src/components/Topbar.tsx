@@ -24,20 +24,6 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(drawingName);
   const inputRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent | TouchEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('touchstart', handler);
-    };
-  }, [menuOpen]);
 
   const startEditing = () => {
     setEditValue(drawingName);
@@ -87,11 +73,13 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
         <Icon name="redo" size={22} />
       </button>
 
-      <div ref={menuRef} style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }}>
         <button style={{ ...styles.btn, ...(menuOpen ? styles.btnActive : {}) }} onClick={() => setMenuOpen(p => !p)}>
           <Icon name="burger" size={22} />
         </button>
         {menuOpen && (
+          <>
+          <div style={styles.dropdownOverlay} onClick={() => setMenuOpen(false)} onTouchEnd={e => { e.preventDefault(); setMenuOpen(false); }} />
           <div style={styles.dropdown}>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onExportSvg(); }}>Exporter en SVG</button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); startEditing(); }}>Renommer</button>
@@ -129,6 +117,7 @@ export function Topbar({ drawingName, canUndo, canRedo, debug, pinchZoom, onBack
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenAbout(); }}>À propos</button>
             <button style={{ ...styles.dropdownItem, color: '#e63946' }} onClick={() => { setMenuOpen(false); onDelete(); }}>Supprimer</button>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -142,6 +131,7 @@ const styles: Record<string, React.CSSProperties> = {
   spacer: { flex: 1 },
   btn: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px', borderRadius: 8 },
   btnActive: { background: '#f0f0f0' },
+  dropdownOverlay: { position: 'fixed', inset: 0, zIndex: 199 },
   dropdown: { position: 'absolute', top: 'calc(100% + 4px)', right: 4, background: '#fff', borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.13)', minWidth: 200, overflow: 'hidden', zIndex: 200 },
   dropdownItem: { display: 'block', width: '100%', background: 'none', border: 'none', padding: '12px 16px', fontSize: 15, color: '#1a1a1a', textAlign: 'left', cursor: 'pointer' },
 };
