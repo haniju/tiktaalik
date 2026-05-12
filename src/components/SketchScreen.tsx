@@ -252,6 +252,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const holdPanActiveRef = useRef(false);
 
   const handleEnterPan = useCallback(() => {
+    setLastAction(`enterPan:tb=${tbStateRef.current.kind}`);
     // En editing → downgrade vers selected (pas idle) pour conserver le cadre
     if (tbStateRef.current.kind === 'editing') {
       collapseEditingToSelected();
@@ -269,6 +270,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [enterPan, collapseEditingToSelected]);
 
   const handleExitPan = useCallback(() => {
+    setLastAction(`exitPan:tb=${tbStateRef.current.kind}`);
     holdPanActiveRef.current = false;
     exitPan();
   }, [exitPan]);

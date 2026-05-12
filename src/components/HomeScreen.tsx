@@ -71,6 +71,8 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const galerieRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,16 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   useEffect(() => {
     setDrawings(drawingOrder.applyOrder(storage.getAll()));
   }, []);
+
+  // Click-outside ferme le menu burger
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
   // PWA install
   useEffect(() => {
@@ -195,6 +207,18 @@ export function HomeScreen({ onOpen, onNew }: Props) {
           <button style={styles.installBtn} onClick={handleInstall}>Installer</button>
         )}
         <button style={styles.newBtn} onClick={handleNew}>+ Nouveau</button>
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button style={{ ...styles.burgerBtn, ...(menuOpen ? styles.burgerBtnActive : {}) }} onClick={() => setMenuOpen(p => !p)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          {menuOpen && (
+            <div style={styles.dropdown}>
+              <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); setShowAbout(true); }}>À propos</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Galerie */}
@@ -438,6 +462,25 @@ const styles: Record<string, React.CSSProperties> = {
   dialogBtnDelete: {
     background: '#e63946', border: 'none', borderRadius: 10,
     padding: '8px 16px', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer',
+  },
+
+  // Burger menu
+  burgerBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'none', border: 'none', cursor: 'pointer',
+    padding: '8px 10px', borderRadius: 8, color: '#555',
+  },
+  burgerBtnActive: { background: '#f0f0f0' },
+  dropdown: {
+    position: 'absolute', top: 'calc(100% + 4px)', right: 0,
+    background: '#fff', borderRadius: 12,
+    boxShadow: '0 4px 24px rgba(0,0,0,0.13)',
+    minWidth: 180, overflow: 'hidden', zIndex: 200,
+  },
+  dropdownItem: {
+    display: 'block', width: '100%', background: 'none', border: 'none',
+    padding: '12px 16px', fontSize: 15, color: '#1a1a1a',
+    textAlign: 'left', cursor: 'pointer',
   },
 
   versionBadge: { textAlign: 'center', padding: '12px 0', fontSize: 11, color: '#bbb', flexShrink: 0, cursor: 'pointer' },

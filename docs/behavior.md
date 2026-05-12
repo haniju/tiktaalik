@@ -28,9 +28,18 @@ Les dessins apparaissent dans un ordre personnalisable (voir Réordonnancement).
 
 ### Version & mise à jour
 
-Un badge en bas affiche la version de l'app et l'horodatage du dernier build.
+Un badge en bas affiche la version de l'app et l'horodatage du dernier build. Il est cliquable et ouvre le panneau À propos.
 
 Un bouton d'installation PWA est disponible quand l'app est éligible.
+
+### Menu & À propos
+
+Un bouton hamburger dans la barre supérieure ouvre un menu déroulant. Il contient un item « À propos » qui ouvre un panneau modal scrollable avec :
+- Nom de l'application, badge BETA, version et date de build
+- Description courte
+- Liste complète des fonctionnalités, organisée par catégorie (galerie, outils, couleur, canvas, sélection, groupes, texte, export, boutons physiques, mobile/PWA)
+
+Le même panneau est accessible depuis le menu déroulant de la barre supérieure de l'écran de dessin.
 
 ---
 
