@@ -87,12 +87,12 @@ export function useButtonMapping(actions: HoldAwareActions) {
       const match = mappingsRef.current.find(
         m => m.key === e.key && m.code === e.code && m.action !== null
       );
-      // Ignorer les keydown qui viennent d'un champ de saisie, SAUF si c'est un bouton mappé
-      if (!match) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
-        return;
-      }
+      if (!match) return;
+      // Ignorer les keydown du clavier virtuel qui matchent un bouton mappé
+      // (ex: key="Unidentified", code="" envoyé par le clavier mobile)
+      // Les vrais boutons physiques ont toujours un code non-vide
+      const tag = (e.target as HTMLElement)?.tagName;
+      if ((tag === 'TEXTAREA' || tag === 'INPUT') && !e.code) return;
       console.log('[buttonMapping] keydown intercepté:', e.key, e.code, '→', match.action);
       e.preventDefault();
       e.stopPropagation();
@@ -117,11 +117,9 @@ export function useButtonMapping(actions: HoldAwareActions) {
       const match = mappingsRef.current.find(
         m => m.key === e.key && m.code === e.code && m.action !== null
       );
-      if (!match) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
-        return;
-      }
+      if (!match) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if ((tag === 'TEXTAREA' || tag === 'INPUT') && !e.code) return;
       e.preventDefault();
       e.stopPropagation();
 
