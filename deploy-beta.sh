@@ -49,7 +49,7 @@ fi
 
 # 3. Build
 echo "📦 Build en cours..."
-npm run build
+VITE_BETA=true npm run build
 echo "✅ Build OK → dossier dist/ prêt"
 echo ""
 

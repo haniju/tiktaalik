@@ -215,6 +215,16 @@ Dans `useDragToReorder`, `blockNativeScroll()` intercepte `touchmove` (listener 
 
 Version : `__APP_VERSION__` (depuis package.json) et `__BUILD_TIME__` (fr-FR locale) injectés en globaux via vite.config.ts.
 
+### Branding BETA conditionnel
+
+Le branding BETA (badges, title, manifeste PWA) est piloté par la variable d'environnement `VITE_BETA=true` au moment du build — pas hardcodé dans le code source. Cela permet de merger `dev` → `main` sans que le branding beta pollue la version stable.
+
+- `vite.config.ts` : lit `process.env.VITE_BETA`, conditionne le manifeste PWA (`name`, `short_name`) et injecte `__IS_BETA__` via `define`
+- `src/main.tsx` : change `document.title` si `__IS_BETA__`
+- Composants (`HomeScreen`, `AboutModal`) : affichent le badge BETA conditionnellement
+- `deploy-beta.sh` : passe `VITE_BETA=true npm run build`
+- `deploy.sh` : build sans variable → branding stable
+
 ## Export
 
 `src/utils/export.ts` :

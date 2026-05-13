@@ -35,7 +35,7 @@ Un bouton d'installation PWA est disponible quand l'app est éligible.
 ### Menu & À propos
 
 Un bouton hamburger dans la barre supérieure ouvre un menu déroulant. Il contient un item « À propos » qui ouvre un panneau modal scrollable avec :
-- Nom de l'application, badge BETA, version et date de build
+- Nom de l'application, badge BETA (si build beta), version et date de build
 - Description courte
 - Liste complète des fonctionnalités, organisée par catégorie (galerie, outils, couleur, canvas, sélection, groupes, texte, export, boutons physiques, mobile/PWA)
 

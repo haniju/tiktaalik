@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
+const isBeta = process.env.VITE_BETA === 'true';
 
 export default defineConfig({
   plugins: [
@@ -13,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/**/*.svg'],
       manifest: {
-        name: 'Tiktaalik BETA — Sketchpad',
-        short_name: 'Tiktaalik β',
+        name: isBeta ? 'Tiktaalik BETA — Sketchpad' : 'Tiktaalik — Sketchpad',
+        short_name: isBeta ? 'Tiktaalik β' : 'Tiktaalik',
         description: 'Application de dessin mobile-first',
         theme_color: '#1a1a2e',
         background_color: '#1a1a2e',
@@ -43,6 +44,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })),
+    __IS_BETA__: JSON.stringify(isBeta),
   },
   build: {
     outDir: 'dist',

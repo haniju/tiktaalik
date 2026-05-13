@@ -29,6 +29,7 @@ function newDrawing(): Drawing {
 
 const APP_VERSION = __APP_VERSION__;
 const BUILD_TIME = __BUILD_TIME__;
+const IS_BETA = __IS_BETA__;
 const GHOST_W = 120;
 const GHOST_H = 170; // ratio A4 approx
 
@@ -192,7 +193,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
     <div style={styles.home}>
       {/* Topbar */}
       <div style={styles.topBar}>
-        <span style={styles.title}>Mes dessins <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#e63946', borderRadius: 6, padding: '2px 6px', marginLeft: 6, verticalAlign: 'middle' }}>BETA</span></span>
+        <span style={styles.title}>Mes dessins{IS_BETA && <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#e63946', borderRadius: 6, padding: '2px 6px', marginLeft: 6, verticalAlign: 'middle' }}>BETA</span>}</span>
         {showInstall && (
           <button style={styles.installBtn} onClick={handleInstall}>Installer</button>
         )}
@@ -364,7 +365,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
         </div>
       )}
 
-      <div style={styles.versionBadge} onClick={() => setShowAbout(true)}>v{APP_VERSION} BETA — MAJ {BUILD_TIME}</div>
+      <div style={styles.versionBadge} onClick={() => setShowAbout(true)}>v{APP_VERSION}{IS_BETA ? ' BETA' : ''} — MAJ {BUILD_TIME}</div>
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
     </div>

@@ -1,5 +1,6 @@
 const APP_VERSION = __APP_VERSION__;
 const BUILD_TIME = __BUILD_TIME__;
+const IS_BETA = __IS_BETA__;
 
 interface Props {
   onClose: () => void;
@@ -110,7 +111,7 @@ export function AboutModal({ onClose }: Props) {
           <div>
             <div style={styles.titleRow}>
               <span style={styles.title}>Tiktaalik</span>
-              <span style={styles.badge}>BETA</span>
+              {IS_BETA && <span style={styles.badge}>BETA</span>}
             </div>
             <div style={styles.version}>v{APP_VERSION}</div>
             <div style={styles.buildDate}>Build {BUILD_TIME}</div>
