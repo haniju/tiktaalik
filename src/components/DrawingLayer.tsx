@@ -1,6 +1,6 @@
 import React from 'react';
 import Konva from 'konva';
-import { Layer, Line, Rect, Group, Circle } from 'react-konva';
+import { Layer, Line, Rect, Group, Circle, Shape } from 'react-konva';
 import { DrawLayer, Stroke, AirbrushStroke, TextLayer, CanvasMode } from '../types';
 import { TextBoxSelectionState } from '../utils/textboxUtils';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
@@ -17,6 +17,7 @@ type SelectSubMode = 'none' | 'rotate' | 'scale';
 interface DrawingLayerProps {
   canvasBackground: string;
   showGrid: boolean;
+  debug: boolean;
   layers: DrawLayer[];
   selection: string[];
   focusedIds: string[];
@@ -45,7 +46,7 @@ interface DrawingLayerProps {
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
-  canvasBackground, showGrid, layers, selection, focusedIds, selectSubMode, stageScale,
+  canvasBackground, showGrid, debug, layers, selection, focusedIds, selectSubMode, stageScale,
   tbState, canvasMode,
   currentStroke, currentAirbrush, liveLineRef, eraserCursorRef, eraserActive, selRect,
   stageRef, textNodesRef,
@@ -146,6 +147,36 @@ export const DrawingLayer = React.memo(function DrawingLayer({
         />
       )}
       {currentAirbrush && <AirbrushShape stroke={currentAirbrush} />}
+
+      {/* Debug — points enregistrés de chaque tracé */}
+      {debug && (
+        <Shape
+          listening={false}
+          sceneFunc={(ctx) => {
+            const r = 2.5 / stageScale;
+            for (const layer of layers) {
+              if (layer.tool === 'text') continue;
+              if (layer.tool === 'airbrush') {
+                const ab = layer as AirbrushStroke;
+                ctx.fillStyle = 'rgba(0,180,255,0.7)';
+                for (const pt of ab.points) {
+                  ctx.beginPath();
+                  ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              } else {
+                const s = layer as Stroke;
+                ctx.fillStyle = 'rgba(255,40,40,0.7)';
+                for (let i = 0; i < s.points.length - 1; i += 2) {
+                  ctx.beginPath();
+                  ctx.arc(s.points[i], s.points[i + 1], r, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
+            }
+          }}
+        />
+      )}
 
       {/* Curseur eraser — cercle montrant la zone d'effacement (rayon 20 = seuil eraseAt) */}
       {eraserActive && (

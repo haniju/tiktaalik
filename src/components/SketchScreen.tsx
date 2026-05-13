@@ -585,6 +585,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           <DrawingLayer
             canvasBackground={canvasBackground}
             showGrid={showGrid}
+            debug={debug}
             layers={layers}
             selection={selection}
             focusedIds={focusedIds}
