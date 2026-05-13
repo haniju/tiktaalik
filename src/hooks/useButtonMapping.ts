@@ -81,11 +81,11 @@ export function useButtonMapping(actions: HoldAwareActions) {
     // Track par clé : timer du hold + flag isHolding
     const holdState = new Map<string, { timer: ReturnType<typeof setTimeout>; holding: boolean }>();
 
-    const keyId = (e: KeyboardEvent) => `${e.key}:${e.code}`;
+    const keyId = (e: KeyboardEvent) => `${e.key}:${e.code}:${e.keyCode}`;
 
     const downHandler = (e: KeyboardEvent) => {
       const match = mappingsRef.current.find(
-        m => m.key === e.key && m.code === e.code && m.action !== null
+        m => m.key === e.key && m.code === e.code && m.keyCode === e.keyCode && m.action !== null
       );
       if (!match) return;
       // Ignorer les keydown du clavier virtuel qui matchent un bouton mappé
@@ -115,7 +115,7 @@ export function useButtonMapping(actions: HoldAwareActions) {
 
     const upHandler = (e: KeyboardEvent) => {
       const match = mappingsRef.current.find(
-        m => m.key === e.key && m.code === e.code && m.action !== null
+        m => m.key === e.key && m.code === e.code && m.keyCode === e.keyCode && m.action !== null
       );
       if (!match) return;
       const tag = (e.target as HTMLElement)?.tagName;
