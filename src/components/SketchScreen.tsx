@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Stage } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
-import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, CanvasMode } from '../types';
+import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, CanvasMode, GridSettings, DEFAULT_GRID_SETTINGS } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
@@ -24,6 +24,7 @@ import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
 import { ButtonMappingModal } from './ButtonMappingModal';
 import { AboutModal } from './AboutModal';
+import { GridSettingsPanel } from './GridSettingsPanel';
 import { useButtonMapping } from '../hooks/useButtonMapping';
 
 
@@ -111,6 +112,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
   pinchZoomEnabledRef.current = pinchZoom;
   const [canvasBackground, setCanvasBackground] = useState(drawing.background ?? '#ffffff');
   const [showGrid, setShowGrid] = useState(drawing.showGrid ?? false);
+  const [gridSettings, setGridSettings] = useState<GridSettings>(drawing.gridSettings ?? DEFAULT_GRID_SETTINGS);
+  const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>(selection);
@@ -139,12 +142,13 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, drawingNameRef } = useAutosave({
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, drawingNameRef } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
   canvasBgRef.current = canvasBackground;
   showGridRef.current = showGrid;
+  gridSettingsRef.current = gridSettings;
   drawingNameRef.current = drawingName;
 
   selectionRef.current = selection;
@@ -455,6 +459,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onRename={handleRename}
           onDelete={handleDeleteDrawing}
           onToggleGrid={() => { setShowGrid(g => !g); scheduleSave(); }}
+          onOpenGridSettings={() => setGridSettingsOpen(true)}
           onToggleDebug={() => setDebug(d => !d)}
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
           onOpenButtonMapping={() => setMappingModalOpen(true)}
@@ -585,6 +590,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           <DrawingLayer
             canvasBackground={canvasBackground}
             showGrid={showGrid}
+            gridSettings={gridSettings}
             debug={debug}
             layers={layers}
             selection={selection}
@@ -681,6 +687,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
       {aboutModalOpen && (
         <AboutModal onClose={() => setAboutModalOpen(false)} />
+      )}
+
+      {gridSettingsOpen && (
+        <GridSettingsPanel
+          settings={gridSettings}
+          onChange={(gs) => { setGridSettings(gs); scheduleSave(); }}
+          onClose={() => setGridSettingsOpen(false)}
+        />
       )}
     </div>
   );

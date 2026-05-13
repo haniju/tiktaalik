@@ -34,13 +34,28 @@ Pile de calques unifiée : `DrawLayer = Stroke | AirbrushStroke | TextLayer`. `A
 
 ## Grille canvas
 
-`CanvasGrid.tsx` — un seul `Konva.Shape` avec `sceneFunc` qui dessine des points (`fillRect`) aux intersections de la grille. `listening={false}`, `React.memo`. Rendu dans `DrawingLayer` juste après le `background-rect`.
+`CanvasGrid.tsx` — un seul `Konva.Shape` avec `sceneFunc`. `listening={false}`, `React.memo`. Rendu dans `DrawingLayer` juste après le `background-rect`.
 
-Espacement : `MINOR_STEP = 20` (aligné sur le seuil eraser de `eraseAt()` dans `useCanvasGestures.ts`), `MAJOR_STEP = 100`. Points majeurs : rayon 1.5px, opacité plus forte. Points mineurs : rayon 0.8px.
+### Modes de rendu
 
-Couleur adaptative : détection de luminance du fond via formule ITU-R BT.601 (`isDark()`). Fond sombre → points blancs semi-transparents, fond clair → points noirs semi-transparents.
+Trois styles pilotés par `GridSettings.style` :
+- **`dots`** — `fillRect` aux intersections. Points majeurs (rayon 1.5px) tous les 5×spacing. Points mineurs : rayon 0.8px.
+- **`lines`** — `stroke` avec lignes verticales + horizontales. `lineWidth: 0.5`.
+- **`checkerboard`** — `fillRect` en damier : cases paires en `altColor` (opacité × 0.35), cases impaires en `mainColor`.
 
-Persistance : `Drawing.showGrid` (booléen optionnel) sauvegardé via `useAutosave` (`showGridRef`). Toggle dans le dropdown de la Topbar.
+### Couleur et opacité
+
+La couleur est un hex (défaut `#e63946` rouge), convertie en rgba via `hexToRgba(hex, opacity)`. L'opacité (0–1) est appliquée directement dans le canal alpha. Plus de détection de luminance du fond — la couleur est choisie par l'utilisateur.
+
+### Persistance
+
+- `Drawing.showGrid` (booléen optionnel) — toggle visibilité, sauvegardé via `useAutosave` (`showGridRef`)
+- `Drawing.gridSettings` (optionnel) — `GridSettings { style, spacing, opacity, color }`, sauvegardé via `gridSettingsRef`
+- Défauts dans `DEFAULT_GRID_SETTINGS` (types/index.ts) : dots, 20px, 0.3, #e63946
+
+### UI
+
+`GridSettingsPanel.tsx` — modale overlay avec sélecteur segmenté (style), slider espacement + presets, slider opacité, palette 8 couleurs, bouton reset. Accessible depuis le dropdown Topbar (item « Réglages grille »).
 
 ## Outils de dessin
 

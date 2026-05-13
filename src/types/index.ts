@@ -69,12 +69,29 @@ export type TextLayer = TextBox & { tool: 'text' };
 // Pile unifiée — ordre chronologique = z-index réel
 export type DrawLayer = Stroke | AirbrushStroke | TextLayer;
 
+export type GridStyle = 'dots' | 'lines' | 'checkerboard';
+
+export interface GridSettings {
+  style: GridStyle;
+  spacing: number;   // px entre chaque point/ligne/carreau
+  opacity: number;   // 0–1
+  color: string;     // couleur principale (défaut #e63946 = rouge)
+}
+
+export const DEFAULT_GRID_SETTINGS: GridSettings = {
+  style: 'dots',
+  spacing: 20,
+  opacity: 0.3,
+  color: '#e63946',
+};
+
 export interface Drawing {
   id: string;
   name: string;
   layers: DrawLayer[];
   background: string; // couleur de fond du canvas (propre à chaque dessin)
   showGrid?: boolean; // affichage de la grille de pixels canvas
+  gridSettings?: GridSettings; // paramètres avancés de la grille
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;

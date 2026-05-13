@@ -42,7 +42,8 @@ const FEATURES: { category: string; items: string[] }[] = [
     items: [
       'Zoom 10\u2013400% avec slider et boutons',
       'Monde navigable 3\u00d73 pages A4',
-      'Pinch-to-zoom (d\u00e9sactivable)',
+      'Grille configurable (points, tracés, damier)',
+      'Pinch-to-zoom (désactivable)',
       'Mode pan (toggle + hold-to-pan)',
       'Undo / Redo',
     ],

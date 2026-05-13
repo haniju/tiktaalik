@@ -252,12 +252,22 @@ Le pan et le zoom sont contraints au monde 3x3 A4 (pas de défilement infini).
 
 ### Grille
 
-Une grille de points peut être superposée au canvas pour visualiser les unités de mesure. Toggle « Grille » dans le menu déroulant de la topbar.
+Une grille peut être superposée au canvas pour visualiser les unités de mesure. Toggle « Grille » dans le menu déroulant de la topbar.
 
-- **Grille mineure** : points tous les 20 px canvas (correspond au seuil de détection de la gomme).
-- **Grille majeure** : points plus gros et plus visibles tous les 100 px canvas.
-- **Couleur adaptative** : points sombres sur fond clair, points clairs sur fond sombre.
-- **Persistance par dessin** : l'état du toggle est sauvegardé avec le dessin et restauré à la prochaine ouverture.
+- **Persistance par dessin** : l'état du toggle et les réglages sont sauvegardés avec le dessin et restaurés à la prochaine ouverture.
+
+#### Réglages grille
+
+Un panneau « Réglages grille » est accessible depuis le menu déroulant de la topbar (juste sous le toggle). Il permet de configurer :
+
+- **Style** : trois modes au choix via un sélecteur segmenté :
+  - **Points** — points aux intersections, avec points majeurs plus gros tous les 5 pas (mode par défaut)
+  - **Tracés** — lignes verticales et horizontales
+  - **Damier** — carrés bicolores alternés (couleur pleine + couleur atténuée)
+- **Espacement** : slider continu (5–80 px) + presets rapides (10, 15, 20, 30, 40, 50). Défaut : 20 px.
+- **Opacité** : slider (5–100%). Défaut : 30%.
+- **Couleur** : palette de 8 couleurs (rouge, orange, jaune, teal, bleu, violet, noir, gris). Défaut : rouge (#e63946).
+- **Réinitialiser** : un bouton remet tous les réglages aux valeurs par défaut.
 
 ### Export (SVG + Vignette)
 

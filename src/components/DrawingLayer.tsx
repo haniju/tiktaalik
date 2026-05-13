@@ -1,7 +1,7 @@
 import React from 'react';
 import Konva from 'konva';
 import { Layer, Line, Rect, Group, Circle, Shape } from 'react-konva';
-import { DrawLayer, Stroke, AirbrushStroke, TextLayer, CanvasMode } from '../types';
+import { DrawLayer, Stroke, AirbrushStroke, TextLayer, CanvasMode, GridSettings } from '../types';
 import { TextBoxSelectionState } from '../utils/textboxUtils';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
 import { TextBoxKonva } from './TextBoxKonva';
@@ -17,6 +17,7 @@ type SelectSubMode = 'none' | 'rotate' | 'scale';
 interface DrawingLayerProps {
   canvasBackground: string;
   showGrid: boolean;
+  gridSettings?: GridSettings;
   debug: boolean;
   layers: DrawLayer[];
   selection: string[];
@@ -46,7 +47,7 @@ interface DrawingLayerProps {
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
-  canvasBackground, showGrid, debug, layers, selection, focusedIds, selectSubMode, stageScale,
+  canvasBackground, showGrid, gridSettings, debug, layers, selection, focusedIds, selectSubMode, stageScale,
   tbState, canvasMode,
   currentStroke, currentAirbrush, liveLineRef, eraserCursorRef, eraserActive, selRect,
   stageRef, textNodesRef,
@@ -61,7 +62,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
     <Layer>
       <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
 
-      {showGrid && <CanvasGrid width={A4_WIDTH} height={A4_HEIGHT} canvasBackground={canvasBackground} />}
+      {showGrid && <CanvasGrid width={A4_WIDTH} height={A4_HEIGHT} gridSettings={gridSettings} />}
 
       {/* Pile unifiée — ordre chronologique = z-index réel (tracés + textboxes) */}
       {layers.map(layer => {

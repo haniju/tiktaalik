@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from 'react';
-import { Drawing, DrawLayer } from '../types';
+import { Drawing, DrawLayer, GridSettings, DEFAULT_GRID_SETTINGS } from '../types';
 import { generateThumbnail } from '../utils/export';
 import { useDrawingStorage } from './useDrawingStorage';
 
@@ -18,6 +18,7 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
   const layersRef = useRef<DrawLayer[]>([]);
   const canvasBgRef = useRef<string>('#ffffff');
   const showGridRef = useRef<boolean>(drawing.showGrid ?? false);
+  const gridSettingsRef = useRef<GridSettings>(drawing.gridSettings ?? DEFAULT_GRID_SETTINGS);
   const drawingNameRef = useRef<string>(drawing.name);
   const isDirtyRef = useRef(false);
 
@@ -26,7 +27,7 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
     if (!isDirtyRef.current) return;
     const bg = canvasBgRef.current;
     const thumb = generateThumbnail(layersRef.current, A4_WIDTH, A4_HEIGHT, bg);
-    storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, updatedAt: Date.now(), thumbnail: thumb });
+    storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, updatedAt: Date.now(), thumbnail: thumb });
     isDirtyRef.current = false;
     setIsDirty(false);
     console.log('[autosave]', new Date().toLocaleTimeString());
@@ -57,5 +58,5 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
     };
   }, []); // saveNowRef est stable — pointe toujours vers le saveNow courant
 
-  return { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, drawingNameRef, isDirtyRef };
+  return { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, drawingNameRef, isDirtyRef };
 }
