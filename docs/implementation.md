@@ -82,9 +82,9 @@ Composant `EditingTextarea` : `<textarea>` en position fixe par-dessus le canvas
 
 **Bug** : sur mobile, taper la première lettre dans une TB provoque une sortie instantanée de l'édition (`editing → idle`) et un changement de mode canvas (passage en pan/move). L'édition est perdue.
 
-**Cause racine** : le clavier virtuel mobile envoie des `keydown` avec `key: "Unidentified"`. Le hook `useButtonMapping` (listener global `capture: true` sur `document`) matchait ces touches contre un bouton physique mappé ayant aussi `key: "Unidentified"` (ex: bouton volume). Le match déclenchait l'action `toggle_pan` → `handleTogglePan()` → `exitEditing()` (tbState = idle) + `setCanvasMode('move')`. En bonus, `e.preventDefault()` + `e.stopPropagation()` bloquaient la saisie du caractère.
+**Cause racine** : le clavier virtuel mobile envoie des `keydown` avec `key: "Unidentified"`, `code: ""`, `keyCode: 229`. L'ancien match ne comparait que `key` + `code`, donc tous les boutons physiques « Unidentified » (volume, boutons programmables) et le clavier virtuel étaient confondus.
 
-**Fix** (`useButtonMapping.ts`) : guard en tête des handlers `downHandler` et `upHandler` — ignorer les événements dont `e.target` est un `TEXTAREA` ou `INPUT`. Les boutons physiques ne sont jamais émis depuis un champ de saisie.
+**Fix** (`useButtonMapping.ts`) : le match utilise le triplet `key` + `code` + `keyCode`. Le `keyCode` est unique par bouton physique (ex: 174 = volume down, 175 = volume up) et le clavier virtuel a `keyCode: 229` (composition) qui ne matche aucun bouton mappé. Guard supplémentaire : si l'événement vient d'un TEXTAREA/INPUT et que `code` est vide, il est ignoré (filet de sécurité).
 
 **Historique** :
 - Le bug avait "disparu" avant l'ajout du button mapping (`feat: physical button mapping`, commit `bbac5da`) et est réapparu avec cette feature.

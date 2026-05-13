@@ -278,7 +278,7 @@ Un bouton de sauvegarde manuelle reste disponible en fallback.
 
 Système de mapping de boutons physiques vers des actions de l'app. Destiné aux téléphones durcis Android (Blackview etc.) avec boutons programmables.
 
-- **Configuration** : modale accessible depuis le menu de la topbar. Phase détection (capturer les pressions de touches) puis assignation d'action via un sélecteur.
+- **Configuration** : modale accessible depuis le menu de la topbar. Phase détection (capturer les pressions de touches) puis assignation d'action via un sélecteur. Chaque bouton détecté reçoit un nom unique (ex: « Bouton #174 ») même si le système le reporte comme « Unidentified ».
 - **Actions disponibles** : toggle pan (extensible).
 - **Hold-to-pan** : les boutons physiques mappés supportent le même geste hold-to-pan que le bouton FAB (tap court = toggle, appui long = pan momentané).
 - **Priorité sur le focus texte** : les boutons mappés fonctionnent même quand une textarea d'édition est focusée — la touche est interceptée avant d'être transmise au champ de saisie.

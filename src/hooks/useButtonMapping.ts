@@ -32,13 +32,15 @@ function persistMappings(mappings: ButtonMapping[]) {
   } catch { /* localStorage indisponible */ }
 }
 
-// Label lisible pour un event.key
+// Label lisible pour un event clavier
 function keyLabel(e: KeyboardEvent): string {
   const labels: Record<string, string> = {
     AudioVolumeDown: 'Volume Down',
     AudioVolumeUp: 'Volume Up',
   };
-  return labels[e.key] ?? e.key;
+  if (labels[e.key]) return labels[e.key];
+  if (e.key === 'Unidentified') return `Bouton #${e.keyCode}`;
+  return e.key;
 }
 
 /** Actions pour chaque MappableAction : toggle (tap court), enter (hold start), exit (hold release) */

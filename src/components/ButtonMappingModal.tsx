@@ -50,7 +50,7 @@ export function ButtonMappingModal({
                 <div key={`${m.key}:${m.code}:${m.keyCode}`} style={styles.row}>
                   <div style={styles.rowLeft}>
                     <span style={styles.keyBadge}>{m.label}</span>
-                    <span style={styles.keyDetail}>{m.code}</span>
+                    <span style={styles.keyDetail}>{m.code || `keyCode: ${m.keyCode}`}</span>
                   </div>
                   <div style={styles.rowRight}>
                     <select
