@@ -69,6 +69,7 @@ Type union : `{ kind: 'idle' } | { kind: 'selected'; id } | { kind: 'editing'; i
 - **Double-fire handleMouseUp + handleTapById** : les deux peuvent traiter le même touch. Guard : `mouseUpHandledTapRef` — set dans handleMouseUp, checked dans handleTapById.
 - **Text-tool tap selected→editing** : `dragArmedHitId` doit être set dans mouseDown en mode texte pour que mouseUp puisse effectuer la transition `selected→editing`.
 - **Text-tool tap autre TB** : `mouseUpHandledTapRef` guard dans mouseDown empêche handleTapById d'escalader `selected→editing`.
+- **Text-tool selected → tap hors TB (mobile)** : sur mobile, un tap sur le Stage (zone hors shapes Konva, ex: hors de la page A4) génère un `touchstart` puis un `mousedown` synthétique ~300ms plus tard. Le premier `handleMouseDown` fait la transition `selected→idle`, le second arrive en `idle` et arme `pendingTextboxRef` → TB fantôme. Guard : `e.evt.preventDefault()` sur les événements touch dans la branche selected→exit, empêche le mousedown synthétique. Ne se produit pas quand le tap touche une shape Konva (ex: `background-rect` de la page) car Konva gère l'événement en interne.
 
 ### EditingTextarea
 

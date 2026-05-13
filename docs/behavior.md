@@ -84,7 +84,7 @@ Transitions :
 - **selected → selected (autre)** : tap sur une autre textbox
 - **editing → selected (autre)** : tap sur une autre textbox (sort de l'édition de la première)
 - **editing → selected** : tap dans le vide ou perte de focus
-- **selected → idle** : tap dans le vide
+- **selected → idle** : tap dans le vide (y compris hors de la page A4)
 - **editing → idle** : Escape ou tap dans le vide (les textboxes vides sont supprimées automatiquement)
 
 Création de textbox : en outil texte, tap dans le vide crée une nouvelle textbox à cet endroit et passe directement en mode editing.

@@ -346,6 +346,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           return;
         }
         // Tap sur une autre textbox ou sur le fond → désélectionner (pas de création)
+        // Guard : sur mobile, preventDefault empêche le mousedown synthétique post-touch
+        // qui re-déclencherait handleMouseDown en idle et créerait une TB fantôme
+        if ('touches' in nativeEvt) e.evt.preventDefault();
         exitEditing();
         if (hitId) {
           // Tap sur une autre textbox → la sélectionner + recentrer le viewport
