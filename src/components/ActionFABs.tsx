@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { CanvasMode } from '../types';
 import { Icon } from './Icon';
 
-const MIN_ZOOM = 10;
+const MIN_ZOOM = 20;
 const MAX_ZOOM = 400;
 const ZOOM_STEP = 10;
 const LABEL_TIMEOUT = 5000;

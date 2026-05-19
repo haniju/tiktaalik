@@ -88,6 +88,24 @@ export const DEFAULT_GRID_SETTINGS: GridSettings = {
   color: '#e63946',
 };
 
+export type CanvasUnit = 'px' | 'cm';
+
+export interface CanvasConfig {
+  canvasWidth: number;      // toujours en px
+  canvasHeight: number;     // toujours en px
+  worldMultiplier: number;  // 1–5 (zone monde = multiplier × canevas)
+  displayUnit: CanvasUnit;  // préférence d'affichage uniquement
+}
+
+export const PX_PER_CM = 37.795275591; // 96 DPI
+
+export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
+  canvasWidth: 794,
+  canvasHeight: 1123,
+  worldMultiplier: 3,
+  displayUnit: 'px',
+};
+
 export interface Drawing {
   id: string;
   name: string;
@@ -95,6 +113,7 @@ export interface Drawing {
   background: string; // couleur de fond du canvas (propre à chaque dessin)
   showGrid?: boolean; // affichage de la grille de pixels canvas
   gridSettings?: GridSettings; // paramètres avancés de la grille
+  canvasConfig?: CanvasConfig; // dimensions du canevas et zone monde
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;

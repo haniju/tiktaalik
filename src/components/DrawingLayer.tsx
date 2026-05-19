@@ -9,12 +9,11 @@ import { BoundingBoxHandles } from './BoundingBoxHandles';
 import { CanvasGrid } from './CanvasGrid';
 import { getGroupBounds } from '../utils/bounds';
 
-const A4_WIDTH = 794;
-const A4_HEIGHT = 1123;
-
 type SelectSubMode = 'none' | 'rotate' | 'scale';
 
 interface DrawingLayerProps {
+  canvasWidth: number;
+  canvasHeight: number;
   canvasBackground: string;
   showGrid: boolean;
   gridSettings?: GridSettings;
@@ -47,6 +46,7 @@ interface DrawingLayerProps {
 }
 
 export const DrawingLayer = React.memo(function DrawingLayer({
+  canvasWidth, canvasHeight,
   canvasBackground, showGrid, gridSettings, debug, layers, selection, focusedIds, selectSubMode, stageScale,
   tbState, canvasMode,
   currentStroke, currentAirbrush, liveLineRef, eraserCursorRef, eraserActive, selRect,
@@ -60,9 +60,9 @@ export const DrawingLayer = React.memo(function DrawingLayer({
   const handleBounds = showHandles ? getGroupBounds(layers, focusedIds) : null;
   return (
     <Layer>
-      <Rect x={0} y={0} width={A4_WIDTH} height={A4_HEIGHT} name="background-rect" fill={canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
+      <Rect x={0} y={0} width={canvasWidth} height={canvasHeight} name="background-rect" fill={canvasBackground} shadowBlur={16} shadowColor="rgba(0,0,0,0.15)" />
 
-      {showGrid && <CanvasGrid width={A4_WIDTH} height={A4_HEIGHT} gridSettings={gridSettings} />}
+      {showGrid && <CanvasGrid width={canvasWidth} height={canvasHeight} gridSettings={gridSettings} />}
 
       {/* Pile unifiée — ordre chronologique = z-index réel (tracés + textboxes) */}
       {layers.map(layer => {

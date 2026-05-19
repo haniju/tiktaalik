@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Stage } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
-import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, CanvasMode, GridSettings, DEFAULT_GRID_SETTINGS } from '../types';
+import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, CanvasMode, GridSettings, DEFAULT_GRID_SETTINGS, DEFAULT_CANVAS_CONFIG } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
@@ -27,13 +27,12 @@ import { ButtonMappingModal } from './ButtonMappingModal';
 import { AboutModal } from './AboutModal';
 import { ExportModal } from './ExportModal';
 import { GridSettingsPanel } from './GridSettingsPanel';
+import { CanvasConfigPanel } from './CanvasConfigPanel';
 import { useButtonMapping } from '../hooks/useButtonMapping';
+import { getWorldBounds } from '../utils/canvasConfig';
 
 
 const DEBUG_DEFAULT = false;
-
-const A4_WIDTH = 794;
-const A4_HEIGHT = 1123;
 
 interface Props {
   drawing: Drawing;
@@ -116,6 +115,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [showGrid, setShowGrid] = useState(drawing.showGrid ?? false);
   const [gridSettings, setGridSettings] = useState<GridSettings>(drawing.gridSettings ?? DEFAULT_GRID_SETTINGS);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
+  const [canvasConfig, setCanvasConfig] = useState(drawing.canvasConfig ?? DEFAULT_CANVAS_CONFIG);
+  const [canvasConfigOpen, setCanvasConfigOpen] = useState(false);
+  const worldBounds = getWorldBounds(canvasConfig);
+  const worldBoundsRef = useRef(worldBounds);
+  worldBoundsRef.current = worldBounds;
   const [layers, setLayers] = useState<DrawLayer[]>(() => migrateLayers(drawing));
   const [selection, setSelection] = useState<string[]>([]);
   const selectionRef = useRef<string[]>(selection);
@@ -144,13 +148,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, drawingNameRef } = useAutosave({
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
   canvasBgRef.current = canvasBackground;
   showGridRef.current = showGrid;
   gridSettingsRef.current = gridSettings;
+  canvasConfigRef.current = canvasConfig;
   drawingNameRef.current = drawingName;
 
   selectionRef.current = selection;
@@ -168,7 +173,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const barsRef = useRef<HTMLDivElement>(null);
 
   // ─── Viewport ─────────────────────────────────────────────────────────────
-  const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn, zoomTo } = useStageViewport();
+  const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn, zoomTo } = useStageViewport(canvasConfig);
   const centerViewOnRef = useRef(centerViewOn);
   centerViewOnRef.current = centerViewOn;
 
@@ -229,7 +234,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     const stage = stageRef.current;
     if (stage) {
       const sc = stage.scaleX();
-      stage.position(clampStagePos({ x: 20 - x * sc, y: barsH + 20 - y * sc }, sc, stage.width(), stage.height()));
+      stage.position(clampStagePos({ x: 20 - x * sc, y: barsH + 20 - y * sc }, sc, stage.width(), stage.height(), worldBoundsRef.current));
       stage.batchDraw();
     }
     setContextPanel('text');
@@ -323,6 +328,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     pinchZoomEnabledRef,
     holdPanActiveRef,
     activeColor, activeWidth,
+    worldBoundsRef,
   });
 
   const selectedTextId = tbState.kind === 'selected' ? tbState.id : null;
@@ -408,15 +414,16 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
 
   const handleExport = (format: ExportFormat) => {
+    const { canvasWidth, canvasHeight } = canvasConfig;
     if (format === 'svg') {
-      exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`, canvasBackground);
+      exportSvg(layers, canvasWidth, canvasHeight, `${drawingName}.svg`, canvasBackground);
     } else {
-      exportRaster(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.${format}`, format, canvasBackground);
+      exportRaster(layers, canvasWidth, canvasHeight, `${drawingName}.${format}`, format, canvasBackground);
     }
   };
 
   const handlePrint = () => {
-    printDrawing(layers, A4_WIDTH, A4_HEIGHT, canvasBackground);
+    printDrawing(layers, canvasConfig.canvasWidth, canvasConfig.canvasHeight, canvasBackground);
   };
 
   const handleRename = (newName: string) => {
@@ -471,6 +478,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onDelete={handleDeleteDrawing}
           onToggleGrid={() => { setShowGrid(g => !g); scheduleSave(); }}
           onOpenGridSettings={() => setGridSettingsOpen(true)}
+          onOpenCanvasConfig={() => setCanvasConfigOpen(true)}
           onToggleDebug={() => setDebug(d => !d)}
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
           onOpenButtonMapping={() => setMappingModalOpen(true)}
@@ -602,6 +610,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onWheel={handleWheel}
         >
           <DrawingLayer
+            canvasWidth={canvasConfig.canvasWidth}
+            canvasHeight={canvasConfig.canvasHeight}
             canvasBackground={canvasBackground}
             showGrid={showGrid}
             gridSettings={gridSettings}
@@ -716,6 +726,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
           settings={gridSettings}
           onChange={(gs) => { setGridSettings(gs); scheduleSave(); }}
           onClose={() => setGridSettingsOpen(false)}
+        />
+      )}
+
+      {canvasConfigOpen && (
+        <CanvasConfigPanel
+          config={canvasConfig}
+          onChange={(cc) => { setCanvasConfig(cc); scheduleSave(); }}
+          onClose={() => setCanvasConfigOpen(false)}
         />
       )}
     </div>

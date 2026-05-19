@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { DrawLayer, Stroke, AirbrushStroke, TextLayer, ToolState } from '../types';
 import { AIRBRUSH_CONFIG } from '../utils/airbrushConfig';
 import { clampStagePos } from './useStageViewport';
+import type { WorldBounds } from '../utils/canvasConfig';
 import {
   TextBoxSelectionState,
   nextSelectionState,
@@ -44,6 +45,7 @@ export interface UseCanvasGesturesParams {
   holdPanActiveRef: React.MutableRefObject<boolean>;
   activeColor: string;
   activeWidth: number;
+  worldBoundsRef: React.MutableRefObject<WorldBounds>;
 }
 
 export interface UseCanvasGesturesReturn {
@@ -363,7 +365,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
             const barsH = p.current.barsRef.current?.offsetHeight ?? 0;
             const sc = stage.scaleX();
             const aabb = getLayerBounds(hitTb);
-            stage.position(clampStagePos({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc }, sc, stage.width(), stage.height()));
+            stage.position(clampStagePos({ x: 20 - aabb.x * sc, y: barsH + 20 - aabb.y * sc }, sc, stage.width(), stage.height(), p.current.worldBoundsRef.current));
             stage.batchDraw();
           }
           // Guard : empêcher handleTapById de re-traiter ce même tap (sinon selected→editing)
@@ -426,7 +428,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         const center = pinchCenter.current;
         const mpt = { x: (center.x - stage.x()) / os, y: (center.y - stage.y()) / os };
         stage.scale({ x: ns, y: ns });
-        stage.position(clampStagePos({ x: center.x - mpt.x * ns, y: center.y - mpt.y * ns }, ns, stage.width(), stage.height()));
+        stage.position(clampStagePos({ x: center.x - mpt.x * ns, y: center.y - mpt.y * ns }, ns, stage.width(), stage.height(), p.current.worldBoundsRef.current));
         stage.batchDraw();
         setZoomPct(Math.round(ns * 100));
       }
@@ -452,7 +454,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         panScreenPos = found;
       }
       const raw = { x: panStart.current.sx + panScreenPos.x - panStart.current.x, y: panStart.current.sy + panScreenPos.y - panStart.current.y };
-      stage.position(clampStagePos(raw, stage.scaleX(), stage.width(), stage.height()));
+      stage.position(clampStagePos(raw, stage.scaleX(), stage.width(), stage.height(), p.current.worldBoundsRef.current));
       stage.batchDraw();
       return;
     }
@@ -843,7 +845,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     const mpt = { x: (pt.x - stage.x()) / os, y: (pt.y - stage.y()) / os };
     const ns = Math.max(0.2, Math.min(40, os * (1 + (e.evt.deltaY > 0 ? -1 : 1) * 0.1)));
     stage.scale({ x: ns, y: ns });
-    stage.position(clampStagePos({ x: pt.x - mpt.x * ns, y: pt.y - mpt.y * ns }, ns, stage.width(), stage.height()));
+    stage.position(clampStagePos({ x: pt.x - mpt.x * ns, y: pt.y - mpt.y * ns }, ns, stage.width(), stage.height(), p.current.worldBoundsRef.current));
     stage.batchDraw();
     p.current.setZoomPct(Math.round(ns * 100));
   }, []);

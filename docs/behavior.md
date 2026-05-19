@@ -55,9 +55,15 @@ Le même panneau est accessible depuis le menu déroulant de la barre supérieur
 
 ## SketchScreen
 
-### Canvas
+### Canevas
 
-Le canvas a une taille fixe A4 (794 x 1123 px). Le monde navigable est 3x3 A4 (une page de marge de chaque côté). L'utilisateur ne peut pas naviguer au-delà.
+La taille du canevas est configurable par dessin. Par défaut : A4 (794 × 1123 px). Des presets sont disponibles (A4, A3, Letter) ainsi qu'une saisie libre en pixels ou centimètres. La zone monde navigable est un multiple du canevas (défaut : 3×, configurable de 1× à 5×). L'utilisateur ne peut pas naviguer au-delà.
+
+Le panneau « Format canevas » est accessible depuis le menu déroulant de la barre supérieure. Il permet de :
+- Choisir l'unité d'affichage (px ou cm)
+- Sélectionner un preset de taille ou saisir des dimensions libres
+- Régler le multiplicateur de la zone monde
+- Réinitialiser aux valeurs par défaut
 
 Les données de dessin sont une pile unifiée de calques (ordre chronologique = ordre z). Chaque dessin a une couleur de fond indépendante.
 

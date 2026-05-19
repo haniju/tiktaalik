@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.2.0 (2026-05-19)
+
+### Configuration canevas & zone monde (nouveau)
+
+- **Format canevas** : panneau de configuration accessible depuis le menu déroulant Topbar
+- **Presets** : A4 (794×1123), A3 (1123×1587), Letter (816×1056), ou saisie libre
+- **Unités** : toggle px / cm (conversion à 96 DPI)
+- **Zone monde** : multiplicateur configurable de 1× à 5× (défaut 3×)
+- **Persistance** : les réglages sont sauvegardés par dessin, les dessins existants conservent les valeurs A4 par défaut
+
+### Corrections
+
+- **Zoom min** : aligné à 20% partout (slider, pinch, wheel) — était à 10% pour le slider uniquement
+
+### Refactoring
+
+- Constantes A4 hardcodées (4 fichiers) remplacées par `CanvasConfig` dynamique
+- `clampStagePos` accepte des `WorldBounds` dynamiques
+- Nouveaux utilitaires : `pxToCm`, `cmToPx`, `getWorldBounds`
+
 ## v2.1.0 (2026-05-12)
 
 Version mineure — groupement d'objets, panneau About, performance, qualit\u00e9 code.

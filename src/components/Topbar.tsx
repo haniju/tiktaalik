@@ -16,13 +16,14 @@ interface Props {
   onDelete: () => void;
   onToggleGrid: () => void;
   onOpenGridSettings: () => void;
+  onOpenCanvasConfig: () => void;
   onToggleDebug: () => void;
   onTogglePinchZoom: () => void;
   onOpenButtonMapping: () => void;
   onOpenAbout: () => void;
 }
 
-export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZoom, onBack, onUndo, onRedo, onExport, onRename, onDelete, onToggleGrid, onOpenGridSettings, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping, onOpenAbout }: Props) {
+export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZoom, onBack, onUndo, onRedo, onExport, onRename, onDelete, onToggleGrid, onOpenGridSettings, onOpenCanvasConfig, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping, onOpenAbout }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(drawingName);
@@ -102,6 +103,7 @@ export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZo
               </span>
             </button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenGridSettings(); }}>Réglages grille</button>
+            <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenCanvasConfig(); }}>Format canevas</button>
             <button style={styles.dropdownItem} onClick={() => { onTogglePinchZoom(); }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                 Zoom pinch

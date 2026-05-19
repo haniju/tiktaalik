@@ -10,8 +10,8 @@ Pour comprendre **ce que fait l'app** (perspective utilisateur, tech-agnostique)
 
 | Terme | Définition | Technique |
 |-------|-----------|-----------|
-| **Canevas** | Le rectangle de dessin (format A4, 794×1123 px) | Constantes `A4_WIDTH` / `A4_HEIGHT`, rendu par le `background-rect` dans `DrawingLayer` |
-| **Zone monde** | L'espace navigable autour du canevas (3×3 A4) | `WORLD_MIN/MAX_X/Y` dans `useStageViewport.ts`, contrainte par `clampStagePos()` |
+| **Canevas** | Le rectangle de dessin (défaut A4, 794×1123 px, configurable) | `CanvasConfig.canvasWidth/Height`, rendu par le `background-rect` dans `DrawingLayer` |
+| **Zone monde** | L'espace navigable autour du canevas (défaut 3× canevas, configurable 1×–5×) | `getWorldBounds()` dans `utils/canvasConfig.ts`, contrainte par `clampStagePos()` |
 | **Viewport** | La fenêtre visible à l'écran | Le `Stage` Konva, dimensionné par `stageSize` (= taille de la fenêtre navigateur) |
 
 ---
@@ -36,7 +36,19 @@ Hooks custom :
 
 ## Canevas & Viewport
 
-Canevas = rectangle A4 (794×1123 px), rendu par `DrawingLayer`. Zone monde = 3×3 A4, contrainte par `clampStagePos()` (exporté de `useStageViewport.ts`). Viewport = `react-konva` Stage, dimensionné à la fenêtre navigateur.
+Canevas = rectangle configurable (défaut A4, 794×1123 px), rendu par `DrawingLayer`. Zone monde = multiplicateur × canevas (défaut 3×), contrainte par `clampStagePos()` (exporté de `useStageViewport.ts`). Viewport = `react-konva` Stage, dimensionné à la fenêtre navigateur.
+
+### Configuration canevas
+
+`CanvasConfig` (types/index.ts) : `canvasWidth`, `canvasHeight` (px), `worldMultiplier` (1–5), `displayUnit` ('px' | 'cm'). Stocké par dessin dans `Drawing.canvasConfig` (optionnel, défaut = `DEFAULT_CANVAS_CONFIG`).
+
+Utilitaires dans `utils/canvasConfig.ts` :
+- `pxToCm(px)` / `cmToPx(cm)` — conversion à 96 DPI (`PX_PER_CM = 37.795`)
+- `getWorldBounds(config)` → `{ minX, maxX, minY, maxY }` — remplace les anciennes constantes `WORLD_MIN/MAX_*`
+
+`clampStagePos` reçoit un `WorldBounds` en paramètre. Les `worldBounds` sont dérivés de la config et passés via `worldBoundsRef` à `useCanvasGestures`.
+
+`CanvasConfigPanel.tsx` — modale overlay avec toggle unité (px/cm), presets segmentés (A4/A3/Letter/Libre), inputs numériques largeur/hauteur, multiplicateur zone monde (boutons 1×–5×), bouton reset. Accessible depuis le dropdown Topbar (item « Format canevas »).
 
 Zoom : défaut 100%, min 20%, max 400%. Pinch-to-zoom contrôlé par `pinchZoomEnabledRef` passé à `useCanvasGestures`.
 

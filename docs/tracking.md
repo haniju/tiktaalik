@@ -97,6 +97,17 @@ Diagnostic et nettoyage de la dette technique documentée :
 - Couleur adaptative selon le fond du canvas
 - Toggle dans le dropdown Topbar, persisté par dessin (Drawing.showGrid)
 
+### Configuration canevas & zone monde (branche `dev`, 2026-05-19)
+
+- Taille du canevas configurable par dessin (défaut A4, presets A3/Letter, saisie libre)
+- Zone monde configurable via multiplicateur (1×–5×, défaut 3×)
+- Conversion px ↔ cm (96 DPI)
+- Panneau « Format canevas » dans le dropdown Topbar
+- Refactoring : constantes A4 hardcodées (4 fichiers) → `CanvasConfig` dynamique persisté par dessin
+- Fichiers créés : `CanvasConfigPanel.tsx`, `utils/canvasConfig.ts`
+- Fichiers modifiés : `types/index.ts`, `useStageViewport.ts`, `useCanvasGestures.ts`, `useAutosave.ts`, `DrawingLayer.tsx`, `SketchScreen.tsx`, `Topbar.tsx`
+- Zoom min ajusté de 10% à 20% (aligné avec pinch/wheel)
+
 ## Issues connues
 
 - Pinch zoom pendant édition texte sort du mode editing — limitation connue, différée
