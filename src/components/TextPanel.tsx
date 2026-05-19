@@ -101,9 +101,9 @@ const styles: Record<string, React.CSSProperties> = {
   divider: { width: 1, height: 24, background: '#e8e8e8', margin: '0 6px', flexShrink: 0 },
   btn: { background: 'none', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' },
   btnActive: { background: '#f0f0f0' },
-  select: { border: '1px solid #e8e8e8', borderRadius: 6, padding: '4px 6px', fontSize: 12, background: '#f8f8f8', color: '#333', cursor: 'pointer' },
-  sizeInput: { width: 40, border: '1px solid #e8e8e8', borderRadius: 0, padding: '4px 2px', fontSize: 12, textAlign: 'center', color: '#333', background: '#f8f8f8', MozAppearance: 'textfield' },
-  stepperBtn: { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e8e8e8', background: '#f8f8f8', cursor: 'pointer', fontSize: 16, fontWeight: 600, color: '#333', flexShrink: 0 },
+  select: { height: 28, boxSizing: 'border-box', border: '1px solid #e8e8e8', borderRadius: 6, padding: '4px 6px', fontSize: 12, background: '#f8f8f8', color: '#333', cursor: 'pointer' },
+  sizeInput: { width: 40, height: 28, boxSizing: 'border-box', border: '1px solid #e8e8e8', borderRadius: 0, padding: '4px 2px', fontSize: 12, textAlign: 'center', color: '#333', background: '#f8f8f8', MozAppearance: 'textfield' },
+  stepperBtn: { width: 28, height: 28, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e8e8e8', background: '#f8f8f8', cursor: 'pointer', fontSize: 16, fontWeight: 600, color: '#333', flexShrink: 0 },
   disabled: { opacity: 0.35, cursor: 'not-allowed', pointerEvents: 'none' as const },
   rowDisabled: { opacity: 0.35, pointerEvents: 'none' as const },
 };
