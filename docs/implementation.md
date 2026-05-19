@@ -295,6 +295,18 @@ Le branding BETA (badges, title, manifeste PWA) est piloté par la variable d'en
 - `deploy-beta.sh` : passe `VITE_BETA=true npm run build`
 - `deploy.sh` : build sans variable → branding stable
 
+### Deploy incrémental (manifeste MD5)
+
+Les scripts de deploy utilisent un transfert incrémental basé sur les checksums MD5 pour éviter de re-transférer tous les fichiers à chaque deploy :
+
+1. Après le build, un manifeste des checksums MD5 de tous les fichiers de `dist/` est généré
+2. Ce manifeste est comparé au précédent (`.last-deploy-stable.md5` ou `.last-deploy-beta.md5`)
+3. Seuls les fichiers nouveaux/modifiés sont uploadés, les fichiers supprimés sont retirés du serveur
+4. Si rien n'a changé, le script s'arrête sans ouvrir de connexion FTP
+5. Le manifeste est mis à jour après un deploy réussi
+
+Au premier deploy (pas de manifeste existant), tous les fichiers sont transférés normalement.
+
 ## Export
 
 `src/utils/export.ts` :

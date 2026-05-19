@@ -6,6 +6,7 @@ dist/
 
 # Déploiement (credentials dans .env, pas dans les scripts)
 .env
+.last-deploy-*.md5
 
 # Playwright
 /test-results/
