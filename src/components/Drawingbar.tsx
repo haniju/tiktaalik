@@ -64,14 +64,27 @@ export function Drawingbar({ state, canvasBackground, contextPanel, onSelectDraw
         return (
           <button key={id} data-tool={id} style={{ ...styles.btn, ...(active ? styles.btnActive : {}) }}
             onClick={guardClick(() => onSelectDrawingTool(id))}>
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
-              <Icon name={icon} size={22} />
-              <div style={{
-                position: 'absolute', bottom: -1, right: -3,
-                width: 8, height: 8, borderRadius: '50%',
-                background: toolColor, border: '1.5px solid #fff',
-              }} />
-            </div>
+            {id === 'airbrush' ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" style={{ display: 'block' }}>
+                <rect width="2" height="2" x="12" y="6" fill={toolColor} rx="1"/>
+                <rect width="2" height="2" x="20" y="6" fill={toolColor} rx="1"/>
+                <rect width="2" height="2" x="16" y="8" fill={toolColor} rx="1"/>
+                <rect width="2" height="2" x="20" y="10" fill={toolColor} rx="1"/>
+                <rect width="2" height="2" x="16" y="4" fill={toolColor} rx="1"/>
+                <rect width="2" height="2" x="20" y="2" fill={toolColor} rx="1"/>
+                <path stroke="#333" strokeWidth="2" d="M12 18v4M2 8h3a1 1 0 0 1 1 1v3m6 6c0-2.21-3.806-4-8.5-4H2"/>
+                <path fill="#333" d="M11 19a1 1 0 1 0 0-2v2Zm-9-1v1h9v-2H2v1Zm1-6H2v2h1v-2Zm4 2a1 1 0 1 0 0-2v2Zm-4-1v1h4v-2H3v1Z"/>
+              </svg>
+            ) : (
+              <div style={{ position: 'relative', display: 'inline-flex' }}>
+                <Icon name={icon} size={22} />
+                <div style={{
+                  position: 'absolute', bottom: -1, right: -3,
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: toolColor, border: '1.5px solid #fff',
+                }} />
+              </div>
+            )}
             {active && <div style={styles.underline} />}
           </button>
         );

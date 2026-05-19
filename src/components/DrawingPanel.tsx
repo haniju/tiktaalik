@@ -1,5 +1,6 @@
 import { DrawingTool } from '../types';
 import { UnifiedColorPicker } from './UnifiedColorPicker';
+import { Icon } from './Icon';
 
 interface Props {
   tool: DrawingTool;
@@ -41,7 +42,7 @@ export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity,
       {/* Opacité — marker : 1 slider, airbrush : 2 sliders (centre + bord) */}
       {tool === 'marker' && (
         <div style={styles.opacityRow}>
-          <span style={styles.opacityLabel}>Opacité</span>
+          <Icon name="opacity" size={16} />
           <input type="range" className="app-slider" min={10} max={100} step={5}
             value={Math.round(opacity * 100)}
             onChange={e => onOpacityChange(+e.target.value / 100)} />
@@ -67,7 +68,7 @@ export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity,
 
       {/* Lissage — tous les outils */}
       <div style={styles.opacityRow}>
-        <span style={styles.opacityLabel}>Lissage</span>
+        <Icon name="lissage" size={16} />
         <input type="range" className="app-slider" min={0} max={100} step={5}
           value={Math.round(smoothing * 100)}
           onChange={e => onSmoothingChange(+e.target.value / 100)} />
