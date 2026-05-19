@@ -34,8 +34,8 @@ export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity,
             <div style={{
               width: 6 + Math.sqrt((s - 1) / 27) * 32, height: 6 + Math.sqrt((s - 1) / 27) * 32,
               borderRadius: '50%', background: color,
-              border: width === s ? '2.5px solid #222' : '2px solid transparent',
-              boxSizing: 'border-box',
+              outline: width === s ? '2.5px solid #222' : 'none',
+              outlineOffset: 2,
             }} />
           </button>
         ))}
