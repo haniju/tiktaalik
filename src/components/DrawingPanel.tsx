@@ -56,14 +56,14 @@ export function DrawingPanel({ tool, color, width, opacity, airbrushEdgeOpacity,
       )}
       {tool === 'airbrush' && (<>
         <div style={styles.opacityRow}>
-          <span style={styles.opacityLabel}>Centre</span>
+          <img src="/icons/opacity_brush_center.svg" alt="Centre" width={20} height={20} style={styles.opacityIcon} />
           <input type="range" className="app-slider" min={5} max={100} step={5}
             value={Math.round(opacity * 100)}
             onChange={e => onOpacityChange(+e.target.value / 100)} />
           <span style={styles.opacityValue}>{Math.round(opacity * 100)}%</span>
         </div>
         <div style={styles.opacityRow}>
-          <span style={styles.opacityLabel}>Bord</span>
+          <img src="/icons/opacity_brush_outside.svg" alt="Bord" width={20} height={20} style={styles.opacityIcon} />
           <input type="range" className="app-slider" min={0} max={100} step={5}
             value={Math.round(airbrushEdgeOpacity * 100)}
             onChange={e => onAirbrushEdgeOpacityChange(+e.target.value / 100)} />
@@ -114,6 +114,7 @@ const styles: Record<string, React.CSSProperties> = {
   sizeBtn: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 2px', flex: 1, height: 44 },
   opacityRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 44, borderTop: '1px solid #f0f0f0' },
   opacityLabel: { fontSize: 12, color: '#666', flexShrink: 0 },
+  opacityIcon: { flexShrink: 0 },
   opacityValue: { fontSize: 11, color: '#888', width: 34, textAlign: 'right' as const, flexShrink: 0 },
   toggleRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderTop: '1px solid #f0f0f0' },
   toggleBtn: { flex: 1, padding: '6px 0', fontSize: 12, border: '1.5px solid #ccc', borderRadius: 6, background: '#fff', color: '#666', cursor: 'pointer', fontWeight: 500 },
