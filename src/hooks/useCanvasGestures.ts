@@ -676,6 +676,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       isErasing.current = false;
       setEraserActive(false);
       setLayers(prev => { pushUndo(prev); return prev; });
+      scheduleSave();
       return;
     }
 
