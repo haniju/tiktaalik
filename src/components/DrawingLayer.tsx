@@ -110,6 +110,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
           );
         } else {
           const s = layer as Stroke;
+          const tension = s.smoothingMode ? 0 : 0.3;
           return (
             <Group key={s.id} id={s.id} onClick={selectItem} onTap={selectItem}>
               {/* Outline de sélection — même tracé, plus épais, en dessous */}
@@ -117,7 +118,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
                 <Line points={s.points}
                   stroke={outlineColor}
                   strokeWidth={s.width + 6}
-                  lineCap="round" lineJoin="round" tension={0.3}
+                  lineCap="round" lineJoin="round" tension={tension}
                   opacity={0.55}
                   listening={false}
                 />
@@ -125,7 +126,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
               <Line points={s.points}
                 stroke={s.color}
                 strokeWidth={s.width} opacity={s.opacity}
-                lineCap="round" lineJoin="round" tension={0.3}
+                lineCap="round" lineJoin="round" tension={tension}
                 hitStrokeWidth={Math.max(s.width, 20)}
               />
             </Group>
@@ -143,7 +144,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
           opacity={currentStroke.opacity}
           lineCap="round"
           lineJoin="round"
-          tension={0.3}
+          tension={currentStroke.smoothingMode ? 0 : 0.3}
           listening={false}
         />
       )}

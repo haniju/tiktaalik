@@ -27,6 +27,7 @@ const FEATURES: { category: string; items: string[] }[] = [
       'A\u00e9rographe (gradient radial, opacit\u00e9 centre/bord)',
       'Gomme avec auto-dissolve des groupes',
       'Outil texte multi-bo\u00eetes',
+      '3 modes de lissage : Classique, B\u00e9zier cubique, Moyenne glissante',
     ],
   },
   {

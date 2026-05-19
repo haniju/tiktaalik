@@ -65,6 +65,11 @@ Chaque outil a ses propres réglages persistés entre sessions :
 - **Épaisseur** : slider par outil.
 - **Opacité** : slider pour le marqueur et l'aérographe (centre + bord séparés pour l'aérographe).
 - **Lissage** : slider par outil de dessin (0-100%). Réduit le tremblement tactile pour stylo/marqueur, élimine les artefacts de perles pour l'aérographe. Défauts : stylo/marqueur 30%, aérographe 50%.
+- **Mode de lissage** (stylo/marqueur uniquement) : trois modes sélectionnables via des boutons radio dans le panneau outil :
+  - **Classique** (défaut) — filtre de distance minimale, plage 0–12px. Lissage simple par élimination des points trop proches.
+  - **Bézier** — lissage par courbes de Bézier cubiques calculées en temps réel. Produit des tracés très fluides. Plage réduite (0–1.8px) car l'algorithme lisse déjà le tracé.
+  - **Moyenne glissante** — chaque point est remplacé par la moyenne de ses voisins (fenêtre de 7 points). Absorbe le jitter sans décalage perceptible. Plage très réduite (0–0.84px).
+  - Les modes sont mutuellement exclusifs. Le mode actif est persisté entre sessions. Chaque tracé mémorise le mode utilisé pour un rendu cohérent à la relecture.
 
 **Sélecteur de couleur unifié** : le même composant sert pour la couleur de dessin, la couleur de fond et la couleur de texte, avec des palettes de presets adaptées au contexte.
 

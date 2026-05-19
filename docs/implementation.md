@@ -61,7 +61,39 @@ La couleur est un hex (défaut `#e63946` rouge), convertie en rgba via `hexToRgb
 
 Gestion centralisée dans `useCanvasGestures.ts` — hook ~850 lignes qui gère mouseDown/Move/Up, tap, pinch, pan, eraser, text, select, drag, scale, rotate.
 
-Lissage : `toolSmoothings` (0-1). Stylo/marqueur : filtre de distance minimale sur les points capturés (0-12px, élimine le jitter tactile). Aérographe : pas d'interpolation plus dense (facteur 0.6→0.15, élimine les artefacts de perles).
+### Lissage
+
+`toolSmoothings` (0-1 par outil). Trois modes pour stylo/marqueur, sélectionnables via `bezierSmoothing` / `movingAverageSmoothing` (booléens mutuellement exclusifs dans `ToolState`).
+
+**Mode classique** (défaut) — filtre de distance minimale : `minDist = smoothing * 12`. Élimine les points < minDist du dernier accepté. Konva applique `tension={0.3}` (Catmull-Rom) au rendu.
+
+**Mode Bézier** (`src/utils/smoothing.ts: bezierSmooth`) — accumule les points bruts dans `rawPointsBuffer`. À chaque `handleMouseMove`, recalcule la courbe complète :
+1. Calcul des tangentes par point (moyenne des segments adjacent)
+2. Control points placés à ±(tightness/3 × tangente) de chaque extrémité de segment
+3. Échantillonnage de 8 points par segment de Bézier cubique (formule De Casteljau)
+4. `livePointsRef` est remplacé intégralement (pas de push incrémental)
+
+Plage réduite : `minDist = smoothing * 1.8` (100% slider = ancien 15%). Konva `tension={0}` (points déjà courbes).
+
+**Mode moyenne glissante** (`src/utils/smoothing.ts: movingAverageSmooth`) — fenêtre symétrique de 7 points. Chaque point = moyenne de ses ±3 voisins. Même pattern que Bézier : recalcul complet de `livePointsRef` à chaque move.
+
+Plage réduite : `minDist = smoothing * 0.84` (100% slider = ancien 7%). Konva `tension={0}`.
+
+**Stockage** : `Stroke.smoothingMode?: 'bezier' | 'movingAverage'` — tagué à la création dans `handleMouseDown`. `DrawingLayer` lit ce champ pour choisir `tension={0}` ou `tension={0.3}`. Les strokes legacy (sans `smoothingMode`) gardent `tension={0.3}`.
+
+**`handleMouseUp`** : recalcul final avec le dernier point brut inclus dans le buffer (évite de tronquer la fin du tracé si le filtre de distance l'avait exclu).
+
+**Fichiers** :
+| Fichier | Rôle |
+|---------|------|
+| `src/utils/smoothing.ts` | Algorithmes `bezierSmooth()` et `movingAverageSmooth()` |
+| `src/types/index.ts` | `ToolState.bezierSmoothing`, `ToolState.movingAverageSmoothing`, `Stroke.smoothingMode` |
+| `src/hooks/useToolState.ts` | Toggles radio (activer un désactive l'autre), persist localStorage |
+| `src/hooks/useCanvasGestures.ts` | `rawPointsBuffer` ref, branchement algo dans handleMouseMove/Up |
+| `src/components/DrawingPanel.tsx` | 3 boutons radio (Classique / Bézier / Moy. glissante) |
+| `src/components/DrawingLayer.tsx` | `tension` dynamique selon `stroke.smoothingMode` |
+
+Aérographe : inchangé — pas d'interpolation plus dense (facteur 0.6→0.15, élimine les artefacts de perles).
 
 Couleur : `UnifiedColorPicker` avec prop `mode` (`drawing` | `background` | `text`). Contient des presets swatches + `HslColorPicker` extensible (sous-composant interne).
 

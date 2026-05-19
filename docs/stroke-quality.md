@@ -73,9 +73,68 @@ Le filtre de distance minimale (smoothing) est appliqu individuellement  chaque 
 
 ---
 
+## Phase 2 : Modes de lissage avancs (Bzier / Moyenne glissante)
+
+### Contexte
+
+Le filtre de distance minimale (phase 1) limine le jitter mais ne lisse pas les courbes. Deux algorithmes temps rel ont t ajouts comme modes alternatifs pour stylo/marqueur.
+
+### Architecture
+
+Les deux algorithmes partagent le mme pattern d'intgration :
+1. Les points bruts (aprs filtre de distance) sont accumuls dans `rawPointsBuffer` (ref)
+2.  chaque `handleMouseMove`, l'algorithme recalcule **tous** les points lisss  partir du buffer complet
+3. `livePointsRef` est remplac intgralement (pas de push incrmental)
+4. Konva `tension={0}` car les points sont dj courbes
+
+Ce recalcul complet est ncessaire car les deux algorithmes dpendent du contexte global (voisins pour la moyenne, tangentes pour Bzier). Le cot est ngligeable : ~1000 points  oprations arithmtiques simples < 0.1ms.
+
+### Mode Bzier cubique (`bezierSmooth`)
+
+Algorithme des tangentes moyennes :
+- **Tangente** de chaque point = direction (point prcdent  point suivant) / 2
+- **Control points** = point  tangente  tightness / 3
+- **chantillonnage** : 8 points par segment (formule polynomiale cubique)
+- Rsultat : tracs trs fluides, qualit proche Procreate/tldraw
+
+Paramtres : `tightness=0.5`, `samplesPerSegment=8`.
+
+### Mode moyenne glissante (`movingAverageSmooth`)
+
+Fentre symtrique de 7 points :
+- Chaque point = moyenne arithmtique de ses 3 voisins
+- Aux bords, la fentre est tronque (pas d'extrapolation)
+- Rsultat : absorption du jitter sans altrer la forme gnrale du trac
+
+### Plage du slider par mode
+
+Chaque mode a son propre facteur de conversion pour le slider 0-100% :
+
+| Mode | Facteur | 100% = | Raison |
+|------|---------|--------|--------|
+| Classique | 12 | 12px | Seul mcanisme de lissage |
+| Bzier | 1.8 | 1.8px | L'algo lisse dj  le filtre est un ajustement fin |
+| Moy. glissante | 0.84 | 0.84px | Idem, fentre de 7 points lisse beaucoup |
+
+### Persistance et rtrocompatibilit
+
+`Stroke.smoothingMode?: 'bezier' | 'movingAverage'` est sauv dans chaque stroke. `DrawingLayer` choisit `tension={0}` si `smoothingMode` est dfini, sinon `tension={0.3}` (strokes legacy). Les dessins existants ne sont pas affects.
+
+### Fichiers
+
+| Fichier | Changement |
+|---------|-----------|
+| `src/utils/smoothing.ts` | Nouveau  algorithmes `bezierSmooth()` et `movingAverageSmooth()` |
+| `src/types/index.ts` | `ToolState.bezierSmoothing`, `ToolState.movingAverageSmoothing`, `Stroke.smoothingMode` |
+| `src/hooks/useToolState.ts` | Toggles radio + `selectClassicSmoothing`, persist localStorage |
+| `src/hooks/useCanvasGestures.ts` | `rawPointsBuffer` ref, branchement algo dans handleMouseMove/Up, facteur de conversion par mode |
+| `src/components/DrawingPanel.tsx` | 3 boutons radio (Classique / Bzier / Moy. glissante) |
+| `src/components/DrawingLayer.tsx` | `tension` dynamique selon `stroke.smoothingMode` |
+
+---
+
 ## Amliorations futures (non implmentes)
 
-- **Lissage Catmull-Rom / Bzier en temps rel** : remplacer `tension={0.3}` par un vrai algorithme de lissage qui calcule les control points au fur et  mesure
 - **Simplification Douglas-Peucker au commit** : rduire le nombre de points stocks sans perte de qualit visuelle
 - **Pressure sensitivity** : exploiter `PointerEvent.pressure` pour moduler `strokeWidth` en temps rel
 - **Predictive stroke** : afficher un segment prdictif bas sur la vlocit/direction pour rduire la latence perue

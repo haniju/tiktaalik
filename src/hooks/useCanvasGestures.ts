@@ -13,6 +13,7 @@ import {
   roundTextBoxFontSize,
 } from '../utils/textboxUtils';
 import { getLayerBounds, getGroupBounds, applyScale, applyRotation, isStrokeInRect, isAirbrushInRect } from '../utils/bounds';
+import { movingAverageSmooth, bezierSmooth } from '../utils/smoothing';
 import { expandToGroups, autoDissolveGroups } from '../utils/groupUtils';
 import type { ContextPanel } from './useToolState';
 
@@ -132,6 +133,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   // Smoothing — filtre de distance minimale pour pen/marker
   const lastAcceptedPt = useRef<{ x: number; y: number } | null>(null);
   const lastRawPt = useRef<{ x: number; y: number } | null>(null);
+  // Buffer de points bruts pour les algorithmes de lissage avancés (Bézier / Moving Average)
+  const rawPointsBuffer = useRef<Array<{ x: number; y: number }>>([]);
   // Mount guard — bloque les événements fantômes (synthetic mouse events post-touch sur la vignette HomeScreen)
   const mountReadyRef = useRef(false);
   React.useEffect(() => {
@@ -390,7 +393,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       const w = toolState.activeTool === 'marker' ? activeWidth * 4 : activeWidth;
       // Micro-offset 0.1px sur le 2e point : Konva <Line tension> ne rend rien pour un segment
       // de longueur zéro (tap court), le décalage force un segment minimal → point rond via lineCap="round"
-      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1] };
+      const smoothingMode = toolState.bezierSmoothing ? 'bezier' as const
+        : toolState.movingAverageSmoothing ? 'movingAverage' as const
+        : undefined;
+      const stroke: Stroke = { id: uuidv4(), tool: toolState.activeTool, color: activeColor, width: w, opacity, points: [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1], smoothingMode };
       // Bypass React : on stocke seulement dans le ref miroir (pas de setCurrentStroke ici).
       // setCurrentStroke monte le nœud <Line> vide dans DrawingLayer, puis liveLineRef prend le relais.
       currentStrokeRef.current = stroke;
@@ -398,6 +404,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       livePointsRef.current = [pos.x, pos.y, pos.x + 0.1, pos.y + 0.1];
       lastAcceptedPt.current = { x: pos.x, y: pos.y };
       lastRawPt.current = { x: pos.x, y: pos.y };
+      rawPointsBuffer.current = [{ x: pos.x, y: pos.y }];
       isDrawing.current = true;
     }
   }, [eraseAt]);
@@ -553,8 +560,11 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       const scale = stage.scaleX();
       const stagePos = stage.position();
       const stageBox = stage.container().getBoundingClientRect();
+      const useBezier = toolState.bezierSmoothing;
+      const useMA = toolState.movingAverageSmoothing;
       const smoothing = toolState.toolSmoothings[toolState.activeTool as 'pen' | 'marker'] ?? 0;
-      const minDist = smoothing * 12;
+      const smoothingScale = useBezier ? 1.8 : useMA ? 0.84 : 12;
+      const minDist = smoothing * smoothingScale;
       const minDistSq = minDist * minDist;
 
       for (const ce of screenPoints) {
@@ -572,8 +582,28 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           if (dx * dx + dy * dy < minDistSq) continue;
         }
         lastAcceptedPt.current = { x: wx, y: wy };
-        livePointsRef.current.push(wx, wy);
+        rawPointsBuffer.current.push({ x: wx, y: wy });
       }
+
+      // Appliquer l'algorithme de lissage avancé si actif
+      if (useBezier || useMA) {
+        const buf = rawPointsBuffer.current;
+        let smoothed: number[];
+        if (useBezier) {
+          smoothed = bezierSmooth(buf, 0.5, 8);
+        } else {
+          smoothed = movingAverageSmooth(buf, 7);
+        }
+        livePointsRef.current = smoothed;
+      } else {
+        // Mode classique — push direct (déjà accumulé dans rawPointsBuffer)
+        // Synchroniser livePointsRef depuis rawPointsBuffer
+        const buf = rawPointsBuffer.current;
+        const flat: number[] = [];
+        for (const pt of buf) { flat.push(pt.x, pt.y); }
+        livePointsRef.current = flat;
+      }
+
       // Mise à jour impérative Konva — zéro re-render React
       if (liveLineRef.current) {
         liveLineRef.current.points(livePointsRef.current);
@@ -768,15 +798,33 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     if (currentStrokeRef.current && isDrawing.current) {
       isDrawing.current = false;
-      // Utiliser les points accumulés dans livePointsRef (bypass React)
-      let finalPoints = livePointsRef.current;
-      // Ajouter le dernier point brut si le filtre de distance l'avait ignoré
-      if (lastRawPt.current && lastAcceptedPt.current &&
-          (lastRawPt.current.x !== lastAcceptedPt.current.x || lastRawPt.current.y !== lastAcceptedPt.current.y)) {
-        finalPoints = [...finalPoints, lastRawPt.current.x, lastRawPt.current.y];
+      const hasAdvancedSmoothing = currentStrokeRef.current.smoothingMode != null;
+      let finalPoints: number[];
+      if (hasAdvancedSmoothing) {
+        // Algo avancé — recalculer une dernière fois avec le dernier point brut inclus
+        const buf = rawPointsBuffer.current;
+        if (lastRawPt.current) {
+          const last = buf[buf.length - 1];
+          if (!last || last.x !== lastRawPt.current.x || last.y !== lastRawPt.current.y) {
+            buf.push(lastRawPt.current);
+          }
+        }
+        if (currentStrokeRef.current.smoothingMode === 'bezier') {
+          finalPoints = bezierSmooth(buf, 0.5, 8);
+        } else {
+          finalPoints = movingAverageSmooth(buf, 7);
+        }
+      } else {
+        // Mode classique — utiliser livePointsRef + dernier point brut
+        finalPoints = livePointsRef.current;
+        if (lastRawPt.current && lastAcceptedPt.current &&
+            (lastRawPt.current.x !== lastAcceptedPt.current.x || lastRawPt.current.y !== lastAcceptedPt.current.y)) {
+          finalPoints = [...finalPoints, lastRawPt.current.x, lastRawPt.current.y];
+        }
       }
       lastAcceptedPt.current = null;
       lastRawPt.current = null;
+      rawPointsBuffer.current = [];
       const cs = { ...currentStrokeRef.current, points: finalPoints };
       const newL = [...layersRef.current, cs];
       setLayers(newL); pushUndo(newL);

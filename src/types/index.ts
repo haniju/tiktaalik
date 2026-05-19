@@ -17,6 +17,8 @@ export interface ToolState {
   toolOpacities: Record<DrawingTool, number>;
   toolSmoothings: Record<DrawingTool, number>;
   airbrushEdgeOpacity: number;
+  bezierSmoothing: boolean;       // lissage Bézier cubique temps réel
+  movingAverageSmoothing: boolean; // lissage moyenne glissante temps réel
 }
 
 // Alias pour compatibilité avec le code existant
@@ -30,6 +32,7 @@ export interface Stroke {
   points: number[];
   opacity: number;
   groupIds?: string[];
+  smoothingMode?: 'bezier' | 'movingAverage'; // algo de lissage utilisé (tension=0 si présent)
 }
 
 export interface AirbrushStroke {

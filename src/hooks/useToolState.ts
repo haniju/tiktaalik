@@ -12,6 +12,8 @@ const DEFAULT_STATE: ToolState = {
   toolOpacities: { airbrush: 0.7, pen: 1, marker: 0.4 },
   toolSmoothings: { airbrush: 0.5, pen: 0.3, marker: 0.3 },
   airbrushEdgeOpacity: 0,
+  bezierSmoothing: false,
+  movingAverageSmoothing: false,
 };
 
 function loadPersisted(): Partial<ToolState> {
@@ -32,6 +34,8 @@ function persist(state: ToolState) {
       toolOpacities: state.toolOpacities,
       toolSmoothings: state.toolSmoothings,
       airbrushEdgeOpacity: state.airbrushEdgeOpacity,
+      bezierSmoothing: state.bezierSmoothing,
+      movingAverageSmoothing: state.movingAverageSmoothing,
     }));
   } catch { /* localStorage indisponible */ }
 }
@@ -50,6 +54,8 @@ export function useToolState() {
     toolOpacities: { ...DEFAULT_STATE.toolOpacities, ...persisted.toolOpacities },
     toolSmoothings: { ...DEFAULT_STATE.toolSmoothings, ...persisted.toolSmoothings },
     airbrushEdgeOpacity: persisted.airbrushEdgeOpacity ?? DEFAULT_STATE.airbrushEdgeOpacity,
+    bezierSmoothing: persisted.bezierSmoothing ?? DEFAULT_STATE.bezierSmoothing,
+    movingAverageSmoothing: persisted.movingAverageSmoothing ?? DEFAULT_STATE.movingAverageSmoothing,
   });
   const [contextPanel, setContextPanel] = useState<ContextPanel>(null);
 
@@ -213,6 +219,29 @@ export function useToolState() {
     });
   }, []);
 
+  const selectClassicSmoothing = useCallback(() => {
+    setState(prev => {
+      const next = { ...prev, bezierSmoothing: false, movingAverageSmoothing: false };
+      persist(next); return next;
+    });
+  }, []);
+
+  const toggleBezierSmoothing = useCallback(() => {
+    setState(prev => {
+      const on = !prev.bezierSmoothing;
+      const next = { ...prev, bezierSmoothing: on, movingAverageSmoothing: on ? false : prev.movingAverageSmoothing };
+      persist(next); return next;
+    });
+  }, []);
+
+  const toggleMovingAverageSmoothing = useCallback(() => {
+    setState(prev => {
+      const on = !prev.movingAverageSmoothing;
+      const next = { ...prev, movingAverageSmoothing: on, bezierSmoothing: on ? false : prev.bezierSmoothing };
+      persist(next); return next;
+    });
+  }, []);
+
   const activeColor = state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool)
     ? state.toolColors[state.activeTool as DrawingTool] : '#000000';
   const activeWidth = state.activeTool && ['airbrush', 'pen', 'marker'].includes(state.activeTool)
@@ -222,7 +251,7 @@ export function useToolState() {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
-    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity,
+    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
     activeColor, activeWidth,
     selectTool: (t: Tool) => setState(prev => ({ ...prev, activeTool: t })),
   };
