@@ -9,7 +9,7 @@ import { useUndoRedo } from '../hooks/useUndoRedo';
 import { useStageViewport, clampStagePos } from '../hooks/useStageViewport';
 import { useCanvasGestures } from '../hooks/useCanvasGestures';
 import { exportSvg, exportRaster, printDrawing } from '../utils/export';
-import type { ExportFormat } from '../utils/export';
+import type { ExportOptions } from './ExportModal';
 import { expandToGroups, createGroup, ungroupLayers, autoDissolveGroups, getFocusedGroupId } from '../utils/groupUtils';
 import {
   TextBoxSelectionState,
@@ -413,12 +413,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
 
 
-  const handleExport = (format: ExportFormat) => {
+  const handleExport = ({ format, transparent }: ExportOptions) => {
     const { canvasWidth, canvasHeight } = canvasConfig;
     if (format === 'svg') {
       exportSvg(layers, canvasWidth, canvasHeight, `${drawingName}.svg`, canvasBackground);
     } else {
-      exportRaster(layers, canvasWidth, canvasHeight, `${drawingName}.${format}`, format, canvasBackground);
+      exportRaster(layers, canvasWidth, canvasHeight, `${drawingName}.${format}`, format, canvasBackground, transparent);
     }
   };
 

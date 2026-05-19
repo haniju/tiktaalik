@@ -76,14 +76,16 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
 export type ExportFormat = 'svg' | 'png' | 'jpeg' | 'webp';
 
 /** Rend les layers sur un canvas à la résolution demandée */
-function renderToCanvas(layers: DrawLayer[], width: number, height: number, targetWidth: number, background: string): HTMLCanvasElement {
+function renderToCanvas(layers: DrawLayer[], width: number, height: number, targetWidth: number, background: string, transparent = false): HTMLCanvasElement {
   const scale = targetWidth / width;
   const canvas = document.createElement('canvas');
   canvas.width = targetWidth;
   canvas.height = Math.round(height * scale);
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = background;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!transparent) {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 
   ctx.save();
   ctx.beginPath();
@@ -176,8 +178,9 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
 export function exportRaster(
   layers: DrawLayer[], width: number, height: number,
   filename: string, format: 'png' | 'jpeg' | 'webp', background = '#ffffff',
+  transparent = false,
 ) {
-  const canvas = renderToCanvas(layers, width, height, width, background);
+  const canvas = renderToCanvas(layers, width, height, width, background, transparent);
   const mimeType = `image/${format}`;
   const quality = format === 'png' ? undefined : 0.92;
   canvas.toBlob(blob => {
