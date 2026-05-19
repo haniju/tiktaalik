@@ -73,17 +73,18 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
   URL.revokeObjectURL(url);
 }
 
-export function generateThumbnail(layers: DrawLayer[], width: number, height: number, background = '#ffffff'): string {
-  const THUMB_W = 400;
-  const scale = THUMB_W / width;
+export type ExportFormat = 'svg' | 'png' | 'jpeg' | 'webp';
+
+/** Rend les layers sur un canvas à la résolution demandée */
+function renderToCanvas(layers: DrawLayer[], width: number, height: number, targetWidth: number, background: string): HTMLCanvasElement {
+  const scale = targetWidth / width;
   const canvas = document.createElement('canvas');
-  canvas.width = THUMB_W;
+  canvas.width = targetWidth;
   canvas.height = Math.round(height * scale);
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Clipper au rectangle de la page — rien ne déborde
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, canvas.width, canvas.height);
@@ -163,5 +164,46 @@ export function generateThumbnail(layers: DrawLayer[], width: number, height: nu
   });
 
   ctx.restore();
+  return canvas;
+}
+
+export function generateThumbnail(layers: DrawLayer[], width: number, height: number, background = '#ffffff'): string {
+  const canvas = renderToCanvas(layers, width, height, 400, background);
   return canvas.toDataURL('image/jpeg', 0.7);
+}
+
+/** Exporte en format raster (PNG, JPEG, WebP) */
+export function exportRaster(
+  layers: DrawLayer[], width: number, height: number,
+  filename: string, format: 'png' | 'jpeg' | 'webp', background = '#ffffff',
+) {
+  const canvas = renderToCanvas(layers, width, height, width, background);
+  const mimeType = `image/${format}`;
+  const quality = format === 'png' ? undefined : 0.92;
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, mimeType, quality);
+}
+
+/** Ouvre la boîte de dialogue d'impression du navigateur */
+export function printDrawing(layers: DrawLayer[], width: number, height: number, background = '#ffffff') {
+  const canvas = renderToCanvas(layers, width, height, width, background);
+  const dataUrl = canvas.toDataURL('image/png');
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html>
+<html><head><title>Impression</title>
+<style>
+  @media print { @page { margin: 0; } }
+  body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+  img { max-width: 100%; max-height: 100vh; }
+</style></head>
+<body><img src="${dataUrl}" onload="window.print();window.close();" /></body></html>`);
+  win.document.close();
 }

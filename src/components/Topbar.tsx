@@ -11,7 +11,7 @@ interface Props {
   onBack: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onExportSvg: () => void;
+  onExport: () => void;
   onRename: (newName: string) => void;
   onDelete: () => void;
   onToggleGrid: () => void;
@@ -22,7 +22,7 @@ interface Props {
   onOpenAbout: () => void;
 }
 
-export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZoom, onBack, onUndo, onRedo, onExportSvg, onRename, onDelete, onToggleGrid, onOpenGridSettings, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping, onOpenAbout }: Props) {
+export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZoom, onBack, onUndo, onRedo, onExport, onRename, onDelete, onToggleGrid, onOpenGridSettings, onToggleDebug, onTogglePinchZoom, onOpenButtonMapping, onOpenAbout }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(drawingName);
@@ -84,7 +84,7 @@ export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZo
           <>
           <div style={styles.dropdownOverlay} onClick={() => setMenuOpen(false)} onTouchEnd={e => { e.preventDefault(); setMenuOpen(false); }} />
           <div style={styles.dropdown}>
-            <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onExportSvg(); }}>Exporter en SVG</button>
+            <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onExport(); }}>Exporter...</button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); startEditing(); }}>Renommer</button>
             <button style={styles.dropdownItem} onClick={() => { onToggleGrid(); }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>

@@ -6,6 +6,16 @@ Pour comprendre **ce que fait l'app** (perspective utilisateur, tech-agnostique)
 
 ---
 
+## Glossaire
+
+| Terme | Définition | Technique |
+|-------|-----------|-----------|
+| **Canevas** | Le rectangle de dessin (format A4, 794×1123 px) | Constantes `A4_WIDTH` / `A4_HEIGHT`, rendu par le `background-rect` dans `DrawingLayer` |
+| **Zone monde** | L'espace navigable autour du canevas (3×3 A4) | `WORLD_MIN/MAX_X/Y` dans `useStageViewport.ts`, contrainte par `clampStagePos()` |
+| **Viewport** | La fenêtre visible à l'écran | Le `Stage` Konva, dimensionné par `stageSize` (= taille de la fenêtre navigateur) |
+
+---
+
 ## State & Persistence
 
 Toutes les données vivent dans `localStorage` :
@@ -24,11 +34,11 @@ Hooks custom :
 - `useUndoRedo` — undoStack, pushUndo, undo/redo, raccourci Cmd+Z
 - `useStageViewport` — stageRef, stageSize, zoomPct, canvasH, centerViewOn, zoomTo. Constantes exportées : `TOPBAR_H = 48`, `DRAWINGBAR_H = 48`
 
-## Canvas & Viewport
+## Canevas & Viewport
 
-Canvas = `react-konva` Stage, taille fixe A4 (794x1123). Monde navigable = 3x3 A4, contraint par `clampStagePos()` (exporté de `useStageViewport.ts`).
+Canevas = rectangle A4 (794×1123 px), rendu par `DrawingLayer`. Zone monde = 3×3 A4, contrainte par `clampStagePos()` (exporté de `useStageViewport.ts`). Viewport = `react-konva` Stage, dimensionné à la fenêtre navigateur.
 
-Zoom : défaut 100%, min 10%, max 400%. Pinch-to-zoom controlé par `pinchZoomEnabledRef` passé à `useCanvasGestures`.
+Zoom : défaut 100%, min 20%, max 400%. Pinch-to-zoom contrôlé par `pinchZoomEnabledRef` passé à `useCanvasGestures`.
 
 Pile de calques unifiée : `DrawLayer = Stroke | AirbrushStroke | TextLayer`. `AirbrushLayer.tsx` gère le rendu aérographe séparément (compositing gradient radial).
 
@@ -276,9 +286,14 @@ Le branding BETA (badges, title, manifeste PWA) est piloté par la variable d'en
 ## Export
 
 `src/utils/export.ts` :
-- SVG : styles de traits, gradients radiaux aérographe, texte word-wrap, fond canvas. ClipPath aux bornes A4.
-- Thumbnail : canvas 2D, `ctx.clip()` aux bornes A4. Largeur 400px.
+- `renderToCanvas()` : helper interne qui rend les layers sur un `<canvas>` à une résolution donnée. Factorise le code entre thumbnails et exports raster.
+- `exportSvg()` : SVG vectoriel — styles de traits, gradients radiaux aérographe, texte word-wrap, fond canvas. ClipPath aux bornes A4.
+- `exportRaster()` : PNG/JPG/WebP via `canvas.toBlob()`. Résolution native A4 (794×1123). Qualité 0.92 pour JPG/WebP.
+- `printDrawing()` : ouvre une fenêtre `window.open`, écrit un document HTML minimal avec l'image PNG et déclenche `window.print()` à l'onload.
+- `generateThumbnail()` : canvas 2D, `ctx.clip()` aux bornes A4. Largeur 400px. Utilise `renderToCanvas()`.
 - `wrapText()` dans `textboxUtils.ts` partagé entre rendu canvas, export SVG et thumbnails.
+
+`src/components/ExportModal.tsx` : modal de choix de format (PNG, JPG, WebP, SVG) + bouton Imprimer.
 
 ## Tests
 

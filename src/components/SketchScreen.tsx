@@ -8,7 +8,8 @@ import { useAutosave } from '../hooks/useAutosave';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { useStageViewport, clampStagePos } from '../hooks/useStageViewport';
 import { useCanvasGestures } from '../hooks/useCanvasGestures';
-import { exportSvg } from '../utils/export';
+import { exportSvg, exportRaster, printDrawing } from '../utils/export';
+import type { ExportFormat } from '../utils/export';
 import { expandToGroups, createGroup, ungroupLayers, autoDissolveGroups, getFocusedGroupId } from '../utils/groupUtils';
 import {
   TextBoxSelectionState,
@@ -24,6 +25,7 @@ import { DrawingLayer } from './DrawingLayer';
 import { EditingTextarea } from './EditingTextarea';
 import { ButtonMappingModal } from './ButtonMappingModal';
 import { AboutModal } from './AboutModal';
+import { ExportModal } from './ExportModal';
 import { GridSettingsPanel } from './GridSettingsPanel';
 import { useButtonMapping } from '../hooks/useButtonMapping';
 
@@ -297,6 +299,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   // ─── Button mapping (boutons physiques → actions) ──────────────────────────
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const buttonMapping = useButtonMapping({
     toggle: { toggle_pan: handleTogglePan },
     enter: { toggle_pan: handleEnterPan },
@@ -404,8 +407,16 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
 
 
-  const handleExportSvg = () => {
-    exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`, canvasBackground);
+  const handleExport = (format: ExportFormat) => {
+    if (format === 'svg') {
+      exportSvg(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.svg`, canvasBackground);
+    } else {
+      exportRaster(layers, A4_WIDTH, A4_HEIGHT, `${drawingName}.${format}`, format, canvasBackground);
+    }
+  };
+
+  const handlePrint = () => {
+    printDrawing(layers, A4_WIDTH, A4_HEIGHT, canvasBackground);
   };
 
   const handleRename = (newName: string) => {
@@ -455,7 +466,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onBack={() => { saveNow(); onBack(); }}
           onUndo={undo}
           onRedo={redo}
-          onExportSvg={handleExportSvg}
+          onExport={() => setExportModalOpen(true)}
           onRename={handleRename}
           onDelete={handleDeleteDrawing}
           onToggleGrid={() => { setShowGrid(g => !g); scheduleSave(); }}
@@ -690,6 +701,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
       {aboutModalOpen && (
         <AboutModal onClose={() => setAboutModalOpen(false)} />
+      )}
+
+      {exportModalOpen && (
+        <ExportModal
+          onExport={handleExport}
+          onPrint={handlePrint}
+          onClose={() => setExportModalOpen(false)}
+        />
       )}
 
       {gridSettingsOpen && (

@@ -82,7 +82,8 @@ const FEATURES: { category: string; items: string[] }[] = [
   {
     category: 'Export & sauvegarde',
     items: [
-      'Export SVG vectoriel complet',
+      'Export multi-format (PNG, JPG, WebP, SVG)',
+      'Impression directe depuis le navigateur',
       'Auto-save (debounce 4s + save imm\u00e9diat)',
       'Persistance de tous les r\u00e9glages outils',
     ],

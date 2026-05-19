@@ -4,6 +4,16 @@ Ce document décrit **ce que fait l'application** du point de vue de l'utilisate
 
 ---
 
+## Glossaire
+
+| Terme | Définition |
+|-------|-----------|
+| **Canevas** | Le rectangle de dessin (format A4). C'est la surface sur laquelle l'utilisateur dessine. |
+| **Zone monde** | L'espace gris navigable autour du canevas (3× sa taille dans chaque direction). |
+| **Viewport** | La fenêtre visible à l'écran, que l'utilisateur déplace par pan/zoom pour naviguer dans la zone monde. |
+
+---
+
 ## HomeScreen
 
 ### Galerie
@@ -274,9 +284,17 @@ Un panneau « Réglages grille » est accessible depuis le menu déroulant de la
 - **Couleur** : palette de 8 couleurs (rouge, orange, jaune, teal, bleu, violet, noir, gris). Défaut : rouge (#e63946).
 - **Réinitialiser** : un bouton remet tous les réglages aux valeurs par défaut.
 
-### Export (SVG + Vignette)
+### Export multi-format
 
-- **SVG** : export complet avec styles de traits, gradients radiaux (aérographe), texte avec retour à la ligne, couleur de fond. Clippé aux bornes A4 (pas de débordement).
+Le menu hamburger propose « Exporter... » qui ouvre un modal avec 4 formats au choix :
+
+- **PNG** : image sans perte, résolution native A4 (794×1123 px).
+- **JPG** : compression JPEG (qualité 92%), idéal pour partager.
+- **WebP** : format moderne, bon ratio qualité/poids (qualité 92%).
+- **SVG** : vectoriel, styles de traits, gradients radiaux (aérographe), texte avec retour à la ligne, couleur de fond. Clippé aux bornes A4.
+
+Le modal propose également un bouton **Imprimer** qui ouvre la boîte de dialogue d'impression du navigateur avec le rendu PNG du dessin.
+
 - **Vignette** : rendu canvas 2D pour les previews de la galerie (400px de large). Également clippée aux bornes A4.
 - Le calcul de retour à la ligne du texte est partagé entre le rendu canvas, l'export SVG et la génération de vignettes.
 
