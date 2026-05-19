@@ -95,7 +95,7 @@ export function ActionFABs({ canvasMode, zoomPct, onSetMode, onTogglePan, onEnte
 
       {/* Mode move — tap: toggle, hold: pan momentané */}
       <button
-        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}), WebkitTouchCallout: 'none', userSelect: 'none', touchAction: 'none' }}
+        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}), touchAction: 'none' }}
         onPointerDown={handlePanPointerDown}
         onPointerUp={handlePanPointerUp}
         onPointerCancel={handlePanPointerUp}
@@ -130,6 +130,9 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
     transition: 'background 0.15s',
     flexShrink: 0,
+    WebkitTouchCallout: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    userSelect: 'none',
   },
   fabActive: {
     background: 'linear-gradient(135deg, #118ab2, #06d6a0)',
@@ -178,6 +181,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    WebkitTouchCallout: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    userSelect: 'none',
   },
   zoomSlider: {
     width: 100,

@@ -10,7 +10,8 @@ export function Icon({ name, size = 24, style }: Props) {
       src={`/icons/${name}.svg`}
       width={size}
       height={size}
-      style={{ display: 'block', ...style }}
+      draggable={false}
+      style={{ display: 'block', pointerEvents: 'none', ...style }}
       alt={name}
     />
   );
