@@ -10,6 +10,7 @@ import {
   nextSelectionState,
   estimateTextHeight,
   findTextBoxAtPoint,
+  isPointInTextBox,
   isRectIntersecting,
   roundTextBoxFontSize,
 } from '../utils/textboxUtils';
@@ -173,7 +174,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     moveEraserCursor(pos);
     p.current.setLayers(prev => {
       const filtered = prev.filter(layer => {
-        if (layer.tool === 'text') return true; // les textboxes ne s'effacent pas à la gomme
+        if (layer.tool === 'text') {
+          const h = textNodesRef.current.get(layer.id)?.height() ?? estimateTextHeight(layer);
+          return !isPointInTextBox(pos.x, pos.y, layer, h, 10);
+        }
         if (layer.tool === 'airbrush') {
           return !layer.points.some(pt => Math.hypot(pt.x - pos.x, pt.y - pos.y) < layer.radius * 0.8);
         } else {
