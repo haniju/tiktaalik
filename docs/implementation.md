@@ -52,7 +52,7 @@ Utilitaires dans `utils/canvasConfig.ts` :
 
 Zoom : défaut 100%, min 20%, max 400%. Pinch-to-zoom contrôlé par `pinchZoomEnabledRef` passé à `useCanvasGestures`.
 
-Pile de calques unifiée : `DrawLayer = Stroke | AirbrushStroke | TextLayer`. `AirbrushLayer.tsx` gère le rendu aérographe séparément (compositing gradient radial).
+Pile de calques unifiée : `DrawLayer = Stroke | AirbrushStroke | TextLayer | ImageLayer`. `AirbrushLayer.tsx` gère le rendu aérographe séparément (compositing gradient radial). `KonvaImage.tsx` gère le rendu des images importées (chargement dataURL → `HTMLImageElement` natif, placeholder gris pendant le chargement, rect rouge si image manquante).
 
 ## Grille canvas
 
@@ -212,7 +212,7 @@ Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange 
 
 ### Groupement de tracés
 
-**Modèle de données** : chaque `DrawLayer` (`Stroke`, `AirbrushStroke`, `TextBox`) possède un champ optionnel `groupIds?: string[]`. C'est une pile hiérarchique : l'index 0 est le groupe le plus interne (créé en premier), le dernier est le plus externe (groupe parent). Un layer sans `groupIds` (ou `undefined`) n'appartient à aucun groupe.
+**Modèle de données** : chaque `DrawLayer` (`Stroke`, `AirbrushStroke`, `TextBox`, `ImageLayer`) possède un champ optionnel `groupIds?: string[]`. C'est une pile hiérarchique : l'index 0 est le groupe le plus interne (créé en premier), le dernier est le plus externe (groupe parent). Un layer sans `groupIds` (ou `undefined`) n'appartient à aucun groupe.
 
 **Utilitaires** (`src/utils/groupUtils.ts`) — fonctions pures :
 - `expandToGroups(layers, ids)` — étend les IDs par le groupId le plus externe de chaque layer touché

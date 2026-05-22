@@ -134,6 +134,16 @@ Limitation connue : un pinch zoom pendant l'édition active sort du mode editing
 
 Deux poignées (gauche/droite) permettent de redimensionner la textbox horizontalement. Largeur minimum : 150px. Pendant le drag, la poignée visible reste accrochée au bord de la textbox (seule la zone d'accroche invisible suit le doigt).
 
+### Images importées
+
+L'utilisateur peut importer des images (photo / fichier) dans le dessin. Chaque image est un calque (`ImageLayer`) dans la pile unifiée, avec position, dimensions, opacité (0–1) et rotation.
+
+- **Rendu** : l'image s'affiche sur le canvas à sa position/taille, respecte l'opacité et la rotation du layer.
+- **Chargement** : un rectangle gris placeholder s'affiche pendant le chargement du dataURL.
+- **Image manquante** : si le dataURL n'est plus en localStorage, un rectangle rouge avec le texte « Image manquante » s'affiche.
+- **Stockage** : les données image sont dans des clés localStorage séparées (`img_{id}`), le layer ne contient que la référence.
+- **Limite** : maximum 10 images par dessin.
+
 ### Modes (draw / select / move)
 
 Trois modes de canvas :

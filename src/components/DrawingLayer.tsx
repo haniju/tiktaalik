@@ -1,10 +1,11 @@
 import React from 'react';
 import Konva from 'konva';
 import { Layer, Line, Rect, Group, Circle, Shape } from 'react-konva';
-import { DrawLayer, Stroke, AirbrushStroke, TextLayer, CanvasMode, GridSettings } from '../types';
+import { DrawLayer, Stroke, AirbrushStroke, TextLayer, ImageLayer, CanvasMode, GridSettings } from '../types';
 import { TextBoxSelectionState } from '../utils/textboxUtils';
 import { AirbrushShape, AirbrushOutline } from './AirbrushLayer';
 import { TextBoxKonva } from './TextBoxKonva';
+import { KonvaImage } from './KonvaImage';
 import { BoundingBoxHandles } from './BoundingBoxHandles';
 import { CanvasGrid } from './CanvasGrid';
 import { getGroupBounds } from '../utils/bounds';
@@ -91,6 +92,10 @@ export const DrawingLayer = React.memo(function DrawingLayer({
           );
         }
 
+        if (layer.tool === 'image') {
+          return <KonvaImage key={layer.id} layer={layer as ImageLayer} />;
+        }
+
         if (layer.tool === 'airbrush') {
           const ab = layer as AirbrushStroke;
           const xs = ab.points.map(p => p.x), ys = ab.points.map(p => p.y);
@@ -157,7 +162,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
           sceneFunc={(ctx) => {
             const r = 2.5 / stageScale;
             for (const layer of layers) {
-              if (layer.tool === 'text') continue;
+              if (layer.tool === 'text' || layer.tool === 'image') continue;
               if (layer.tool === 'airbrush') {
                 const ab = layer as AirbrushStroke;
                 ctx.fillStyle = 'rgba(0,180,255,0.7)';
