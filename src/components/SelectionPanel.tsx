@@ -22,6 +22,7 @@ interface Props {
   onReorderByIds: (orderedIds: string[]) => void;
   onGroup: () => void;
   onUngroup: () => void;
+  onToggleOpacityPanel: () => void;
 }
 
 const THUMB_W = 64;
@@ -122,6 +123,7 @@ export function SelectionPanel({
   onSelectAll, onUnselectAll,
   onReorderByIds,
   onGroup, onUngroup,
+  onToggleOpacityPanel,
 }: Props) {
   if (selection.length === 0) return null;
 
@@ -193,6 +195,9 @@ export function SelectionPanel({
   const showGroupBtn = canGroup(layers, focusedIds);
   const showUngroupBtn = canUngroup(layers, focusedIds);
 
+  // Bouton opacité : seulement si un seul layer est sélectionné et c'est une image
+  const showOpacityBtn = selection.length === 1 && layers.some(l => l.id === selection[0] && l.tool === 'image');
+
   const allFocused = focusedIds.length > 0 && focusedIds.length >= selection.length;
 
   return (
@@ -245,6 +250,17 @@ export function SelectionPanel({
             <button style={st.toolbarBtn} onClick={onDuplicateFocused} title="Dupliquer">
               <img src="/icons/duplicate.svg" width="16" height="16" alt="Duplicate" style={{ opacity: 0.6 }} />
             </button>
+            {showOpacityBtn && (
+              <>
+                <div style={st.toolbarSep} />
+                <button style={st.toolbarBtn} onClick={onToggleOpacityPanel} title="Opacité">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <rect x="1" y="1" width="10" height="10" rx="2" fill="#888" opacity="0.35" />
+                    <rect x="5" y="5" width="10" height="10" rx="2" fill="#888" opacity="0.75" />
+                  </svg>
+                </button>
+              </>
+            )}
           </>
         )}
 

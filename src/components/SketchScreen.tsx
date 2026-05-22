@@ -30,6 +30,7 @@ import { AboutModal } from './AboutModal';
 import { ExportModal } from './ExportModal';
 import { GridSettingsPanel } from './GridSettingsPanel';
 import { CanvasConfigPanel } from './CanvasConfigPanel';
+import { ImageOpacityPanel } from './ImageOpacityPanel';
 import { useButtonMapping } from '../hooks/useButtonMapping';
 import { getWorldBounds } from '../utils/canvasConfig';
 
@@ -307,6 +308,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [showOpacityPanel, setShowOpacityPanel] = useState(false);
   const buttonMapping = useButtonMapping({
     toggle: { toggle_pan: handleTogglePan },
     enter: { toggle_pan: handleEnterPan },
@@ -345,6 +347,17 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setFocusedIds([result.layer.id]);
     scheduleSave();
   }, [importImage, layers, pushUndo, setCanvasMode, scheduleSave]);
+
+  // ─── Panneau opacité image ──────────────────────────────────────────────────
+  useEffect(() => { setShowOpacityPanel(false); }, [selection]);
+
+  const handleToggleOpacityPanel = useCallback(() => {
+    setShowOpacityPanel(prev => !prev);
+  }, []);
+
+  const selectedImage = selection.length === 1
+    ? layers.find(l => l.id === selection[0] && l.tool === 'image') as ImageLayer | undefined
+    : undefined;
 
   // ─── Gestures canvas ───────────────────────────────────────────────────────
   const {
@@ -617,6 +630,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onUnselectAll={() => { setFocusedIds([]); setSelectSubMode('none'); }}
             onGroup={handleGroup}
             onUngroup={handleUngroup}
+            onToggleOpacityPanel={handleToggleOpacityPanel}
             onClearSelection={() => { setSelection([]); setFocusedIds([]); setSelectSubMode('none'); setTbStateWithLog({ kind: 'idle' }, 'selectionPanel:clear'); }}
             onReorderByIds={orderedIds => {
               // orderedIds est en ordre panel (z décroissant, top-of-stack en premier).
@@ -798,6 +812,23 @@ export function SketchScreen({ drawing, onBack }: Props) {
           config={canvasConfig}
           onChange={(cc) => { setCanvasConfig(cc); scheduleSave(); }}
           onClose={() => setCanvasConfigOpen(false)}
+        />
+      )}
+
+      {showOpacityPanel && selectedImage && (
+        <ImageOpacityPanel
+          opacity={selectedImage.opacity}
+          onChange={value => {
+            const id = selectedImage.id;
+            setLayers(prev => prev.map(l => l.id === id ? { ...l, opacity: value } : l));
+          }}
+          onChangeEnd={value => {
+            const id = selectedImage.id;
+            pushUndo(layers);
+            setLayers(prev => prev.map(l => l.id === id ? { ...l, opacity: value } : l));
+            scheduleSave();
+          }}
+          onClose={() => setShowOpacityPanel(false)}
         />
       )}
     </div>
