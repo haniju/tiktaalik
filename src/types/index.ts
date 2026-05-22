@@ -69,8 +69,21 @@ export interface TextBox {
 // TextBox dans la pile unifiée — discriminant tool: 'text'
 export type TextLayer = TextBox & { tool: 'text' };
 
+export interface ImageLayer {
+  id: string;
+  tool: 'image';
+  imageStorageKey: string; // clé localStorage séparée ("img_{id}")
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  opacity: number;        // 0–1, défaut 1
+  groupIds?: string[];
+}
+
 // Pile unifiée — ordre chronologique = z-index réel
-export type DrawLayer = Stroke | AirbrushStroke | TextLayer;
+export type DrawLayer = Stroke | AirbrushStroke | TextLayer | ImageLayer;
 
 export type GridStyle = 'dots' | 'lines' | 'checkerboard';
 

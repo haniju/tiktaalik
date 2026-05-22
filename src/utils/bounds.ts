@@ -1,4 +1,4 @@
-import { DrawLayer, Stroke, AirbrushStroke, TextLayer } from '../types';
+import { DrawLayer, Stroke, AirbrushStroke, TextLayer, ImageLayer } from '../types';
 import { wrapText, scaleTextBox } from './textboxUtils';
 
 export interface Rect {
@@ -20,7 +20,13 @@ export function getLayerBounds(layer: DrawLayer): Rect {
       return getAirbrushBounds(layer);
     case 'text':
       return getTextBounds(layer);
+    case 'image':
+      return getImageBounds(layer);
   }
+}
+
+function getImageBounds(img: ImageLayer): Rect {
+  return { x: img.x, y: img.y, width: img.width, height: img.height };
 }
 
 function getStrokeBounds(stroke: Stroke): Rect {
@@ -124,7 +130,17 @@ export function applyScale(layer: DrawLayer, sx: number, sy: number, cx: number,
     case 'text':
       // Pour le texte, on utilise la moyenne de sx/sy comme facteur uniforme
       return scaleTextBox(layer, (sx + sy) / 2, cx, cy);
+    case 'image':
+      return scaleImage(layer, sx, sy, cx, cy);
   }
+}
+
+function scaleImage(img: ImageLayer, sx: number, sy: number, cx: number, cy: number): ImageLayer {
+  // Scale proportionnel forcé pour les images (ratio locked)
+  const sf = (sx + sy) / 2;
+  const newX = (img.x - cx) * sf + cx;
+  const newY = (img.y - cy) * sf + cy;
+  return { ...img, x: newX, y: newY, width: img.width * sf, height: img.height * sf };
 }
 
 function scaleStroke(s: Stroke, sx: number, sy: number, cx: number, cy: number): Stroke {
@@ -173,7 +189,34 @@ export function applyRotation(layer: DrawLayer, angleDeg: number, cx: number, cy
       return rotateAirbrush(layer, angleDeg, cx, cy);
     case 'text':
       return rotateTextLayer(layer, angleDeg, cx, cy);
+    case 'image':
+      return rotateImageLayer(layer, angleDeg, cx, cy);
   }
+}
+
+function rotateImageLayer(img: ImageLayer, angleDeg: number, cx: number, cy: number): ImageLayer {
+  // Même pattern que TextLayer : rotation autour du centre visuel
+  const halfW = img.width / 2;
+  const halfH = img.height / 2;
+  const existingRot = img.rotation ?? 0;
+  const erad = (existingRot * Math.PI) / 180;
+  const ecos = Math.cos(erad);
+  const esin = Math.sin(erad);
+  const visualCx = ecos * halfW - esin * halfH + img.x;
+  const visualCy = esin * halfW + ecos * halfH + img.y;
+
+  const rotated = rotatePoint(visualCx, visualCy, cx, cy, angleDeg);
+  const newRotation = (((existingRot + angleDeg) % 360) + 360) % 360;
+  const nrad = (newRotation * Math.PI) / 180;
+  const ncos = Math.cos(nrad);
+  const nsin = Math.sin(nrad);
+
+  return {
+    ...img,
+    x: rotated.x - (ncos * halfW - nsin * halfH),
+    y: rotated.y - (nsin * halfW + ncos * halfH),
+    rotation: newRotation,
+  };
 }
 
 function rotateStroke(s: Stroke, angleDeg: number, cx: number, cy: number): Stroke {

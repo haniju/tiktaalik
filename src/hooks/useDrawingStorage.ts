@@ -1,4 +1,4 @@
-import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox } from '../types';
+import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox, ImageLayer } from '../types';
 
 const STORAGE_KEY = 'sketchpad_drawings';
 
@@ -50,8 +50,17 @@ export function useDrawingStorage() {
   };
 
   const remove = (id: string): void => {
-    const all = getAll().filter(d => d.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    // Nettoyer les clés localStorage des images associées
+    const all = getAll();
+    const drawing = all.find(d => d.id === id);
+    if (drawing) {
+      for (const layer of drawing.layers) {
+        if (layer.tool === 'image') {
+          localStorage.removeItem('img_' + (layer as ImageLayer).imageStorageKey);
+        }
+      }
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all.filter(d => d.id !== id)));
   };
 
   const rename = (id: string, name: string): void => {
