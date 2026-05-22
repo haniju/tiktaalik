@@ -319,6 +319,22 @@ Au premier deploy (pas de manifeste existant), tous les fichiers sont transfér�
 
 `src/components/ExportModal.tsx` : modal de choix de format (PNG, JPG, WebP, SVG) + bouton Imprimer.
 
+## Curseur eraser & debug points
+
+### Curseur eraser
+
+`eraserCursorRef` (`Konva.Circle`) dans `useCanvasGestures.ts` — même pattern que `liveLineRef` (ref impérative, update via `batchDraw()`). Position mise à jour dans `moveEraserCursor()`, appelé par `eraseAt()`.
+
+Montage conditionnel via `eraserActive` (état React) : `true` dans `handleMouseDown` quand eraser, `false` dans `handleMouseUp`. Le `Circle` est rendu dans `DrawingLayer` avec `listening={false}`, `strokeWidth` et `dash` divisés par `stageScale` pour compenser le zoom.
+
+### Debug points (visualisation des points enregistrés)
+
+Un seul `Konva.Shape` avec `sceneFunc` dans `DrawingLayer`, conditionné par la prop `debug`. Itère sur tous les layers :
+- Strokes (`pen`/`marker`) : points rouges (`rgba(255,40,40,0.7)`), flat array `points[i], points[i+1]`
+- Airbrush : points bleus (`rgba(0,180,255,0.7)`), array `{ x, y }`
+
+Rayon des points : `2.5 / stageScale` (constant à l'écran).
+
 ## Tests
 
 - **Unit/integration** : Vitest avec jsdom. Setup : `src/test/setup.ts`

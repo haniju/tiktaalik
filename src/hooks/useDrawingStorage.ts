@@ -35,12 +35,18 @@ export function useDrawingStorage() {
     } catch { return []; }
   };
 
-  const save = (drawing: Drawing): void => {
+  const save = (drawing: Drawing): boolean => {
     const all = getAll();
     const idx = all.findIndex(d => d.id === drawing.id);
     if (idx >= 0) all[idx] = drawing;
     else all.unshift(drawing);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+      return true;
+    } catch (e) {
+      console.error('[storage] save failed — localStorage full?', e);
+      return false;
+    }
   };
 
   const remove = (id: string): void => {

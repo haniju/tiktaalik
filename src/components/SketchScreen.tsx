@@ -148,7 +148,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef } = useAutosave({
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, saveError, setSaveError } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
@@ -470,7 +470,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           showGrid={showGrid}
           debug={debug}
           pinchZoom={pinchZoom}
-          onBack={() => { saveNow(); onBack(); }}
+          onBack={() => { try { saveNow(); } catch { /* ne pas bloquer la navigation */ } onBack(); }}
           onUndo={undo}
           onRedo={redo}
           onExport={() => setExportModalOpen(true)}
@@ -589,6 +589,20 @@ export function SketchScreen({ drawing, onBack }: Props) {
           />
         )}
       </div>
+
+      {saveError && (
+        <div style={{
+          position: 'fixed', top: TOPBAR_H, left: 0, right: 0, zIndex: 220,
+          background: '#d32f2f', color: '#fff', fontSize: 13, fontFamily: 'system-ui, sans-serif',
+          padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ flex: 1 }}>Mémoire pleine — les modifications ne sont pas sauvegardées. Supprimez des dessins pour libérer de l'espace.</span>
+          <button
+            onClick={() => setSaveError(false)}
+            style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, padding: '0 4px', cursor: 'pointer', lineHeight: 1 }}
+          >✕</button>
+        </div>
+      )}
 
       {/* Canvas — position absolue, top = hauteur des barres fixe */}
       {/* Drawingbar masquée quand le SelectionPanel est affiché → top = TOPBAR_H seul */}

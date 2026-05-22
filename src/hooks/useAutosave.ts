@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { Drawing, DrawLayer, GridSettings, DEFAULT_GRID_SETTINGS, CanvasConfig, DEFAULT_CANVAS_CONFIG } from '../types';
 import { generateThumbnail } from '../utils/export';
 import { useDrawingStorage } from './useDrawingStorage';
@@ -19,6 +19,7 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
   const canvasConfigRef = useRef<CanvasConfig>(drawing.canvasConfig ?? DEFAULT_CANVAS_CONFIG);
   const drawingNameRef = useRef<string>(drawing.name);
   const isDirtyRef = useRef(false);
+  const [saveError, setSaveError] = useState(false);
 
   const saveNow = useCallback(() => {
     if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
@@ -26,10 +27,16 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
     const bg = canvasBgRef.current;
     const cc = canvasConfigRef.current;
     const thumb = generateThumbnail(layersRef.current, cc.canvasWidth, cc.canvasHeight, bg);
-    storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, updatedAt: Date.now(), thumbnail: thumb });
-    isDirtyRef.current = false;
-    setIsDirty(false);
-    console.log('[autosave]', new Date().toLocaleTimeString());
+    const ok = storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, updatedAt: Date.now(), thumbnail: thumb });
+    if (ok) {
+      isDirtyRef.current = false;
+      setIsDirty(false);
+      setSaveError(false);
+      console.log('[autosave]', new Date().toLocaleTimeString());
+    } else {
+      setSaveError(true);
+      console.warn('[autosave] save failed — will retry on next scheduleSave');
+    }
   }, [drawing, storage, setIsDirty]);
 
   // Ref stable vers saveNow — évite que scheduleSave / useEffect recréent un timer
@@ -57,5 +64,5 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
     };
   }, []); // saveNowRef est stable — pointe toujours vers le saveNow courant
 
-  return { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, isDirtyRef };
+  return { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, isDirtyRef, saveError, setSaveError };
 }

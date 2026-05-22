@@ -324,6 +324,20 @@ Système de mapping de boutons physiques vers des actions de l'app. Destiné aux
 - Le comportement natif des touches mappées (volume, etc.) est bloqué.
 - Persisté entre sessions.
 
+### Alerte gomme
+
+Pendant l'utilisation de la gomme (touch & drag), un **cercle rouge en tirets** s'affiche autour du point de contact pour montrer la zone de détection. Le cercle a un rayon de 20 px canvas (= seuil de détection pour les traits stylo/marqueur). Il suit le doigt en temps réel et disparaît quand le doigt est relevé.
+
+L'épaisseur et les tirets du cercle sont compensés par le zoom pour rester constants à l'écran.
+
+#### Visualisation des points (mode Debug)
+
+En mode Debug (toggle dans le menu déroulant), les **points enregistrés** de chaque tracé sont affichés sur le canvas :
+- **Points rouges** : stylo et marqueur
+- **Points bleus** : aérographe
+
+Cela permet de visualiser l'espacement entre les points échantillonnés et de comprendre pourquoi la gomme peut « rater » un trait : elle ne compare le doigt qu'aux points enregistrés, pas aux segments entre ces points.
+
 ### Persistance des réglages
 
 Tous les réglages d'outils (couleurs, épaisseurs, opacités, lissage, mode canvas, outil actif, mapping de boutons) sont persistés en localStorage et restaurés au chargement — y compris l'outil texte. Au lancement d'un dessin, un délai de 300ms bloque les interactions canvas pour éviter les interactions fantômes issues du tap sur la vignette (les navigateurs mobiles émettent des événements souris synthétiques aux mêmes coordonnées après un touch).
