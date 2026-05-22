@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 import { ImageLayer, DrawLayer } from '../types';
-import { useImageStorage } from './useImageStorage';
+import { saveImage, canStoreMore } from '../utils/imageStorage';
 
 // 1/2 A4 à 150 DPI — côté long max
 const MAX_DIMENSION = 877;
@@ -11,7 +11,6 @@ export type ImportResult =
 
 export function useImageImport() {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const { saveImage, canStoreMore } = useImageStorage();
 
   /** Crée l'élément input file (lazy, réutilisé) */
   const getInput = useCallback((): HTMLInputElement => {
@@ -122,7 +121,7 @@ export function useImageImport() {
       input.addEventListener('change', handleChange);
       input.click();
     });
-  }, [canStoreMore, getInput, processImage, saveImage]);
+  }, [getInput, processImage]);
 
   return { importImage };
 }
