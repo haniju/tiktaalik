@@ -12,6 +12,7 @@ import { exportSvg, exportRaster, printDrawing } from '../utils/export';
 import type { ExportOptions } from './ExportModal';
 import { expandToGroups, createGroup, ungroupLayers, autoDissolveGroups, getFocusedGroupId } from '../utils/groupUtils';
 import { removeImage, loadImage, saveImage } from '../utils/imageStorage';
+import { useImageImport } from '../hooks/useImageImport';
 import {
   TextBoxSelectionState,
   makeTextLayer,
@@ -312,6 +313,39 @@ export function SketchScreen({ drawing, onBack }: Props) {
     exit: { toggle_pan: handleExitPan },
   });
 
+  // ─── Import image ─────────────────────────────────────────────────────────
+  const { importImage } = useImageImport();
+
+  const handleImportImage = useCallback(async () => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const scale = stage.scaleX();
+    const pos = stage.position();
+    const viewportCenter = {
+      x: (-pos.x + window.innerWidth / 2) / scale,
+      y: (-pos.y + window.innerHeight / 2) / scale,
+    };
+    const viewportSize = {
+      width: window.innerWidth / scale,
+      height: window.innerHeight / scale,
+    };
+
+    const result = await importImage(layers, viewportCenter, viewportSize);
+
+    if (!result.success) {
+      if (result.reason !== '') alert(result.reason);
+      return;
+    }
+
+    const newLayers = [...layersRef.current, result.layer];
+    pushUndo(newLayers);
+    setLayers(newLayers);
+    setCanvasMode('select');
+    setSelection([result.layer.id]);
+    setFocusedIds([result.layer.id]);
+    scheduleSave();
+  }, [importImage, layers, pushUndo, setCanvasMode, scheduleSave]);
+
   // ─── Gestures canvas ───────────────────────────────────────────────────────
   const {
     handleMouseDown, handleMouseMove, handleMouseUp, handleWheel,
@@ -494,6 +528,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onOpenCanvasConfig={() => setCanvasConfigOpen(true)}
           onToggleDebug={() => setDebug(d => !d)}
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
+          onImportImage={handleImportImage}
           onOpenButtonMapping={() => setMappingModalOpen(true)}
           onOpenAbout={() => setAboutModalOpen(true)}
         />
