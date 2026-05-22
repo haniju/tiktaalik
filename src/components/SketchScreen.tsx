@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Stage } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
-import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, CanvasMode, GridSettings, DEFAULT_GRID_SETTINGS, DEFAULT_CANVAS_CONFIG } from '../types';
+import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, ImageLayer, CanvasMode, GridSettings, DEFAULT_GRID_SETTINGS, DEFAULT_CANVAS_CONFIG } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
@@ -11,6 +11,7 @@ import { useCanvasGestures } from '../hooks/useCanvasGestures';
 import { exportSvg, exportRaster, printDrawing } from '../utils/export';
 import type { ExportOptions } from './ExportModal';
 import { expandToGroups, createGroup, ungroupLayers, autoDissolveGroups, getFocusedGroupId } from '../utils/groupUtils';
+import { removeImage, loadImage, saveImage } from '../utils/imageStorage';
 import {
   TextBoxSelectionState,
   makeTextLayer,
@@ -360,7 +361,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [layers, tbState, pushUndo, setTbStateWithLog, setContextPanel, scheduleSave]);
 
   const deleteSelected = useCallback(() => {
-    const newL = layers.filter(l => !selection.includes(l.id));
+    // Nettoyer le storage des images supprimées
+    const selSet = new Set(selection);
+    layers.filter(l => selSet.has(l.id) && l.tool === 'image').forEach(l => removeImage((l as ImageLayer).imageStorageKey));
+    const newL = layers.filter(l => !selSet.has(l.id));
     setLayers(newL);
     setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'deleteSelected');
     pushUndo(newL); scheduleSave();
@@ -383,6 +387,15 @@ export function SketchScreen({ drawing, onBack }: Props) {
           if (!groupIdMap.has(gid)) groupIdMap.set(gid, uuidv4());
           return groupIdMap.get(gid)!;
         });
+      }
+      // Dupliquer le storage des images
+      if (newLayer.tool === 'image') {
+        const imgLayer = newLayer as ImageLayer;
+        const origKey = (l as ImageLayer).imageStorageKey;
+        const newKey = newLayer.id;
+        const dataUrl = loadImage(origKey);
+        if (dataUrl) saveImage(newKey, dataUrl);
+        imgLayer.imageStorageKey = newKey;
       }
       return newLayer;
     });
@@ -554,6 +567,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
               // Si groupé, supprimer tout le groupe
               const expanded = expandToGroups(layers, [id]);
               const expandedSet = new Set(expanded);
+              // Nettoyer le storage des images supprimées
+              layers.filter(l => expandedSet.has(l.id) && l.tool === 'image').forEach(l => removeImage((l as ImageLayer).imageStorageKey));
               const newL = autoDissolveGroups(layers.filter(l => !expandedSet.has(l.id)));
               setLayers(newL);
               setSelection(prev => prev.filter(x => !expandedSet.has(x)));

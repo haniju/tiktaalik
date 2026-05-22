@@ -93,7 +93,29 @@ export const DrawingLayer = React.memo(function DrawingLayer({
         }
 
         if (layer.tool === 'image') {
-          return <KonvaImage key={layer.id} layer={layer as ImageLayer} />;
+          const img = layer as ImageLayer;
+          return (
+            <Group key={img.id} id={img.id} onClick={selectItem} onTap={selectItem}>
+              {isSelected && (
+                <Rect
+                  x={img.x} y={img.y}
+                  width={img.width} height={img.height}
+                  rotation={img.rotation ?? 0}
+                  stroke={outlineColor} strokeWidth={2}
+                  fill="transparent"
+                  listening={false}
+                />
+              )}
+              <KonvaImage layer={img} />
+              {/* Hit-area transparente — KonvaImage a listening={false} */}
+              <Rect
+                x={img.x} y={img.y}
+                width={img.width} height={img.height}
+                rotation={img.rotation ?? 0}
+                fill="rgba(0,0,0,0)"
+              />
+            </Group>
+          );
         }
 
         if (layer.tool === 'airbrush') {

@@ -144,6 +144,21 @@ L'utilisateur peut importer des images (photo / fichier) dans le dessin. Chaque 
 - **Stockage** : les données image sont dans des clés localStorage séparées (`img_{id}`), le layer ne contient que la référence.
 - **Limite** : maximum 10 images par dessin.
 
+#### Sélection & manipulation des images
+
+Les images participent pleinement au système de sélection :
+
+- **Tap** en mode select : sélectionne l'image (contour bleu). Focus niveau 2 : contour orange. Focused : contour rouge.
+- **Lasso rectangulaire** : l'image est incluse si le rectangle du lasso intersecte son bounding box.
+- **Drag** : les images sélectionnées se déplacent avec les autres objets.
+- **Scale** : proportionnel forcé (le ratio largeur/hauteur est verrouillé).
+- **Rotate** : rotation autour du centre du groupe, angle cumulé.
+- **Groupement** : les images peuvent être groupées avec d'autres objets (tracés, textboxes). Le groupe fonctionne normalement (sélection atomique, drag, scale, rotate).
+- **Duplication** : dupliquer une image crée une copie indépendante — les données image sont dupliquées dans le storage (nouvelle clé `img_{newId}`).
+- **Suppression** : supprimer une image nettoie aussi la clé localStorage correspondante.
+- **Gomme** : la gomme **ignore** les images (décision UX) — elle passe par-dessus sans les supprimer.
+- **Panel de sélection** : les images apparaissent avec le label « Image » et une icône paysage (cadre + cercle + triangle).
+
 ### Modes (draw / select / move)
 
 Trois modes de canvas :

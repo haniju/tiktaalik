@@ -52,7 +52,24 @@ Utilitaires dans `utils/canvasConfig.ts` :
 
 Zoom : défaut 100%, min 20%, max 400%. Pinch-to-zoom contrôlé par `pinchZoomEnabledRef` passé à `useCanvasGestures`.
 
-Pile de calques unifiée : `DrawLayer = Stroke | AirbrushStroke | TextLayer | ImageLayer`. `AirbrushLayer.tsx` gère le rendu aérographe séparément (compositing gradient radial). `KonvaImage.tsx` gère le rendu des images importées (chargement dataURL → `HTMLImageElement` natif, placeholder gris pendant le chargement, rect rouge si image manquante).
+Pile de calques unifiée : `DrawLayer = Stroke | AirbrushStroke | TextLayer | ImageLayer`. `AirbrushLayer.tsx` gère le rendu aérographe séparément (compositing gradient radial). `KonvaImage.tsx` gère le rendu des images importées (chargement dataURL → `HTMLImageElement` natif, placeholder gris pendant le chargement, rect rouge si image manquante). Le composant a `listening={false}` — la zone de hit est un `<Rect>` transparent enveloppant dans `DrawingLayer`.
+
+### Images — sélection, manipulation, nettoyage
+
+Dans `DrawingLayer.tsx`, chaque `ImageLayer` est enveloppé dans un `<Group>` avec `onClick`/`onTap` (même pattern que strokes/airbrush). Un `<Rect>` outline (`listening={false}`) affiche la sélection (bleu/orange/rouge selon le niveau). Un `<Rect>` transparent sert de hit-area.
+
+Dans `useCanvasGestures.ts` :
+- **Eraser guard** : `eraseAt()` filtre avec `if (layer.tool === 'image') return true;` au début — les images ne sont jamais effacées.
+- **Lasso** : les images sont sélectionnées via `isRectIntersecting` (AABB), même pattern que les textboxes.
+- **Drag-to-move** : `{ ...img, x: img.x + dx, y: img.y + dy }` — même pattern que le texte.
+
+Scale et rotation sont gérés par `applyScale` / `applyRotation` dans `utils/bounds.ts` (branches `case 'image'` ajoutées à l'étape 2). Scale proportionnel forcé : `sf = (sx + sy) / 2`.
+
+Dans `SketchScreen.tsx` :
+- **Suppression** (`onDeleteItem`, `deleteSelected`) : appelle `removeImage(imageStorageKey)` pour chaque image supprimée.
+- **Duplication** (`duplicateFocused`) : `loadImage(origKey)` puis `saveImage(newKey, dataUrl)` — la copie a sa propre clé storage indépendante.
+
+Dans `SelectionPanel.tsx` : `ItemKind` étendu avec `'image'`, label « Image », icône SVG paysage (cadre + cercle + triangle).
 
 ## Grille canvas
 

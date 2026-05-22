@@ -27,13 +27,15 @@ interface Props {
 const THUMB_W = 64;
 const THUMB_H = 52;
 
-type ItemKind = 'stroke' | 'airbrush' | 'text';
+type ItemKind = 'stroke' | 'airbrush' | 'text' | 'image';
 
 function layerKind(layer: DrawLayer): ItemKind {
+  if (layer.tool === 'image') return 'image';
   return layer.tool === 'airbrush' ? 'airbrush' : layer.tool === 'text' ? 'text' : 'stroke';
 }
 
 function layerLabel(layer: DrawLayer): string {
+  if (layer.tool === 'image') return 'Image';
   if (layer.tool === 'marker') return 'Marqueur';
   if (layer.tool === 'pen') return 'Stylo';
   if (layer.tool === 'airbrush') return 'Aerogr.';
@@ -68,6 +70,13 @@ function ItemPreview({ layer }: { layer: DrawLayer }) {
         }}>
           {(layer as TextLayer).text.slice(0, 6)}{(layer as TextLayer).text.length > 6 ? '...' : ''}
         </span>
+      )}
+      {kind === 'image' && (
+        <svg width={THUMB_W - 8} height={THUMB_H - 8} viewBox="0 0 56 44">
+          <rect x="4" y="4" width="48" height="36" rx="4" fill="none" stroke="#888" strokeWidth="2" />
+          <circle cx="18" cy="16" r="5" fill="#888" />
+          <polygon points="12,36 28,20 38,30 44,24 50,36" fill="#888" opacity="0.6" />
+        </svg>
       )}
     </div>
   );

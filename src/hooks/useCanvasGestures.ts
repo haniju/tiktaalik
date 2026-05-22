@@ -174,6 +174,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
     moveEraserCursor(pos);
     p.current.setLayers(prev => {
       const filtered = prev.filter(layer => {
+        // Les images ne sont jamais effacées par la gomme (décision UX)
+        if (layer.tool === 'image') return true;
         if (layer.tool === 'text') {
           const h = textNodesRef.current.get(layer.id)?.height() ?? estimateTextHeight(layer);
           return !isPointInTextBox(pos.x, pos.y, layer, h, 10);
@@ -502,6 +504,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           const tb = layer as TextLayer;
           return { ...tb, x: tb.x + dx, y: tb.y + dy };
         }
+        if (layer.tool === 'image') {
+          const img = layer as import('../types').ImageLayer;
+          return { ...img, x: img.x + dx, y: img.y + dy };
+        }
         if (layer.tool === 'airbrush') {
           const ab = layer as AirbrushStroke;
           return { ...ab, points: ab.points.map(pt => ({ x: pt.x + dx, y: pt.y + dy })) };
@@ -771,6 +777,13 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         const layers = layersRef.current;
         const selIds = layers.filter(layer => {
           if (layer.tool === 'text') return false; // géré par selT ci-dessous
+          if (layer.tool === 'image') {
+            const img = layer as import('../types').ImageLayer;
+            return isRectIntersecting(
+              { x: img.x, y: img.y, w: img.width, h: img.height },
+              { x: currentSelRect.x, y: currentSelRect.y, w: currentSelRect.w, h: currentSelRect.h },
+            );
+          }
           if (layer.tool === 'airbrush') {
             return isAirbrushInRect(layer.points, currentSelRect);
           } else {
