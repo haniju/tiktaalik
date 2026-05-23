@@ -324,11 +324,48 @@ Les scripts de deploy utilisent un transfert incrémental basé sur les checksum
 
 Au premier deploy (pas de manifeste existant), tous les fichiers sont transférés normalement.
 
+## Import d'images
+
+### Architecture
+
+`ImageLayer` dans `DrawLayer[]` (pile unifiée). Les données image (dataURL JPEG) sont stockées dans des clés localStorage séparées (`img_{id}`) — le layer ne contient que la référence (`imageStorageKey`).
+
+### Pipeline import
+
+`src/hooks/useImageImport.ts` : `createImageBitmap(file)` (gère HEIC + corrige orientation EXIF automatiquement) → redimensionnement si > 877px (1/2 A4 à 150 DPI) → canvas offscreen → `toDataURL('image/jpeg', 0.75)` → `saveImage(key, dataUrl)` dans localStorage séparé.
+
+### Fichiers clés
+
+| Fichier | Rôle |
+|---------|------|
+| `src/types/index.ts` | `ImageLayer` dans `DrawLayer` union |
+| `src/utils/imageStorage.ts` | CRUD localStorage (`saveImage`, `loadImage`, `removeImage`, `canStoreMore`) |
+| `src/hooks/useImageImport.ts` | Pipeline import (file picker, resize, compression, layer creation) |
+| `src/components/KonvaImage.tsx` | Rendu Konva (chargement dataURL → `HTMLImageElement`, placeholder gris pendant chargement, rect rouge si image manquante) |
+| `src/components/ImageOpacityPanel.tsx` | Panneau flottant d'opacité pour images sélectionnées |
+| `src/hooks/useCanvasGestures.ts` | Eraser guard (`if (layer.tool === 'image') return true`), lasso, drag-to-move |
+| `src/utils/bounds.ts` | `applyScale` / `applyRotation` — branches `case 'image'` |
+
+### Eraser guard
+
+Dans `useCanvasGestures.ts`, `eraseAt()` filtre avec `if (layer.tool === 'image') return true;` — les images ne sont jamais effacées par la gomme (décision UX).
+
+### Export d'images
+
+`renderToCanvas()` et `exportSvg()` dans `src/utils/export.ts` gèrent le cas `layer.tool === 'image'` :
+
+- **Raster** (`renderToCanvas`) : `new Image()` avec `src = dataUrl` (synchrone car dataURL inline, pas de fetch réseau). Applique `globalAlpha` pour l'opacité et `save/translate/rotate/restore` pour la rotation.
+- **SVG** (`exportSvg`) : `<image href="${dataUrl}" .../>` — le dataURL est embarqué directement dans le SVG (data URI dans l'attribut `href`). Rotation via `transform="rotate(...)"`.
+- **Thumbnail** (`generateThumbnail`) : utilise `renderToCanvas` → les images sont automatiquement incluses.
+- **Impression** (`printDrawing`) : utilise `renderToCanvas` → idem.
+
+Contrainte : `renderToCanvas` reste **synchrone** (pas d'async/await) — `new Image()` avec un dataURL est synchrone sur tous les navigateurs modernes.
+
 ## Export
 
 `src/utils/export.ts` :
-- `renderToCanvas()` : helper interne qui rend les layers sur un `<canvas>` à une résolution donnée. Factorise le code entre thumbnails et exports raster.
-- `exportSvg()` : SVG vectoriel — styles de traits, gradients radiaux aérographe, texte word-wrap, fond canvas. ClipPath aux bornes A4.
+- `renderToCanvas()` : helper interne qui rend les layers sur un `<canvas>` à une résolution donnée. Factorise le code entre thumbnails et exports raster. Gère tous les types de layers (strokes, airbrush, text, image).
+- `exportSvg()` : SVG vectoriel — styles de traits, gradients radiaux aérographe, texte word-wrap, images embarquées (data URI), fond canvas. ClipPath aux bornes A4.
 - `exportRaster()` : PNG/JPG/WebP via `canvas.toBlob()`. Résolution native A4 (794×1123). Qualité 0.92 pour JPG/WebP.
 - `printDrawing()` : ouvre une fenêtre `window.open`, écrit un document HTML minimal avec l'image PNG et déclenche `window.print()` à l'onload.
 - `generateThumbnail()` : canvas 2D, `ctx.clip()` aux bornes A4. Largeur 400px. Utilise `renderToCanvas()`.

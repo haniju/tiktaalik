@@ -315,6 +315,31 @@ Un panneau « Réglages grille » est accessible depuis le menu déroulant de la
 - **Couleur** : palette de 8 couleurs (rouge, orange, jaune, teal, bleu, violet, noir, gris). Défaut : rouge (#e63946).
 - **Réinitialiser** : un bouton remet tous les réglages aux valeurs par défaut.
 
+### Import d'images
+
+L'utilisateur peut importer des images (photos, fichiers) dans le dessin via le menu déroulant de la topbar (item « Importer image »).
+
+**Limites** :
+- Maximum 10 images par dessin.
+- Taille maximale : 1/2 A4 à 150 DPI (877px côté long). Les images plus grandes sont redimensionnées automatiquement.
+- Les images sont compressées en JPEG (qualité 75%) pour économiser le stockage.
+
+**Interactions** :
+- En mode select : sélection par tap, lasso rectangulaire, drag pour déplacer.
+- Scale proportionnel forcé (le ratio largeur/hauteur est verrouillé).
+- Rotation autour du centre du groupe.
+- Groupement avec d'autres objets (tracés, textboxes).
+- Opacité réglable (0–1) via un panneau flottant qui apparaît quand une image est sélectionnée.
+- La gomme **ignore** les images — elle passe par-dessus sans les supprimer.
+
+**Export** : les images importées sont incluses dans tous les formats d'export (PNG, JPG, WebP, SVG) et dans l'impression. Les vignettes de la galerie incluent aussi les images. L'opacité et la rotation sont respectées dans l'export.
+
+**Alertes utilisateur** :
+- Quota atteint : « Maximum 10 images par dessin atteint. »
+- Stockage plein : « Stockage plein — supprime des dessins ou images pour libérer de l'espace. »
+- Format non supporté ou fichier corrompu : « Impossible de lire cette image. Format non supporté ou fichier corrompu. »
+- Image manquante (donnée supprimée du stockage) : placeholder rouge « Image manquante » sur le canvas.
+
 ### Export multi-format
 
 Le menu hamburger propose « Exporter... » qui ouvre un modal avec 4 formats au choix :
@@ -322,12 +347,13 @@ Le menu hamburger propose « Exporter... » qui ouvre un modal avec 4 formats au
 - **PNG** : image sans perte, résolution native A4 (794×1123 px).
 - **JPG** : compression JPEG (qualité 92%), idéal pour partager.
 - **WebP** : format moderne, bon ratio qualité/poids (qualité 92%).
-- **SVG** : vectoriel, styles de traits, gradients radiaux (aérographe), texte avec retour à la ligne, couleur de fond. Clippé aux bornes A4.
+- **SVG** : vectoriel, styles de traits, gradients radiaux (aérographe), texte avec retour à la ligne, images embarquées (data URI), couleur de fond. Clippé aux bornes A4.
 
 Le modal propose également un bouton **Imprimer** qui ouvre la boîte de dialogue d'impression du navigateur avec le rendu PNG du dessin.
 
 - **Vignette** : rendu canvas 2D pour les previews de la galerie (400px de large). Également clippée aux bornes A4.
 - Le calcul de retour à la ligne du texte est partagé entre le rendu canvas, l'export SVG et la génération de vignettes.
+- Les images importées sont incluses dans toutes les sorties (export, vignette, impression).
 
 ### Sauvegarde automatique
 

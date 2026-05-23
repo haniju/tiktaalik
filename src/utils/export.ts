@@ -1,4 +1,5 @@
-import { DrawLayer, Stroke, TextLayer } from '../types';
+import { DrawLayer, ImageLayer, Stroke, TextLayer } from '../types';
+import { loadImage } from './imageStorage';
 import { wrapText } from './textboxUtils';
 
 export function exportSvg(layers: DrawLayer[], width: number, height: number, filename: string, background = '#ffffff') {
@@ -41,6 +42,15 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
         const ty = tb.y + tb.padding + tb.fontSize + i * lineH;
         elements.push(`${openGroup}<text x="${tx}" y="${ty}" font-family="${tb.fontFamily}" font-size="${tb.fontSize}" font-weight="${weight}" font-style="${style}" text-decoration="${decoration}" text-anchor="${textAnchor}" fill="${tb.color}" opacity="${tb.opacity}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>${closeGroup}`);
       });
+    } else if (layer.tool === 'image') {
+      const img = layer as ImageLayer;
+      const dataUrl = loadImage(img.imageStorageKey);
+      if (!dataUrl) return;
+      const rotation = img.rotation ?? 0;
+      const transform = rotation !== 0
+        ? ` transform="rotate(${rotation},${img.x + img.width / 2},${img.y + img.height / 2})"`
+        : '';
+      elements.push(`<image href="${dataUrl}" x="${img.x}" y="${img.y}" width="${img.width}" height="${img.height}" opacity="${img.opacity}"${transform}/>`);
     } else {
       const s = layer as Stroke;
       if (s.points.length < 2) return;
@@ -148,6 +158,26 @@ function renderToCanvas(layers: DrawLayer[], width: number, height: number, targ
       });
 
       if (rotation !== 0) ctx.restore();
+    } else if (layer.tool === 'image') {
+      const img = layer as ImageLayer;
+      const dataUrl = loadImage(img.imageStorageKey);
+      if (!dataUrl) return; // image manquante — skip silencieusement
+      const htmlImg = new Image();
+      htmlImg.src = dataUrl;
+      // drawImage avec un dataURL déjà chargé est synchrone (pas de fetch réseau)
+      ctx.globalAlpha = img.opacity;
+      const rotation = img.rotation ?? 0;
+      if (rotation !== 0) {
+        ctx.save();
+        const cx = (img.x + img.width / 2) * scale;
+        const cy = (img.y + img.height / 2) * scale;
+        ctx.translate(cx, cy);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.drawImage(htmlImg, -img.width * scale / 2, -img.height * scale / 2, img.width * scale, img.height * scale);
+        ctx.restore();
+      } else {
+        ctx.drawImage(htmlImg, img.x * scale, img.y * scale, img.width * scale, img.height * scale);
+      }
     } else {
       const s = layer as Stroke;
       if (s.points.length < 2) return;
