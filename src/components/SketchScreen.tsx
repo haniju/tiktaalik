@@ -151,7 +151,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, saveError, setSaveError } = useAutosave({
+  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, imageKeysRef, saveError, setSaveError } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
@@ -318,6 +318,20 @@ export function SketchScreen({ drawing, onBack }: Props) {
   // ─── Import image ─────────────────────────────────────────────────────────
   const { importImage } = useImageImport();
 
+  // Nettoyage des orphelins au mount (clés image persistées mais plus dans les layers)
+  useEffect(() => {
+    const currentKeys = new Set(
+      layers.filter(l => l.tool === 'image').map(l => (l as ImageLayer).imageStorageKey)
+    );
+    const saved = drawing.imageKeys ?? [];
+    for (const key of saved) {
+      if (!currentKeys.has(key)) removeImage(key);
+    }
+    // Sync imageKeysRef avec les clés actuelles
+    imageKeysRef.current = currentKeys;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // au mount uniquement
+
   const handleImportImage = useCallback(async () => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -339,6 +353,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       return;
     }
 
+    imageKeysRef.current.add(result.layer.imageStorageKey);
     const newLayers = [...layersRef.current, result.layer];
     pushUndo(newLayers);
     setLayers(newLayers);
@@ -408,17 +423,16 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [layers, tbState, pushUndo, setTbStateWithLog, setContextPanel, scheduleSave]);
 
   const deleteSelected = useCallback(() => {
-    // Nettoyer le storage des images supprimées (async, fire-and-forget)
+    // Pas de removeImage ici — les blobs sont conservés pour que undo puisse
+    // restaurer les images. Le nettoyage des orphelins se fait au retour Home.
     const selSet = new Set(selection);
-    const imageKeys = layers.filter(l => selSet.has(l.id) && l.tool === 'image').map(l => (l as ImageLayer).imageStorageKey);
-    imageKeys.forEach(k => removeImage(k));
     const newL = layers.filter(l => !selSet.has(l.id));
     setLayers(newL);
     setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'deleteSelected');
     pushUndo(newL); scheduleSave();
   }, [layers, selection, pushUndo, setTbStateWithLog]);
 
-  const duplicateFocused = useCallback(() => {
+  const duplicateFocused = useCallback(async () => {
     if (focusedIds.length === 0) return;
     const focusedSet = new Set(focusedIds);
     const toDuplicate = layers.filter(l => focusedSet.has(l.id));
@@ -436,16 +450,20 @@ export function SketchScreen({ drawing, onBack }: Props) {
           return groupIdMap.get(gid)!;
         });
       }
-      // Dupliquer le storage des images (async, fire-and-forget)
       if (newLayer.tool === 'image') {
-        const imgLayer = newLayer as ImageLayer;
-        const origKey = (l as ImageLayer).imageStorageKey;
-        const newKey = newLayer.id;
-        loadImage(origKey).then(dataUrl => { if (dataUrl) saveImage(newKey, dataUrl); });
-        imgLayer.imageStorageKey = newKey;
+        (newLayer as ImageLayer).imageStorageKey = newLayer.id;
       }
       return newLayer;
     });
+    // Copier les blobs image AVANT d'ajouter les layers (sinon KonvaImage
+    // tente de charger la nouvelle clé avant que le blob soit en IDB)
+    await Promise.all(duplicated.filter(l => l.tool === 'image').map(async l => {
+      const imgLayer = l as ImageLayer;
+      const origLayer = toDuplicate.find(o => layerIdMap.get(o.id) === l.id) as ImageLayer;
+      const dataUrl = await loadImage(origLayer.imageStorageKey);
+      if (dataUrl) await saveImage(imgLayer.imageStorageKey, dataUrl);
+      imageKeysRef.current.add(imgLayer.imageStorageKey);
+    }));
     const newLayers = [...layers, ...duplicated];
     const newIds = duplicated.map(l => l.id);
     setLayers(newLayers);
@@ -530,7 +548,17 @@ export function SketchScreen({ drawing, onBack }: Props) {
           showGrid={showGrid}
           debug={debug}
           pinchZoom={pinchZoom}
-          onBack={() => { try { saveNow(); } catch { /* ne pas bloquer la navigation */ } onBack(); }}
+          onBack={async () => {
+            try { await saveNow(); } catch { /* ne pas bloquer la navigation */ }
+            // Nettoyage des blobs image orphelins (importés/dupliqués puis supprimés)
+            const currentKeys = new Set(
+              layersRef.current.filter(l => l.tool === 'image').map(l => (l as ImageLayer).imageStorageKey)
+            );
+            for (const key of imageKeysRef.current) {
+              if (!currentKeys.has(key)) removeImage(key);
+            }
+            onBack();
+          }}
           onUndo={undo}
           onRedo={redo}
           onExport={() => setExportModalOpen(true)}
@@ -615,8 +643,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
               // Si groupé, supprimer tout le groupe
               const expanded = expandToGroups(layers, [id]);
               const expandedSet = new Set(expanded);
-              // Nettoyer le storage des images supprimées (async, fire-and-forget)
-              layers.filter(l => expandedSet.has(l.id) && l.tool === 'image').forEach(l => removeImage((l as ImageLayer).imageStorageKey));
+              // Pas de removeImage ici — blobs conservés pour undo
               const newL = autoDissolveGroups(layers.filter(l => !expandedSet.has(l.id)));
               setLayers(newL);
               setSelection(prev => prev.filter(x => !expandedSet.has(x)));

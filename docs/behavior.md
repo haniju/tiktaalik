@@ -154,8 +154,8 @@ Les images participent pleinement au système de sélection :
 - **Scale** : proportionnel forcé (le ratio largeur/hauteur est verrouillé).
 - **Rotate** : rotation autour du centre du groupe, angle cumulé.
 - **Groupement** : les images peuvent être groupées avec d'autres objets (tracés, textboxes). Le groupe fonctionne normalement (sélection atomique, drag, scale, rotate).
-- **Duplication** : dupliquer une image crée une copie indépendante — les données image sont dupliquées dans le storage (nouvelle clé `img_{newId}`).
-- **Suppression** : supprimer une image nettoie aussi la clé localStorage correspondante.
+- **Duplication** : dupliquer une image crée une copie indépendante — les données image sont dupliquées dans le storage (nouvelle clé).
+- **Suppression & undo** : supprimer une image ne détruit pas immédiatement ses données — elles sont conservées pour permettre l'annulation (undo). Le nettoyage des données orphelines se fait automatiquement au retour Home, au prochain chargement du dessin, ou à la suppression du dessin.
 - **Gomme** : la gomme **ignore** les images (décision UX) — elle passe par-dessus sans les supprimer.
 - **Panel de sélection** : les images apparaissent avec le label « Image » et une icône paysage (cadre + cercle + triangle).
 

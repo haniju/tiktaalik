@@ -1,5 +1,5 @@
-import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox } from '../types';
-import { removeImagesForLayers } from '../utils/imageStorage';
+import { Drawing, DrawLayer, ImageLayer, Stroke, AirbrushStroke, TextBox } from '../types';
+import { removeImagesForLayers, removeImage } from '../utils/imageStorage';
 import { dbGetAllDrawings, dbGetDrawing, dbPutDrawing, dbDeleteDrawing } from '../utils/db';
 
 // Migration d'un dessin sauvegardé dans l'ancien format vers la pile unifiée
@@ -46,7 +46,17 @@ export function useDrawingStorage() {
 
   const remove = async (id: string): Promise<void> => {
     const drawing = await dbGetDrawing(id);
-    if (drawing) await removeImagesForLayers(drawing.layers ?? []);
+    if (drawing) {
+      // Supprimer les images des layers actuels
+      await removeImagesForLayers(drawing.layers ?? []);
+      // Supprimer aussi les orphelins (images importées puis supprimées du canvas)
+      const layerKeys = new Set(
+        (drawing.layers ?? []).filter((l): l is ImageLayer => l.tool === 'image').map(l => l.imageStorageKey)
+      );
+      for (const key of drawing.imageKeys ?? []) {
+        if (!layerKeys.has(key)) await removeImage(key);
+      }
+    }
     await dbDeleteDrawing(id);
   };
 

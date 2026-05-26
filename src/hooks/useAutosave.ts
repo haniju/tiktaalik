@@ -18,6 +18,7 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
   const gridSettingsRef = useRef<GridSettings>(drawing.gridSettings ?? DEFAULT_GRID_SETTINGS);
   const canvasConfigRef = useRef<CanvasConfig>(drawing.canvasConfig ?? DEFAULT_CANVAS_CONFIG);
   const drawingNameRef = useRef<string>(drawing.name);
+  const imageKeysRef = useRef<Set<string>>(new Set(drawing.imageKeys ?? []));
   const isDirtyRef = useRef(false);
   const savingRef = useRef(false); // empêche les saves concurrents
   const [saveError, setSaveError] = useState(false);
@@ -31,7 +32,7 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
       const bg = canvasBgRef.current;
       const cc = canvasConfigRef.current;
       const thumb = await generateThumbnail(layersRef.current, cc.canvasWidth, cc.canvasHeight, bg);
-      const ok = await storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, updatedAt: Date.now(), thumbnail: thumb });
+      const ok = await storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, imageKeys: [...imageKeysRef.current], updatedAt: Date.now(), thumbnail: thumb });
       if (ok) {
         isDirtyRef.current = false;
         setIsDirty(false);
@@ -74,5 +75,5 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
     };
   }, []); // saveNowRef est stable — pointe toujours vers le saveNow courant
 
-  return { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, isDirtyRef, saveError, setSaveError };
+  return { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, imageKeysRef, isDirtyRef, saveError, setSaveError };
 }

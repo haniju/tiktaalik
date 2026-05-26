@@ -99,10 +99,22 @@ Dans `useCanvasGestures.ts` :
 Scale et rotation sont gérés par `applyScale` / `applyRotation` dans `utils/bounds.ts` (branches `case 'image'` ajoutées à l'étape 2). Scale proportionnel forcé : `sf = (sx + sy) / 2`.
 
 Dans `SketchScreen.tsx` :
-- **Suppression** (`onDeleteItem`, `deleteSelected`) : appelle `removeImage(imageStorageKey)` pour chaque image supprimée.
-- **Duplication** (`duplicateFocused`) : `loadImage(origKey)` puis `saveImage(newKey, dataUrl)` — la copie a sa propre clé storage indépendante.
+- **Suppression** (`onDeleteItem`, `deleteSelected`) : le layer est retiré de la pile, mais le blob image est **conservé** dans IndexedDB pour permettre le undo. Pas d'appel à `removeImage` ici.
+- **Duplication** (`duplicateFocused`) : **async** — `await loadImage(origKey)` puis `await saveImage(newKey, dataUrl)` **avant** d'ajouter les layers dupliqués au state. La copie IDB doit être complète avant que KonvaImage tente de charger la nouvelle clé (sinon race condition → "Image manquante" définitif). La clé est ajoutée à `imageKeysRef`.
 
 Dans `SelectionPanel.tsx` : `ItemKind` étendu avec `'image'`, label « Image », icône SVG paysage (cadre + cercle + triangle).
+
+### Nettoyage des images orphelines
+
+Quand une image est supprimée du canvas puis que le dessin est sauvegardé, le blob reste en IndexedDB (orphelin). Le nettoyage se fait à 3 moments :
+
+**1. Retour Home** (`onBack` dans `SketchScreen`) — compare `imageKeysRef` (toutes les clés allouées durant la session) avec les clés des layers actuels. Les clés absentes des layers sont supprimées d'IndexedDB.
+
+**2. Mount de SketchScreen** (`useEffect([], [])`) — compare `drawing.imageKeys` (persisté dans le dernier save) avec les clés des layers actuels. Rattrape le cas où l'app a été fermée sans repasser par le retour Home (onglet fermé, crash, kill).
+
+**3. Suppression du dessin** (`useDrawingStorage.remove`) — supprime les images des layers actuels (`removeImagesForLayers`) **et** les orphelins référencés dans `drawing.imageKeys`.
+
+**Tracking des clés** : `Drawing.imageKeys?: string[]` persiste toutes les clés image allouées pour ce dessin. Alimenté via `imageKeysRef` (un `Set<string>` dans `useAutosave`), mis à jour à chaque import/duplication, et inclus dans chaque save.
 
 ## Grille canvas
 

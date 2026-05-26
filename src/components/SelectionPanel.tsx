@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { DrawLayer, Stroke, AirbrushStroke, TextLayer } from '../types';
 import { useDragToReorder } from '../hooks/useDragToReorder';
 import { getGroupPanelItems, canGroup, canUngroup, PanelDisplayItem } from '../utils/groupUtils';
+import { Icon } from './Icon';
 
 type SelectSubMode = 'none' | 'rotate' | 'scale';
 
@@ -254,10 +255,7 @@ export function SelectionPanel({
               <>
                 <div style={st.toolbarSep} />
                 <button style={st.toolbarBtn} onClick={onToggleOpacityPanel} title="Opacité">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <rect x="1" y="1" width="10" height="10" rx="2" fill="#888" opacity="0.35" />
-                    <rect x="5" y="5" width="10" height="10" rx="2" fill="#888" opacity="0.75" />
-                  </svg>
+                  <Icon name="opacity" size={16} />
                 </button>
               </>
             )}

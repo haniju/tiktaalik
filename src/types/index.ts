@@ -127,6 +127,7 @@ export interface Drawing {
   showGrid?: boolean; // affichage de la grille de pixels canvas
   gridSettings?: GridSettings; // paramètres avancés de la grille
   canvasConfig?: CanvasConfig; // dimensions du canevas et zone monde
+  imageKeys?: string[]; // toutes les clés image allouées (pour nettoyage orphelins)
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;
