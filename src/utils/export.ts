@@ -1,8 +1,58 @@
 import { DrawLayer, ImageLayer, Stroke, TextLayer } from '../types';
-import { loadImage } from './imageStorage';
+import { loadImage, loadImageBlob } from './imageStorage';
+import { blobToDataUrl } from './db';
 import { wrapText } from './textboxUtils';
 
-export function exportSvg(layers: DrawLayer[], width: number, height: number, filename: string, background = '#ffffff') {
+// ────────────────────────────────────────────
+// Pré-chargement des images pour le rendu synchrone
+// ────────────────────────────────────────────
+
+/** Pré-charge les Blobs image en HTMLImageElement pour drawImage synchrone */
+async function preloadImages(layers: DrawLayer[]): Promise<Map<string, HTMLImageElement>> {
+  const map = new Map<string, HTMLImageElement>();
+  const imageLayers = layers.filter((l): l is ImageLayer => l.tool === 'image');
+  if (imageLayers.length === 0) return map;
+
+  await Promise.all(imageLayers.map(async (img) => {
+    const blob = await loadImageBlob(img.imageStorageKey);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    try {
+      const htmlImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error('image load failed'));
+        el.src = url;
+      });
+      map.set(img.imageStorageKey, htmlImg);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }));
+
+  return map;
+}
+
+/** Pré-charge les images en dataURL (pour embedding SVG) */
+async function preloadImageDataUrls(layers: DrawLayer[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const imageLayers = layers.filter((l): l is ImageLayer => l.tool === 'image');
+  if (imageLayers.length === 0) return map;
+
+  await Promise.all(imageLayers.map(async (img) => {
+    const dataUrl = await loadImage(img.imageStorageKey);
+    if (dataUrl) map.set(img.imageStorageKey, dataUrl);
+  }));
+
+  return map;
+}
+
+// ────────────────────────────────────────────
+// Export SVG
+// ────────────────────────────────────────────
+
+export async function exportSvg(layers: DrawLayer[], width: number, height: number, filename: string, background = '#ffffff') {
+  const imageDataUrls = await preloadImageDataUrls(layers);
   const defs: string[] = [];
   const elements: string[] = [];
 
@@ -44,7 +94,7 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
       });
     } else if (layer.tool === 'image') {
       const img = layer as ImageLayer;
-      const dataUrl = loadImage(img.imageStorageKey);
+      const dataUrl = imageDataUrls.get(img.imageStorageKey);
       if (!dataUrl) return;
       const rotation = img.rotation ?? 0;
       const transform = rotation !== 0
@@ -85,8 +135,15 @@ export function exportSvg(layers: DrawLayer[], width: number, height: number, fi
 
 export type ExportFormat = 'svg' | 'png' | 'jpeg' | 'webp';
 
+// ────────────────────────────────────────────
+// Rendu canvas (synchrone une fois les images pré-chargées)
+// ────────────────────────────────────────────
+
 /** Rend les layers sur un canvas à la résolution demandée */
-function renderToCanvas(layers: DrawLayer[], width: number, height: number, targetWidth: number, background: string, transparent = false): HTMLCanvasElement {
+function renderToCanvas(
+  layers: DrawLayer[], width: number, height: number, targetWidth: number,
+  background: string, imageMap: Map<string, HTMLImageElement>, transparent = false,
+): HTMLCanvasElement {
   const scale = targetWidth / width;
   const canvas = document.createElement('canvas');
   canvas.width = targetWidth;
@@ -160,11 +217,8 @@ function renderToCanvas(layers: DrawLayer[], width: number, height: number, targ
       if (rotation !== 0) ctx.restore();
     } else if (layer.tool === 'image') {
       const img = layer as ImageLayer;
-      const dataUrl = loadImage(img.imageStorageKey);
-      if (!dataUrl) return; // image manquante — skip silencieusement
-      const htmlImg = new Image();
-      htmlImg.src = dataUrl;
-      // drawImage avec un dataURL déjà chargé est synchrone (pas de fetch réseau)
+      const htmlImg = imageMap.get(img.imageStorageKey);
+      if (!htmlImg) return; // image manquante — skip silencieusement
       ctx.globalAlpha = img.opacity;
       const rotation = img.rotation ?? 0;
       if (rotation !== 0) {
@@ -199,18 +253,24 @@ function renderToCanvas(layers: DrawLayer[], width: number, height: number, targ
   return canvas;
 }
 
-export function generateThumbnail(layers: DrawLayer[], width: number, height: number, background = '#ffffff'): string {
-  const canvas = renderToCanvas(layers, width, height, 400, background);
+// ────────────────────────────────────────────
+// Fonctions publiques (toutes async)
+// ────────────────────────────────────────────
+
+export async function generateThumbnail(layers: DrawLayer[], width: number, height: number, background = '#ffffff'): Promise<string> {
+  const imageMap = await preloadImages(layers);
+  const canvas = renderToCanvas(layers, width, height, 400, background, imageMap);
   return canvas.toDataURL('image/jpeg', 0.7);
 }
 
 /** Exporte en format raster (PNG, JPEG, WebP) */
-export function exportRaster(
+export async function exportRaster(
   layers: DrawLayer[], width: number, height: number,
   filename: string, format: 'png' | 'jpeg' | 'webp', background = '#ffffff',
   transparent = false,
 ) {
-  const canvas = renderToCanvas(layers, width, height, width, background, transparent);
+  const imageMap = await preloadImages(layers);
+  const canvas = renderToCanvas(layers, width, height, width, background, imageMap, transparent);
   const mimeType = `image/${format}`;
   const quality = format === 'png' ? undefined : 0.92;
   canvas.toBlob(blob => {
@@ -225,8 +285,9 @@ export function exportRaster(
 }
 
 /** Ouvre la boîte de dialogue d'impression du navigateur */
-export function printDrawing(layers: DrawLayer[], width: number, height: number, background = '#ffffff') {
-  const canvas = renderToCanvas(layers, width, height, width, background);
+export async function printDrawing(layers: DrawLayer[], width: number, height: number, background = '#ffffff') {
+  const imageMap = await preloadImages(layers);
+  const canvas = renderToCanvas(layers, width, height, width, background, imageMap);
   const dataUrl = canvas.toDataURL('image/png');
   const win = window.open('', '_blank');
   if (!win) return;

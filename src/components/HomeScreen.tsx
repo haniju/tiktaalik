@@ -67,6 +67,7 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   const storage = useDrawingStorage();
   const drawingOrder = useDrawingOrder();
   const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -79,7 +80,10 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setDrawings(drawingOrder.applyOrder(storage.getAll()));
+    storage.getAll().then(all => {
+      setDrawings(drawingOrder.applyOrder(all));
+      setLoading(false);
+    });
   }, []);
 
 
@@ -153,9 +157,9 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   }, [selectedIds]);
 
   // Supprimer un dessin
-  const handleConfirmDelete = useCallback(() => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    storage.remove(deleteTarget);
+    await storage.remove(deleteTarget);
     drawingOrder.removeFromOrder(deleteTarget);
     setDrawings(prev => prev.filter(d => d.id !== deleteTarget));
     setSelectedIds(prev => prev.filter(x => x !== deleteTarget));
@@ -163,9 +167,9 @@ export function HomeScreen({ onOpen, onNew }: Props) {
   }, [deleteTarget, storage, drawingOrder]);
 
   // Renommer un dessin
-  const handleConfirmRename = useCallback(() => {
+  const handleConfirmRename = useCallback(async () => {
     if (!renameTarget || !renameValue.trim()) return;
-    storage.rename(renameTarget, renameValue.trim());
+    await storage.rename(renameTarget, renameValue.trim());
     setDrawings(prev => prev.map(d =>
       d.id === renameTarget ? { ...d, name: renameValue.trim() } : d
     ));
@@ -216,7 +220,11 @@ export function HomeScreen({ onOpen, onNew }: Props) {
       </div>
 
       {/* Galerie */}
-      {drawings.length === 0 ? (
+      {loading ? (
+        <div style={styles.empty}>
+          <p style={styles.emptyText}>Chargement…</p>
+        </div>
+      ) : drawings.length === 0 ? (
         <div style={styles.empty}>
           <p style={styles.emptyText}>Aucun dessin</p>
           <button style={styles.newBtnLarge} onClick={handleNew}>Créer un dessin</button>

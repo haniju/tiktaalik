@@ -18,7 +18,7 @@ To run a single test file: `npx vitest run src/utils/textboxUtils.test.ts`
 
 ## Project Overview
 
-**Tiktaalik** is a mobile-first web-based sketchpad app (React + TypeScript + Konva) with two screens: **HomeScreen** (gallery of drawings) and **SketchScreen** (canvas drawing interface). All data lives in `localStorage`. Tests: Vitest (unit) + Playwright (e2e). Setup: `src/test/setup.ts`.
+**Tiktaalik** is a mobile-first web-based sketchpad app (React + TypeScript + Konva) with two screens: **HomeScreen** (gallery of drawings) and **SketchScreen** (canvas drawing interface). Heavy data (drawings, images) lives in **IndexedDB** (`src/utils/db.ts`); lightweight settings remain in `localStorage`. All storage functions are **async**. Tests: Vitest (unit) + Playwright (e2e). Setup: `src/test/setup.ts`.
 
 ## Documentation
 

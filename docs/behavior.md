@@ -140,8 +140,8 @@ L'utilisateur peut importer des images (photo / fichier) dans le dessin. Chaque 
 
 - **Rendu** : l'image s'affiche sur le canvas à sa position/taille, respecte l'opacité et la rotation du layer.
 - **Chargement** : un rectangle gris placeholder s'affiche pendant le chargement du dataURL.
-- **Image manquante** : si le dataURL n'est plus en localStorage, un rectangle rouge avec le texte « Image manquante » s'affiche.
-- **Stockage** : les données image sont dans des clés localStorage séparées (`img_{id}`), le layer ne contient que la référence.
+- **Image manquante** : si l'image n'est plus en base, un rectangle rouge avec le texte « Image manquante » s'affiche.
+- **Stockage** : les données image sont stockées dans IndexedDB en Blob natif (plus compact que base64). Le layer ne contient que la référence.
 - **Limite** : maximum 10 images par dessin.
 
 #### Sélection & manipulation des images
@@ -389,6 +389,8 @@ En mode Debug (toggle dans le menu déroulant), les **points enregistrés** de c
 
 Cela permet de visualiser l'espacement entre les points échantillonnés et de comprendre pourquoi la gomme peut « rater » un trait : elle ne compare le doigt qu'aux points enregistrés, pas aux segments entre ces points.
 
-### Persistance des réglages
+### Persistance
 
-Tous les réglages d'outils (couleurs, épaisseurs, opacités, lissage, mode canvas, outil actif, mapping de boutons) sont persistés en localStorage et restaurés au chargement — y compris l'outil texte. Au lancement d'un dessin, un délai de 300ms bloque les interactions canvas pour éviter les interactions fantômes issues du tap sur la vignette (les navigateurs mobiles émettent des événements souris synthétiques aux mêmes coordonnées après un touch).
+Les dessins et images sont stockés dans **IndexedDB** (quota de centaines de Mo, bien au-delà de la limite de ~5-10 Mo de localStorage). Lors de la première ouverture après mise à jour, les données existantes sont migrées automatiquement (écran « Migration en cours… » affiché brièvement).
+
+Les réglages d'outils (couleurs, épaisseurs, opacités, lissage, mode canvas, outil actif, mapping de boutons) restent en localStorage (données légères) et sont restaurés au chargement — y compris l'outil texte. Au lancement d'un dessin, un délai de 300ms bloque les interactions canvas pour éviter les interactions fantômes issues du tap sur la vignette (les navigateurs mobiles émettent des événements souris synthétiques aux mêmes coordonnées après un touch).

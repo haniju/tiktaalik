@@ -19,27 +19,29 @@ export const KonvaImage = React.memo(function KonvaImage({ layer }: KonvaImagePr
     setStatus('loading');
     setHtmlImage(null);
 
-    const dataUrl = loadImage(layer.imageStorageKey);
-    if (!dataUrl) {
-      console.warn(WARN_IMAGE_LOAD_FAILED, layer.imageStorageKey);
-      setStatus('error');
-      return;
-    }
-
-    const img = new window.Image();
-    img.onload = () => {
-      if (mountedRef.current) {
-        setHtmlImage(img);
-        setStatus('ready');
-      }
-    };
-    img.onerror = () => {
-      if (mountedRef.current) {
+    loadImage(layer.imageStorageKey).then(dataUrl => {
+      if (!mountedRef.current) return;
+      if (!dataUrl) {
         console.warn(WARN_IMAGE_LOAD_FAILED, layer.imageStorageKey);
         setStatus('error');
+        return;
       }
-    };
-    img.src = dataUrl;
+
+      const img = new window.Image();
+      img.onload = () => {
+        if (mountedRef.current) {
+          setHtmlImage(img);
+          setStatus('ready');
+        }
+      };
+      img.onerror = () => {
+        if (mountedRef.current) {
+          console.warn(WARN_IMAGE_LOAD_FAILED, layer.imageStorageKey);
+          setStatus('error');
+        }
+      };
+      img.src = dataUrl;
+    });
 
     return () => {
       mountedRef.current = false;

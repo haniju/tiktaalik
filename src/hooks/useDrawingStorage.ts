@@ -1,7 +1,6 @@
 import { Drawing, DrawLayer, Stroke, AirbrushStroke, TextBox } from '../types';
 import { removeImagesForLayers } from '../utils/imageStorage';
-
-const STORAGE_KEY = 'sketchpad_drawings';
+import { dbGetAllDrawings, dbGetDrawing, dbPutDrawing, dbDeleteDrawing } from '../utils/db';
 
 // Migration d'un dessin sauvegardé dans l'ancien format vers la pile unifiée
 function migrateDrawing(d: Drawing): Drawing {
@@ -28,40 +27,36 @@ function migrateDrawing(d: Drawing): Drawing {
 }
 
 export function useDrawingStorage() {
-  const getAll = (): Drawing[] => {
+  const getAll = async (): Promise<Drawing[]> => {
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      const drawings: Drawing[] = data ? JSON.parse(data) : [];
+      const drawings = await dbGetAllDrawings();
       return drawings.map(migrateDrawing);
     } catch { return []; }
   };
 
-  const save = (drawing: Drawing): boolean => {
-    const all = getAll();
-    const idx = all.findIndex(d => d.id === drawing.id);
-    if (idx >= 0) all[idx] = drawing;
-    else all.unshift(drawing);
+  const save = async (drawing: Drawing): Promise<boolean> => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+      await dbPutDrawing(drawing);
       return true;
     } catch (e) {
-      console.error('[storage] save failed — localStorage full?', e);
+      console.error('[storage] save failed', e);
       return false;
     }
   };
 
-  const remove = (id: string): void => {
-    const all = getAll();
-    const drawing = all.find(d => d.id === id);
-    if (drawing) removeImagesForLayers(drawing.layers);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all.filter(d => d.id !== id)));
+  const remove = async (id: string): Promise<void> => {
+    const drawing = await dbGetDrawing(id);
+    if (drawing) await removeImagesForLayers(drawing.layers ?? []);
+    await dbDeleteDrawing(id);
   };
 
-  const rename = (id: string, name: string): void => {
-    const all = getAll();
-    const idx = all.findIndex(d => d.id === id);
-    if (idx >= 0) { all[idx].name = name; all[idx].updatedAt = Date.now(); }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  const rename = async (id: string, name: string): Promise<void> => {
+    const drawing = await dbGetDrawing(id);
+    if (drawing) {
+      drawing.name = name;
+      drawing.updatedAt = Date.now();
+      await dbPutDrawing(drawing);
+    }
   };
 
   return { getAll, save, remove, rename };

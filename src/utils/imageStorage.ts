@@ -1,44 +1,51 @@
 import { DrawLayer, ImageLayer } from '../types';
+import { dbPutImage, dbGetImage, dbDeleteImage, dbDeleteImages, dataUrlToBlob, blobToDataUrl, estimateStorageAvailable } from './db';
 
-const IMAGE_KEY_PREFIX = 'img_';
 const MAX_IMAGES_PER_DRAWING = 10;
 
-// Taille max estimée par image en localStorage (base64 JPEG ~100-300 KB)
-// localStorage total ~5-10 MB selon navigateur
-
-/** Sauvegarde un dataURL dans une clé localStorage séparée */
-export function saveImage(id: string, dataUrl: string): boolean {
-  const key = IMAGE_KEY_PREFIX + id;
+/** Sauvegarde un dataURL en Blob dans IndexedDB */
+export async function saveImage(id: string, dataUrl: string): Promise<boolean> {
   try {
-    localStorage.setItem(key, dataUrl);
+    const blob = dataUrlToBlob(dataUrl);
+    await dbPutImage(id, blob);
     return true;
   } catch (e) {
-    console.error('[imageStorage] saveImage failed — quota exceeded?', e);
+    console.error('[imageStorage] saveImage failed', e);
     return false;
   }
 }
 
-/** Charge un dataURL depuis localStorage */
-export function loadImage(key: string): string | null {
+/** Charge une image depuis IndexedDB et retourne un dataURL */
+export async function loadImage(key: string): Promise<string | null> {
   try {
-    return localStorage.getItem(IMAGE_KEY_PREFIX + key);
+    const blob = await dbGetImage(key);
+    if (!blob) return null;
+    return await blobToDataUrl(blob);
   } catch {
     return null;
   }
 }
 
-/** Supprime une image du localStorage */
-export function removeImage(id: string): void {
-  localStorage.removeItem(IMAGE_KEY_PREFIX + id);
+/** Charge une image depuis IndexedDB et retourne le Blob brut */
+export async function loadImageBlob(key: string): Promise<Blob | null> {
+  try {
+    return await dbGetImage(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Supprime une image d'IndexedDB */
+export async function removeImage(id: string): Promise<void> {
+  await dbDeleteImage(id);
 }
 
 /** Supprime toutes les images associées aux layers d'un dessin */
-export function removeImagesForLayers(layers: DrawLayer[]): void {
-  for (const layer of layers) {
-    if (layer.tool === 'image') {
-      removeImage((layer as ImageLayer).imageStorageKey);
-    }
-  }
+export async function removeImagesForLayers(layers: DrawLayer[]): Promise<void> {
+  const keys = layers
+    .filter((l): l is ImageLayer => l.tool === 'image')
+    .map(l => l.imageStorageKey);
+  if (keys.length > 0) await dbDeleteImages(keys);
 }
 
 /** Compte le nombre d'images dans les layers d'un dessin */
@@ -46,20 +53,11 @@ export function getImageCount(layers: DrawLayer[]): number {
   return layers.filter(l => l.tool === 'image').length;
 }
 
-/** Vérifie si on peut encore stocker une image (limite par dessin) */
-export function canStoreMore(layers: DrawLayer[]): { allowed: boolean; reason?: string } {
+/** Vérifie si on peut encore stocker une image (limite par dessin + quota) */
+export async function canStoreMore(layers: DrawLayer[]): Promise<{ allowed: boolean; reason?: string }> {
   const count = getImageCount(layers);
   if (count >= MAX_IMAGES_PER_DRAWING) {
     return { allowed: false, reason: `Maximum ${MAX_IMAGES_PER_DRAWING} images par dessin atteint.` };
   }
-  // Test d'écriture rapide pour vérifier le quota
-  try {
-    const testKey = '__storage_test__';
-    const testData = 'x'.repeat(50_000); // ~50 KB test
-    localStorage.setItem(testKey, testData);
-    localStorage.removeItem(testKey);
-    return { allowed: true };
-  } catch {
-    return { allowed: false, reason: 'Stockage plein — supprime des dessins ou images pour libérer de l\'espace.' };
-  }
+  return estimateStorageAvailable();
 }

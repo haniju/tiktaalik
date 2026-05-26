@@ -408,9 +408,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, [layers, tbState, pushUndo, setTbStateWithLog, setContextPanel, scheduleSave]);
 
   const deleteSelected = useCallback(() => {
-    // Nettoyer le storage des images supprimées
+    // Nettoyer le storage des images supprimées (async, fire-and-forget)
     const selSet = new Set(selection);
-    layers.filter(l => selSet.has(l.id) && l.tool === 'image').forEach(l => removeImage((l as ImageLayer).imageStorageKey));
+    const imageKeys = layers.filter(l => selSet.has(l.id) && l.tool === 'image').map(l => (l as ImageLayer).imageStorageKey);
+    imageKeys.forEach(k => removeImage(k));
     const newL = layers.filter(l => !selSet.has(l.id));
     setLayers(newL);
     setSelection([]); setTbStateWithLog({ kind: 'idle' }, 'deleteSelected');
@@ -435,13 +436,12 @@ export function SketchScreen({ drawing, onBack }: Props) {
           return groupIdMap.get(gid)!;
         });
       }
-      // Dupliquer le storage des images
+      // Dupliquer le storage des images (async, fire-and-forget)
       if (newLayer.tool === 'image') {
         const imgLayer = newLayer as ImageLayer;
         const origKey = (l as ImageLayer).imageStorageKey;
         const newKey = newLayer.id;
-        const dataUrl = loadImage(origKey);
-        if (dataUrl) saveImage(newKey, dataUrl);
+        loadImage(origKey).then(dataUrl => { if (dataUrl) saveImage(newKey, dataUrl); });
         imgLayer.imageStorageKey = newKey;
       }
       return newLayer;
@@ -473,17 +473,17 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
 
 
-  const handleExport = ({ format, transparent }: ExportOptions) => {
+  const handleExport = async ({ format, transparent }: ExportOptions) => {
     const { canvasWidth, canvasHeight } = canvasConfig;
     if (format === 'svg') {
-      exportSvg(layers, canvasWidth, canvasHeight, `${drawingName}.svg`, canvasBackground);
+      await exportSvg(layers, canvasWidth, canvasHeight, `${drawingName}.svg`, canvasBackground);
     } else {
-      exportRaster(layers, canvasWidth, canvasHeight, `${drawingName}.${format}`, format, canvasBackground, transparent);
+      await exportRaster(layers, canvasWidth, canvasHeight, `${drawingName}.${format}`, format, canvasBackground, transparent);
     }
   };
 
-  const handlePrint = () => {
-    printDrawing(layers, canvasConfig.canvasWidth, canvasConfig.canvasHeight, canvasBackground);
+  const handlePrint = async () => {
+    await printDrawing(layers, canvasConfig.canvasWidth, canvasConfig.canvasHeight, canvasBackground);
   };
 
   const handleRename = (newName: string) => {
@@ -492,9 +492,9 @@ export function SketchScreen({ drawing, onBack }: Props) {
     scheduleSave();
   };
 
-  const handleDeleteDrawing = () => {
+  const handleDeleteDrawing = async () => {
     if (!confirm(`Supprimer "${drawingName}" ? Cette action est irréversible.`)) return;
-    storage.remove(drawing.id);
+    await storage.remove(drawing.id);
     onBack();
   };
 
@@ -615,7 +615,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
               // Si groupé, supprimer tout le groupe
               const expanded = expandToGroups(layers, [id]);
               const expandedSet = new Set(expanded);
-              // Nettoyer le storage des images supprimées
+              // Nettoyer le storage des images supprimées (async, fire-and-forget)
               layers.filter(l => expandedSet.has(l.id) && l.tool === 'image').forEach(l => removeImage((l as ImageLayer).imageStorageKey));
               const newL = autoDissolveGroups(layers.filter(l => !expandedSet.has(l.id)));
               setLayers(newL);

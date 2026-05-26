@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Drawing } from './types';
 import { HomeScreen } from './components/HomeScreen';
 import { SketchScreen } from './components/SketchScreen';
+import { migrateFromLocalStorage, isMigrationDone } from './utils/db';
 
 const SLIDER_CSS = `
 .app-slider {
@@ -56,6 +57,14 @@ const SLIDER_CSS = `
 type Screen = 'home' | 'sketch';
 
 export default function App() {
+  const [ready, setReady] = useState(isMigrationDone());
+
+  // Migration localStorage → IndexedDB (one-shot au premier lancement)
+  useEffect(() => {
+    if (ready) return;
+    migrateFromLocalStorage().then(() => setReady(true));
+  }, [ready]);
+
   // Injecter le CSS des sliders une seule fois
   useEffect(() => {
     const id = 'app-slider-css';
@@ -68,6 +77,14 @@ export default function App() {
   }, []);
   const [screen, setScreen] = useState<Screen>('home');
   const [currentDrawing, setCurrentDrawing] = useState<Drawing | null>(null);
+
+  if (!ready) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'system-ui' }}>
+        Migration en cours…
+      </div>
+    );
+  }
 
   if (screen === 'sketch' && currentDrawing) {
     return (

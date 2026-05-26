@@ -51,15 +51,15 @@ export function useImageImport() {
   }, []);
 
   /** Ouvre le file picker et retourne une promesse avec le résultat */
-  const importImage = useCallback((
+  const importImage = useCallback(async (
     layers: DrawLayer[],
     viewportCenter: { x: number; y: number },
     viewportSize: { width: number; height: number },
   ): Promise<ImportResult> => {
     // Vérification quota AVANT d'ouvrir le picker
-    const check = canStoreMore(layers);
+    const check = await canStoreMore(layers);
     if (!check.allowed) {
-      return Promise.resolve({ success: false, reason: check.reason! });
+      return { success: false, reason: check.reason! };
     }
 
     return new Promise((resolve) => {
@@ -82,8 +82,8 @@ export function useImageImport() {
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
           const storageKey = id;
 
-          // Sauvegarder dans localStorage séparé
-          const saved = saveImage(storageKey, dataUrl);
+          // Sauvegarder dans IndexedDB
+          const saved = await saveImage(storageKey, dataUrl);
           if (!saved) {
             resolve({ success: false, reason: 'Stockage plein — supprime des dessins ou images pour libérer de l\'espace.' });
             return;

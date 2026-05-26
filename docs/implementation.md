@@ -18,19 +18,52 @@ Pour comprendre **ce que fait l'app** (perspective utilisateur, tech-agnostique)
 
 ## State & Persistence
 
-Toutes les données vivent dans `localStorage` :
-- `sketchpad_drawings` — `Drawing[]` sérialisé (layers, background, metadata)
+### IndexedDB (données lourdes)
+
+Les dessins et images sont stockés dans **IndexedDB** (base `tiktaalik_db`, version 1) pour bénéficier d'un quota de centaines de Mo (vs ~5-10 Mo en localStorage). Deux object stores :
+
+| Object Store | keyPath | Contenu |
+|---|---|---|
+| `drawings` | `id` | Objets `Drawing` (layers, background, metadata, thumbnail base64) |
+| `images` | `key` | `{ key: string, blob: Blob }` — images JPEG en Blob natif (~30% plus compact que base64) |
+
+Couche d'accès dans `src/utils/db.ts` :
+- `openDB()` — singleton IDBDatabase, crée les stores dans `onupgradeneeded`
+- `dbGetAllDrawings()` / `dbGetDrawing(id)` / `dbPutDrawing(drawing)` / `dbDeleteDrawing(id)` — CRUD drawings
+- `dbPutImage(key, blob)` / `dbGetImage(key)` / `dbDeleteImage(key)` / `dbDeleteImages(keys)` — CRUD images
+- `estimateStorageAvailable()` — utilise `navigator.storage.estimate()` (seuil 5 Mo restants)
+- `dataUrlToBlob()` / `blobToDataUrl()` — helpers de conversion
+- `migrateFromLocalStorage()` — migration one-shot (voir ci-dessous)
+
+**Toutes les fonctions de stockage sont async** (Promise). Les hooks et composants consommateurs utilisent `await` ou `.then()`.
+
+### Migration localStorage → IndexedDB
+
+Au premier lancement après la mise à jour, `App.tsx` appelle `migrateFromLocalStorage()` :
+1. Vérifie le flag `localStorage.idb_migrated` — skip si `'1'`
+2. Lit `sketchpad_drawings`, parse, écrit chaque drawing dans IndexedDB
+3. Itère les clés `img_*`, convertit les dataURL en Blob, stocke dans IndexedDB
+4. Pose le flag `idb_migrated = '1'`
+5. Supprime les anciennes clés pour libérer l'espace localStorage
+
+Idempotent : si interrompu, le flag n'est pas posé, la migration recommence au prochain lancement. Un écran « Migration en cours… » s'affiche pendant l'opération.
+
+### localStorage (données légères)
+
+Les réglages légers restent en localStorage (quelques Ko, accès synchrone) :
 - `sketchpad_drawing_order` — array d'IDs pour l'ordre galerie (Option A : séparé des objets Drawing, filtré au chargement)
 - `sketchpad_tool_state` — réglages d'outil actifs (couleurs, épaisseurs, outil actif, canvasMode, previousMode)
 - `sketchpad_button_mapping` — array `{ key, code, keyCode, label, action }` pour le mapping de boutons physiques
+- `idb_migrated` — flag de migration IndexedDB (`'1'` = fait)
 
-Hooks custom :
-- `useDrawingStorage` — CRUD drawings dans localStorage, migration automatique des formats legacy
+### Hooks custom
+
+- `useDrawingStorage` — CRUD drawings async via IndexedDB (`db.ts`), migration automatique des formats legacy
 - `useToolState` — outil actif, canvasMode, couleurs, épaisseurs, opacités par outil. **`canvasBackground` n'est PAS ici** — c'est un état par-Drawing
 - `useButtonMapping` — deux phases : listen mode (capture `keydown`, `preventDefault` sur tout, ajoute à la liste détectée) et active mode (listeners `keydown`/`keyup` hold-aware avec seuil 250ms). Interface `HoldAwareActions: { toggle, enter, exit }` contenant un `Record<MappableAction, () => void>`
 - `useDragToReorder` — layout `'horizontal'` (SelectionPanel) et `'grid'` (HomeScreen). Long-press deux phases (`onLongPressRelease` pour sélection, move après long-press pour drag). `blockNativeScroll()` intercepte `touchmove` (non-passive) sur le scroll container
 - `useDrawingOrder` — persistance de l'ordre galerie. `applyOrder()` trie, filtre les IDs périmés, place les nouveaux dessins en premier
-- `useAutosave` — timer debounced, saveNow/scheduleSave, listeners visibilitychange/beforeunload
+- `useAutosave` — timer debounced, saveNow async/scheduleSave, listeners visibilitychange/beforeunload, guard anti-concurrence (`savingRef`)
 - `useUndoRedo` — undoStack, pushUndo, undo/redo, raccourci Cmd+Z
 - `useStageViewport` — stageRef, stageSize, zoomPct, canvasH, centerViewOn, zoomTo. Constantes exportées : `TOPBAR_H = 48`, `DRAWINGBAR_H = 48`
 
@@ -273,6 +306,8 @@ Les callbacks Konva capturent les closures au moment du bind. Pattern : `const f
 
 `useDrawingStorage` retourne un nouvel objet à chaque render (pas memoized). `saveNow` serait recréé à chaque render, ce qui annulerait le timer autosave. Fix : `saveNowRef` pointe toujours vers le `saveNow` courant. Le timer et les listeners lisent via cette ref.
 
+`saveNow` est **async** (IndexedDB). Un guard `savingRef` empêche les saves concurrents (ex: visibilitychange pendant un save en cours). `beforeunload` lance le save async mais ne peut pas garantir sa complétion — le timer de 4s assure que max 4s de travail est perdu en cas de fermeture brutale.
+
 ### pendingTextboxRef (création différée sur mobile)
 
 En mode texte, mouseDown ne crée pas la TB immédiatement (sinon un pinch zoom créerait une TB fantôme). La position est stockée dans `pendingTextboxRef`. La TB est créée dans mouseUp si la ref n'a pas été annulée.
@@ -328,18 +363,19 @@ Au premier deploy (pas de manifeste existant), tous les fichiers sont transfér�
 
 ### Architecture
 
-`ImageLayer` dans `DrawLayer[]` (pile unifiée). Les données image (dataURL JPEG) sont stockées dans des clés localStorage séparées (`img_{id}`) — le layer ne contient que la référence (`imageStorageKey`).
+`ImageLayer` dans `DrawLayer[]` (pile unifiée). Les données image (Blob JPEG) sont stockées dans IndexedDB (object store `images`) — le layer ne contient que la référence (`imageStorageKey`).
 
 ### Pipeline import
 
-`src/hooks/useImageImport.ts` : `createImageBitmap(file)` (gère HEIC + corrige orientation EXIF automatiquement) → redimensionnement si > 877px (1/2 A4 à 150 DPI) → canvas offscreen → `toDataURL('image/jpeg', 0.75)` → `saveImage(key, dataUrl)` dans localStorage séparé.
+`src/hooks/useImageImport.ts` : `createImageBitmap(file)` (gère HEIC + corrige orientation EXIF automatiquement) → redimensionnement si > 877px (1/2 A4 à 150 DPI) → canvas offscreen → `toDataURL('image/jpeg', 0.75)` → `saveImage(key, dataUrl)` qui convertit en Blob et stocke dans IndexedDB.
 
 ### Fichiers clés
 
 | Fichier | Rôle |
 |---------|------|
 | `src/types/index.ts` | `ImageLayer` dans `DrawLayer` union |
-| `src/utils/imageStorage.ts` | CRUD localStorage (`saveImage`, `loadImage`, `removeImage`, `canStoreMore`) |
+| `src/utils/imageStorage.ts` | CRUD async via IndexedDB (`saveImage`, `loadImage`, `loadImageBlob`, `removeImage`, `canStoreMore`) |
+| `src/utils/db.ts` | Couche IndexedDB bas niveau (ouverture DB, CRUD drawings/images, migration, helpers Blob) |
 | `src/hooks/useImageImport.ts` | Pipeline import (file picker, resize, compression, layer creation) |
 | `src/components/KonvaImage.tsx` | Rendu Konva (chargement dataURL → `HTMLImageElement`, placeholder gris pendant chargement, rect rouge si image manquante) |
 | `src/components/ImageOpacityPanel.tsx` | Panneau flottant d'opacité pour images sélectionnées |
@@ -354,21 +390,22 @@ Dans `useCanvasGestures.ts`, `eraseAt()` filtre avec `if (layer.tool === 'image'
 
 `renderToCanvas()` et `exportSvg()` dans `src/utils/export.ts` gèrent le cas `layer.tool === 'image'` :
 
-- **Raster** (`renderToCanvas`) : `new Image()` avec `src = dataUrl` (synchrone car dataURL inline, pas de fetch réseau). Applique `globalAlpha` pour l'opacité et `save/translate/rotate/restore` pour la rotation.
-- **SVG** (`exportSvg`) : `<image href="${dataUrl}" .../>` — le dataURL est embarqué directement dans le SVG (data URI dans l'attribut `href`). Rotation via `transform="rotate(...)"`.
-- **Thumbnail** (`generateThumbnail`) : utilise `renderToCanvas` → les images sont automatiquement incluses.
-- **Impression** (`printDrawing`) : utilise `renderToCanvas` → idem.
+- **Raster** (`renderToCanvas`) : reçoit une `Map<string, HTMLImageElement>` pré-chargée. `renderToCanvas` reste **synchrone** — seule la phase de pré-chargement est async. Applique `globalAlpha` pour l'opacité et `save/translate/rotate/restore` pour la rotation.
+- **SVG** (`exportSvg`) : pré-charge les images en dataURL (`preloadImageDataUrls`), puis `<image href="${dataUrl}" .../>` — embarqué en data URI. Rotation via `transform="rotate(...)"`.
+- **Thumbnail** (`generateThumbnail`) : async, pré-charge les images puis utilise `renderToCanvas`.
+- **Impression** (`printDrawing`) : async, idem.
 
-Contrainte : `renderToCanvas` reste **synchrone** (pas d'async/await) — `new Image()` avec un dataURL est synchrone sur tous les navigateurs modernes.
+Pattern de pré-chargement (`preloadImages`) : charge les Blobs depuis IndexedDB → crée des object URLs → instancie des `HTMLImageElement` → attend `onload` → retourne une Map. Les object URLs sont révoqués immédiatement après chargement.
 
 ## Export
 
 `src/utils/export.ts` :
-- `renderToCanvas()` : helper interne qui rend les layers sur un `<canvas>` à une résolution donnée. Factorise le code entre thumbnails et exports raster. Gère tous les types de layers (strokes, airbrush, text, image).
-- `exportSvg()` : SVG vectoriel — styles de traits, gradients radiaux aérographe, texte word-wrap, images embarquées (data URI), fond canvas. ClipPath aux bornes A4.
-- `exportRaster()` : PNG/JPG/WebP via `canvas.toBlob()`. Résolution native A4 (794×1123). Qualité 0.92 pour JPG/WebP.
-- `printDrawing()` : ouvre une fenêtre `window.open`, écrit un document HTML minimal avec l'image PNG et déclenche `window.print()` à l'onload.
-- `generateThumbnail()` : canvas 2D, `ctx.clip()` aux bornes A4. Largeur 400px. Utilise `renderToCanvas()`.
+- `preloadImages(layers)` / `preloadImageDataUrls(layers)` : helpers async qui pré-chargent les images depuis IndexedDB (en `HTMLImageElement` ou en dataURL) avant le rendu synchrone.
+- `renderToCanvas(layers, ..., imageMap)` : helper interne **synchrone** qui rend les layers sur un `<canvas>` à une résolution donnée. Reçoit la map d'images pré-chargées en paramètre. Gère tous les types de layers (strokes, airbrush, text, image).
+- `exportSvg()` : **async**. SVG vectoriel — styles de traits, gradients radiaux aérographe, texte word-wrap, images embarquées (data URI), fond canvas. ClipPath aux bornes A4.
+- `exportRaster()` : **async**. PNG/JPG/WebP via `canvas.toBlob()`. Résolution native A4 (794×1123). Qualité 0.92 pour JPG/WebP.
+- `printDrawing()` : **async**. Ouvre une fenêtre `window.open`, écrit un document HTML minimal avec l'image PNG et déclenche `window.print()` à l'onload.
+- `generateThumbnail()` : **async**. Canvas 2D, `ctx.clip()` aux bornes A4. Largeur 400px. Utilise `renderToCanvas()`.
 - `wrapText()` dans `textboxUtils.ts` partagé entre rendu canvas, export SVG et thumbnails.
 
 `src/components/ExportModal.tsx` : modal de choix de format (PNG, JPG, WebP, SVG) + bouton Imprimer.

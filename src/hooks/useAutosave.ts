@@ -19,23 +19,33 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
   const canvasConfigRef = useRef<CanvasConfig>(drawing.canvasConfig ?? DEFAULT_CANVAS_CONFIG);
   const drawingNameRef = useRef<string>(drawing.name);
   const isDirtyRef = useRef(false);
+  const savingRef = useRef(false); // empêche les saves concurrents
   const [saveError, setSaveError] = useState(false);
 
-  const saveNow = useCallback(() => {
+  const saveNow = useCallback(async () => {
     if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
     if (!isDirtyRef.current) return;
-    const bg = canvasBgRef.current;
-    const cc = canvasConfigRef.current;
-    const thumb = generateThumbnail(layersRef.current, cc.canvasWidth, cc.canvasHeight, bg);
-    const ok = storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, updatedAt: Date.now(), thumbnail: thumb });
-    if (ok) {
-      isDirtyRef.current = false;
-      setIsDirty(false);
-      setSaveError(false);
-      console.log('[autosave]', new Date().toLocaleTimeString());
-    } else {
+    if (savingRef.current) return; // save déjà en cours
+    savingRef.current = true;
+    try {
+      const bg = canvasBgRef.current;
+      const cc = canvasConfigRef.current;
+      const thumb = await generateThumbnail(layersRef.current, cc.canvasWidth, cc.canvasHeight, bg);
+      const ok = await storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, updatedAt: Date.now(), thumbnail: thumb });
+      if (ok) {
+        isDirtyRef.current = false;
+        setIsDirty(false);
+        setSaveError(false);
+        console.log('[autosave]', new Date().toLocaleTimeString());
+      } else {
+        setSaveError(true);
+        console.warn('[autosave] save failed — will retry on next scheduleSave');
+      }
+    } catch (e) {
       setSaveError(true);
-      console.warn('[autosave] save failed — will retry on next scheduleSave');
+      console.warn('[autosave] save error', e);
+    } finally {
+      savingRef.current = false;
     }
   }, [drawing, storage, setIsDirty]);
 
@@ -48,13 +58,13 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
     isDirtyRef.current = true;
     setIsDirty(true);
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => saveNowRef.current(), 4000);
+    autosaveTimer.current = setTimeout(() => { saveNowRef.current(); }, 4000);
   }, []); // stable — lit saveNow via ref, setIsDirty est stable (useState)
 
   // Save immédiat sur visibilitychange / beforeunload
   useEffect(() => {
     const onVisChange = () => { if (document.hidden) saveNowRef.current(); };
-    const onBeforeUnload = () => saveNowRef.current();
+    const onBeforeUnload = () => { saveNowRef.current(); };
     document.addEventListener('visibilitychange', onVisChange);
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
