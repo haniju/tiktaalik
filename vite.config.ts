@@ -47,6 +47,7 @@ export default defineConfig({
     __IS_BETA__: JSON.stringify(isBeta),
   },
   build: {
+    target: 'es2018',
     outDir: 'dist',
     rollupOptions: {
       output: {

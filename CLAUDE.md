@@ -50,6 +50,11 @@ After implementing a feature or fix:
 - **Unused code**: Remove dead imports and variables, don't comment them out
 - **Commits**: Conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`)
 
+## Compatibility
+
+- **Target: Android 9+** (Chrome ≥ 69). Build target is `es2018` in `vite.config.ts` — do not raise it
+- Do not use runtime APIs absent from Chrome 69 without polyfill (e.g. `structuredClone`, `crypto.randomUUID`, `Array.at()`, `Object.hasOwn()`, `String.replaceAll()`)
+
 ## Do Not
 
 - Do not add `node_modules/`, `dist/`, or `.zip` files to git

@@ -108,6 +108,13 @@ Diagnostic et nettoyage de la dette technique documentée :
 - Fichiers modifiés : `types/index.ts`, `useStageViewport.ts`, `useCanvasGestures.ts`, `useAutosave.ts`, `DrawingLayer.tsx`, `SketchScreen.tsx`, `Topbar.tsx`
 - Zoom min ajusté de 10% à 20% (aligné avec pinch/wheel)
 
+### Fix compatibilité Android 9+ (branche `dev`, 2026-05-27)
+
+- **Page blanche sur Android 9/10** : le build Vite par défaut ciblait `chrome87`, émettant du JS ES2020 (`?.`, `??`) non parsé par Chrome < 80
+- Fix : `build.target: 'es2018'` dans `vite.config.ts` — force la transpilation des syntaxes ES2020
+- Impact bundle : +1.3 kB gzip (négligeable)
+- Contrainte de dev : **ne pas remonter le build target** au-dessus de `es2018` tant qu'Android 9 est supporté
+
 ## Issues connues
 
 - Pinch zoom pendant édition texte sort du mode editing — limitation connue, différée

@@ -389,6 +389,10 @@ En mode Debug (toggle dans le menu déroulant), les **points enregistrés** de c
 
 Cela permet de visualiser l'espacement entre les points échantillonnés et de comprendre pourquoi la gomme peut « rater » un trait : elle ne compare le doigt qu'aux points enregistrés, pas aux segments entre ces points.
 
+### Compatibilité navigateur
+
+L'application cible **Android 9+** (Chrome ≥ 69). Le build est transpilé en ES2018 pour garantir le fonctionnement sur les appareils Android anciens dont le navigateur n'a pas été mis à jour.
+
 ### Persistance
 
 Les dessins et images sont stockés dans **IndexedDB** (quota de centaines de Mo, bien au-delà de la limite de ~5-10 Mo de localStorage). Lors de la première ouverture après mise à jour, les données existantes sont migrées automatiquement (écran « Migration en cours… » affiché brièvement).

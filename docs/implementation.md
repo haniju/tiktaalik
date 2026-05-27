@@ -349,6 +349,12 @@ Dans `useDragToReorder`, `blockNativeScroll()` intercepte `touchmove` (listener 
 
 Version : `__APP_VERSION__` (depuis package.json) et `__BUILD_TIME__` (fr-FR locale) injectés en globaux via vite.config.ts.
 
+### Cible de compatibilité (build.target)
+
+`build.target: 'es2018'` dans `vite.config.ts`. Cible : **Android 9+** (Chrome ≥ 69).
+
+Par défaut Vite 5 cible `chrome87`, ce qui laisse dans le bundle du JS ES2020 (optional chaining `?.`, nullish coalescing `??`). Ces syntaxes ne sont pas parsées par Chrome < 80, provoquant une page blanche sur les appareils Android 9/10 dont le navigateur n'a pas été mis à jour. Le target `es2018` force esbuild à transpiler ces syntaxes. Impact bundle : +1.3 kB gzip (~0.7%).
+
 ### Branding BETA conditionnel
 
 Le branding BETA (badges, title, manifeste PWA) est piloté par la variable d'environnement `VITE_BETA=true` au moment du build — pas hardcodé dans le code source. Cela permet de merger `dev` → `main` sans que le branding beta pollue la version stable.
