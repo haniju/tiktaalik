@@ -50,7 +50,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
-    setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
+    setCanvasMode, enterPan, exitPan, togglePan, enterSelect, exitSelect, toggleSelect, collapsePanel,
     setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
@@ -304,15 +304,43 @@ export function SketchScreen({ drawing, onBack }: Props) {
     exitPan();
   }, [exitPan, setTbStateWithLog]);
 
+  // ─── Select mode handlers (pour button mapping) ────────────────────────────
+  const handleToggleSelect = useCallback(() => {
+    if (tbStateRef.current.kind === 'editing') {
+      collapseEditingToSelected();
+    }
+    const wasSelect = toolStateRef.current.canvasMode === 'select';
+    toggleSelect();
+    if (wasSelect) {
+      setSelection([]);
+      setFocusedIds([]);
+      setSelectSubMode('none');
+    }
+  }, [toggleSelect, collapseEditingToSelected]);
+
+  const handleEnterSelect = useCallback(() => {
+    if (tbStateRef.current.kind === 'editing') {
+      collapseEditingToSelected();
+    }
+    enterSelect();
+  }, [enterSelect, collapseEditingToSelected]);
+
+  const handleExitSelect = useCallback(() => {
+    exitSelect();
+    setSelection([]);
+    setFocusedIds([]);
+    setSelectSubMode('none');
+  }, [exitSelect]);
+
   // ─── Button mapping (boutons physiques → actions) ──────────────────────────
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [showOpacityPanel, setShowOpacityPanel] = useState(false);
   const buttonMapping = useButtonMapping({
-    toggle: { toggle_pan: handleTogglePan },
-    enter: { toggle_pan: handleEnterPan },
-    exit: { toggle_pan: handleExitPan },
+    toggle: { pan: handleTogglePan, select: handleToggleSelect },
+    enter: { pan: handleEnterPan, select: handleEnterSelect },
+    exit: { pan: handleExitPan, select: handleExitSelect },
   });
 
   // ─── Import image ─────────────────────────────────────────────────────────
@@ -804,10 +832,10 @@ export function SketchScreen({ drawing, onBack }: Props) {
         <ButtonMappingModal
           mappings={buttonMapping.mappings}
           listening={buttonMapping.listening}
-          actionLabels={buttonMapping.ACTION_LABELS}
           onStartListening={buttonMapping.startListening}
           onStopListening={buttonMapping.stopListening}
-          onSetAction={buttonMapping.setAction}
+          onAddBinding={buttonMapping.addBinding}
+          onRemoveBinding={buttonMapping.removeBinding}
           onRemoveMapping={buttonMapping.removeMapping}
           onClearAll={buttonMapping.clearAll}
           onClose={() => { buttonMapping.stopListening(); setMappingModalOpen(false); }}

@@ -1,28 +1,86 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-export type MappableAction = 'toggle_pan';
+// ─── Types publics ───────────────────────────────────────────────────────────
 
-// Seuil (ms) pour distinguer tap (toggle) du hold (momentané)
-const HOLD_THRESHOLD = 250;
+export type MappableMode = 'select' | 'pan';
+export type GestureType = 'click' | 'hold' | 'double_click';
+export type ActionType = 'toggle' | 'toggle_and_release';
+
+export interface MappingBinding {
+  gesture: GestureType;
+  actionType: ActionType;
+  mode: MappableMode;
+}
 
 export interface ButtonMapping {
   key: string;       // event.key (ex: "AudioVolumeDown", "F3")
   code: string;      // event.code (ex: "VolumeDown", "F3")
   keyCode: number;   // event.keyCode (legacy, pour identification)
   label: string;     // nom affiché (ex: "Volume Down", "F3")
-  action: MappableAction | null;
+  bindings: MappingBinding[];
 }
 
+// ─── Labels pour l'UI ────────────────────────────────────────────────────────
+
+export const GESTURE_LABELS: Record<GestureType, string> = {
+  click: 'Click simple',
+  hold: 'Maintien',
+  double_click: 'Double click',
+};
+
+export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
+  toggle: 'Toggle',
+  toggle_and_release: 'Maintenu',
+};
+
+export const MODE_LABELS: Record<MappableMode, string> = {
+  select: 'Sélection',
+  pan: 'Pan',
+};
+
+// ─── Constantes ──��───────────────────────────────────────────────────────────
+
+const HOLD_THRESHOLD = 250;
+const DOUBLE_CLICK_WINDOW = 300;
 const STORAGE_KEY = 'sketchpad_button_mapping';
 
-const ACTION_LABELS: Record<MappableAction, string> = {
-  toggle_pan: 'Toggle Pan',
-};
+// ─── Persistence & migration ─────────────────────────────────────────────────
+
+interface LegacyMapping {
+  key: string;
+  code: string;
+  keyCode: number;
+  label: string;
+  action: string | null;
+}
+
+function migrateLegacy(raw: LegacyMapping[]): ButtonMapping[] {
+  return raw.map(m => {
+    if ('action' in m && !('bindings' in m)) {
+      const bindings: MappingBinding[] = [];
+      if (m.action === 'toggle_pan') {
+        bindings.push({ gesture: 'click', actionType: 'toggle', mode: 'pan' });
+        bindings.push({ gesture: 'hold', actionType: 'toggle_and_release', mode: 'pan' });
+      }
+      return { key: m.key, code: m.code, keyCode: m.keyCode, label: m.label, bindings };
+    }
+    return m as unknown as ButtonMapping;
+  });
+}
 
 function loadMappings(): ButtonMapping[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Détecte ancien format (a "action" au lieu de "bindings")
+    if (parsed.length > 0 && 'action' in parsed[0] && !('bindings' in parsed[0])) {
+      const migrated = migrateLegacy(parsed);
+      persistMappings(migrated);
+      return migrated;
+    }
+    return parsed;
   } catch { return []; }
 }
 
@@ -43,12 +101,16 @@ function keyLabel(e: KeyboardEvent): string {
   return e.key;
 }
 
-/** Actions pour chaque MappableAction : toggle (tap court), enter (hold start), exit (hold release) */
+// ─── Interface actions ───────��───────────────────────────────────────────────
+
+/** Actions pour chaque MappableMode : toggle (tap court), enter (hold start), exit (hold release) */
 export interface HoldAwareActions {
-  toggle: Record<MappableAction, () => void>;
-  enter: Record<MappableAction, () => void>;
-  exit: Record<MappableAction, () => void>;
+  toggle: Record<MappableMode, () => void>;
+  enter: Record<MappableMode, () => void>;
+  exit: Record<MappableMode, () => void>;
 }
+
+// ─── Hook principal ──────────────────────────────────────────────────────────
 
 export function useButtonMapping(actions: HoldAwareActions) {
   const [mappings, setMappings] = useState<ButtonMapping[]>(loadMappings);
@@ -68,7 +130,7 @@ export function useButtonMapping(actions: HoldAwareActions) {
       setMappings(prev => {
         const exists = prev.some(m => `${m.key}:${m.code}:${m.keyCode}` === id);
         if (exists) return prev;
-        const next = [...prev, { key: e.key, code: e.code, keyCode: e.keyCode, label: keyLabel(e), action: null }];
+        const next = [...prev, { key: e.key, code: e.code, keyCode: e.keyCode, label: keyLabel(e), bindings: [] }];
         persistMappings(next);
         return next;
       });
@@ -77,38 +139,73 @@ export function useButtonMapping(actions: HoldAwareActions) {
     return () => document.removeEventListener('keydown', handler, { capture: true });
   }, [listening]);
 
-  // --- Listener global : hold-aware (keydown/keyup avec seuil) ---
+  // --- Listener global : hold-aware + double-click ---
   useEffect(() => {
     if (listening) return;
-    // Track par clé : timer du hold + flag isHolding
+
+    // État par touche : hold detection
     const holdState = new Map<string, { timer: ReturnType<typeof setTimeout>; holding: boolean }>();
+    // État par touche : double-click detection
+    const dblState = new Map<string, { timer: ReturnType<typeof setTimeout>; tapCount: number }>();
 
     const keyId = (e: KeyboardEvent) => `${e.key}:${e.code}:${e.keyCode}`;
 
-    const downHandler = (e: KeyboardEvent) => {
-      const match = mappingsRef.current.find(
-        m => m.key === e.key && m.code === e.code && m.keyCode === e.keyCode && m.action !== null
+    const findMapping = (e: KeyboardEvent) =>
+      mappingsRef.current.find(
+        m => m.key === e.key && m.code === e.code && m.keyCode === e.keyCode && m.bindings.length > 0
       );
-      if (!match) return;
-      // Ignorer les keydown du clavier virtuel qui matchent un bouton mappé
-      // (ex: key="Unidentified", code="" envoyé par le clavier mobile)
-      // Les vrais boutons physiques ont toujours un code non-vide
+
+    const getBinding = (mapping: ButtonMapping, gesture: GestureType) =>
+      mapping.bindings.find(b => b.gesture === gesture);
+
+    const executeBinding = (binding: MappingBinding, phase: 'toggle' | 'enter' | 'exit') => {
+      actionsRef.current[phase][binding.mode]();
+    };
+
+    const downHandler = (e: KeyboardEvent) => {
+      const mapping = findMapping(e);
+      if (!mapping) return;
+
+      // Ignorer clavier virtuel
       const tag = (e.target as HTMLElement)?.tagName;
       if ((tag === 'TEXTAREA' || tag === 'INPUT') && !e.code) return;
-      console.log('[buttonMapping] keydown intercepté:', e.key, e.code, '→', match.action);
+
       e.preventDefault();
       e.stopPropagation();
 
       const id = keyId(e);
-      // Ignore key repeat (autorepeat pendant hold)
+
+      // Ignore key repeat
       if (holdState.has(id)) return;
 
+      // Double-click : si 2e keydown dans la fenêtre
+      const dbl = dblState.get(id);
+      if (dbl) {
+        dbl.tapCount++;
+        if (dbl.tapCount >= 2) {
+          clearTimeout(dbl.timer);
+          dblState.delete(id);
+          const binding = getBinding(mapping, 'double_click');
+          if (binding) {
+            executeBinding(binding, 'toggle');
+          }
+          // Ne PAS mettre dans holdState : le keyup correspondant sera ignoré
+          // (upHandler fait early return si !entry)
+          return;
+        }
+      }
+
+      // Démarrer hold detection
+      const holdBinding = getBinding(mapping, 'hold');
       const timer = setTimeout(() => {
-        // Seuil dépassé → mode hold, entrer en pan
         const entry = holdState.get(id);
-        if (entry) {
+        if (entry && holdBinding) {
           entry.holding = true;
-          actionsRef.current.enter[match.action!]();
+          if (holdBinding.actionType === 'toggle_and_release') {
+            executeBinding(holdBinding, 'enter');
+          } else {
+            executeBinding(holdBinding, 'toggle');
+          }
         }
       }, HOLD_THRESHOLD);
 
@@ -116,12 +213,12 @@ export function useButtonMapping(actions: HoldAwareActions) {
     };
 
     const upHandler = (e: KeyboardEvent) => {
-      const match = mappingsRef.current.find(
-        m => m.key === e.key && m.code === e.code && m.keyCode === e.keyCode && m.action !== null
-      );
-      if (!match) return;
+      const mapping = findMapping(e);
+      if (!mapping) return;
+
       const tag = (e.target as HTMLElement)?.tagName;
       if ((tag === 'TEXTAREA' || tag === 'INPUT') && !e.code) return;
+
       e.preventDefault();
       e.stopPropagation();
 
@@ -133,11 +230,38 @@ export function useButtonMapping(actions: HoldAwareActions) {
       holdState.delete(id);
 
       if (entry.holding) {
-        // Relâchement après hold → sortir du pan
-        actionsRef.current.exit[match.action!]();
+        // Relâchement après hold
+        const holdBinding = getBinding(mapping, 'hold');
+        if (holdBinding && holdBinding.actionType === 'toggle_and_release') {
+          executeBinding(holdBinding, 'exit');
+        }
       } else {
-        // Relâchement avant seuil → toggle
-        actionsRef.current.toggle[match.action!]();
+        // Tap rapide — vérifier si double-click est configuré
+        const hasDoubleClick = !!getBinding(mapping, 'double_click');
+        const clickBinding = getBinding(mapping, 'click');
+
+        if (hasDoubleClick) {
+          // Fenêtre double-click : on attend
+          const existing = dblState.get(id);
+          if (existing) {
+            // Déjà dans une fenêtre — ne devrait pas arriver ici normalement
+            return;
+          }
+          const tapCount = 1;
+          const timer = setTimeout(() => {
+            // Timer expiré → c'est un click simple
+            dblState.delete(id);
+            if (clickBinding) {
+              executeBinding(clickBinding, 'toggle');
+            }
+          }, DOUBLE_CLICK_WINDOW);
+          dblState.set(id, { timer, tapCount });
+        } else {
+          // Pas de double-click configuré → click immédiat
+          if (clickBinding) {
+            executeBinding(clickBinding, 'toggle');
+          }
+        }
       }
     };
 
@@ -146,18 +270,35 @@ export function useButtonMapping(actions: HoldAwareActions) {
     return () => {
       document.removeEventListener('keydown', downHandler, { capture: true });
       document.removeEventListener('keyup', upHandler, { capture: true });
-      // Cleanup timers
       holdState.forEach(entry => clearTimeout(entry.timer));
       holdState.clear();
+      dblState.forEach(entry => clearTimeout(entry.timer));
+      dblState.clear();
     };
   }, [listening]);
 
   const startListening = useCallback(() => setListening(true), []);
   const stopListening = useCallback(() => setListening(false), []);
 
-  const setAction = useCallback((index: number, action: MappableAction | null) => {
+  const addBinding = useCallback((buttonIndex: number, binding: MappingBinding) => {
     setMappings(prev => {
-      const next = prev.map((m, i) => i === index ? { ...m, action } : m);
+      const next = prev.map((m, i) => {
+        if (i !== buttonIndex) return m;
+        // Pas de doublon sur le même geste
+        const filtered = m.bindings.filter(b => b.gesture !== binding.gesture);
+        return { ...m, bindings: [...filtered, binding] };
+      });
+      persistMappings(next);
+      return next;
+    });
+  }, []);
+
+  const removeBinding = useCallback((buttonIndex: number, gesture: GestureType) => {
+    setMappings(prev => {
+      const next = prev.map((m, i) => {
+        if (i !== buttonIndex) return m;
+        return { ...m, bindings: m.bindings.filter(b => b.gesture !== gesture) };
+      });
       persistMappings(next);
       return next;
     });
@@ -181,9 +322,9 @@ export function useButtonMapping(actions: HoldAwareActions) {
     listening,
     startListening,
     stopListening,
-    setAction,
+    addBinding,
+    removeBinding,
     removeMapping,
     clearAll,
-    ACTION_LABELS,
   };
 }

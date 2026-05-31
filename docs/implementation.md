@@ -72,14 +72,14 @@ Idempotent : si interrompu, le flag n'est pas posé, la migration recommence au 
 Les réglages légers restent en localStorage (quelques Ko, accès synchrone) :
 - `sketchpad_drawing_order` — array d'IDs pour l'ordre galerie (Option A : séparé des objets Drawing, filtré au chargement)
 - `sketchpad_tool_state` — réglages d'outil actifs (couleurs, épaisseurs, outil actif, canvasMode, previousMode)
-- `sketchpad_button_mapping` — array `{ key, code, keyCode, label, action }` pour le mapping de boutons physiques
+- `sketchpad_button_mapping` — array `{ key, code, keyCode, label, bindings: [{ gesture, actionType, mode }] }` pour le mapping de boutons physiques (migration auto depuis l'ancien format `action`)
 - `idb_migrated` — flag de migration IndexedDB (`'1'` = fait)
 
 ### Hooks custom
 
 - `useDrawingStorage` — CRUD drawings async via IndexedDB (`db.ts`), migration automatique des formats legacy
 - `useToolState` — outil actif, canvasMode, couleurs, épaisseurs, opacités par outil. **`canvasBackground` n'est PAS ici** — c'est un état par-Drawing
-- `useButtonMapping` — deux phases : listen mode (capture `keydown`, `preventDefault` sur tout, ajoute à la liste détectée) et active mode (listeners `keydown`/`keyup` hold-aware avec seuil 250ms). Interface `HoldAwareActions: { toggle, enter, exit }` contenant un `Record<MappableAction, () => void>`
+- `useButtonMapping` — deux phases : listen mode (capture `keydown`, `preventDefault` sur tout, ajoute à la liste détectée) et active mode (détection multi-geste : click 250ms, hold 250ms, double-click fenêtre 300ms). Interface `HoldAwareActions: { toggle, enter, exit }` contenant un `Record<MappableMode, () => void>` (`MappableMode = 'select' | 'pan'`). UI : `ButtonMappingModal` avec cards par bouton, bindings (geste × action × mode), formulaire d'ajout inline
 - `useDragToReorder` — layout `'horizontal'` (SelectionPanel) et `'grid'` (HomeScreen). Long-press deux phases (`onLongPressRelease` pour sélection, move après long-press pour drag). `blockNativeScroll()` intercepte `touchmove` (non-passive) sur le scroll container
 - `useDrawingOrder` — persistance de l'ordre galerie. `applyOrder()` trie, filtre les IDs périmés, place les nouveaux dessins en premier
 - `useAutosave` — timer debounced, saveNow async/scheduleSave, listeners visibilitychange/beforeunload, guard anti-concurrence (`savingRef`)

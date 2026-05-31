@@ -182,6 +182,53 @@ export function useToolState() {
     }
   }, [enterPan, exitPan]);
 
+  // Entrer en select (mémorise le contexte courant)
+  const enterSelect = useCallback(() => {
+    const { canvasMode } = stateRef.current;
+    if (canvasMode !== 'select') {
+      setContextPanel(null);
+      setState(prev => {
+        const next = {
+          ...prev,
+          previousMode: { canvasMode: prev.canvasMode, activeTool: prev.activeTool },
+          canvasMode: 'select' as CanvasMode,
+          activeTool: null as Tool,
+        };
+        persist(next); return next;
+      });
+    }
+  }, []);
+
+  // Sortir du select (restaure le contexte mémorisé)
+  const exitSelect = useCallback(() => {
+    const { canvasMode, previousMode } = stateRef.current;
+    if (canvasMode !== 'select') return;
+    if (previousMode) {
+      setContextPanel(null);
+      setState(prev => {
+        const next = {
+          ...prev,
+          canvasMode: prev.previousMode!.canvasMode,
+          activeTool: prev.previousMode!.activeTool,
+          previousMode: null,
+        };
+        persist(next); return next;
+      });
+    } else {
+      setCanvasMode('draw');
+    }
+  }, [setCanvasMode]);
+
+  // Toggle select : si on est en select → restaure le mode précédent, sinon → entre en select
+  const toggleSelect = useCallback(() => {
+    const { canvasMode } = stateRef.current;
+    if (canvasMode === 'select') {
+      exitSelect();
+    } else {
+      enterSelect();
+    }
+  }, [enterSelect, exitSelect]);
+
   const collapsePanel = useCallback(() => setContextPanel(null), []);
 
   const setToolColor = useCallback((tool: DrawingTool, color: string) => {
@@ -250,7 +297,7 @@ export function useToolState() {
   return {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
-    setCanvasMode, enterPan, exitPan, togglePan, collapsePanel,
+    setCanvasMode, enterPan, exitPan, togglePan, enterSelect, exitSelect, toggleSelect, collapsePanel,
     setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
     activeColor, activeWidth,
     selectTool: (t: Tool) => setState(prev => ({ ...prev, activeTool: t })),

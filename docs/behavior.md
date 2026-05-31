@@ -378,12 +378,34 @@ Un bouton de sauvegarde manuelle reste disponible en fallback.
 
 Système de mapping de boutons physiques vers des actions de l'app. Destiné aux téléphones durcis Android (Blackview etc.) avec boutons programmables.
 
-- **Configuration** : modale accessible depuis le menu de la topbar. Phase détection (capturer les pressions de touches) puis assignation d'action via un sélecteur. Chaque bouton détecté reçoit un nom unique (ex: « Bouton #174 ») même si le système le reporte comme « Unidentified ».
-- **Actions disponibles** : toggle pan (extensible).
-- **Hold-to-pan** : les boutons physiques mappés supportent le même geste hold-to-pan que le bouton FAB (tap court = toggle, appui long = pan momentané).
+- **Configuration** : modale accessible depuis le menu de la topbar. Phase détection (capturer les pressions de touches) puis configuration par bouton. Chaque bouton détecté reçoit un nom unique (ex: « Bouton #174 ») même si le système le reporte comme « Unidentified ».
+
+#### Modèle de binding
+
+Chaque bouton peut avoir plusieurs **bindings**, chacun composé de 3 paramètres :
+
+| Paramètre | Valeurs | Description |
+|-----------|---------|-------------|
+| **Geste** | Click simple, Maintien, Double click | Le mouvement physique qui déclenche l'action |
+| **Action** | Toggle, Maintenu | Toggle = bascule on/off ; Maintenu = actif tant que le bouton est enfoncé, désactivé au relâchement |
+| **Mode** | Sélection, Pan | Le mode canvas à activer |
+
+Contraintes :
+- Un bouton ne peut avoir qu'un binding par type de geste (pas deux bindings « click » sur le même bouton).
+- L'action « Maintenu » (toggle and release) n'est compatible qu'avec le geste « Maintien ».
+
+#### Détection des gestes
+
+- **Click simple** (<250ms) : exécuté immédiatement au relâchement. Si un binding « Double click » existe aussi sur le même bouton, le click simple est retardé de 300ms pour laisser la fenêtre de détection du double click.
+- **Maintien** (≥250ms) : le mode est activé dès que le seuil est dépassé, désactivé au relâchement.
+- **Double click** : deux taps rapides dans une fenêtre de 300ms. Un second double click sur le même mode le désactive (toggle off).
+
+#### Comportements
+
 - **Priorité sur le focus texte** : les boutons mappés fonctionnent même quand une textarea d'édition est focusée — la touche est interceptée avant d'être transmise au champ de saisie.
 - Le comportement natif des touches mappées (volume, etc.) est bloqué.
-- Persisté entre sessions.
+- Persisté entre sessions (localStorage).
+- Migration automatique : les anciens mappings (format action unique) sont convertis au nouveau format multi-binding.
 
 ### Alerte gomme
 
