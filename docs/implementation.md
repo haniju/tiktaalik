@@ -16,6 +16,25 @@ Pour comprendre **ce que fait l'app** (perspective utilisateur, tech-agnostique)
 
 ---
 
+## Routing
+
+Navigation gérée par `react-router-dom` v6 avec `HashRouter` :
+
+| Route | Composant | Description |
+|---|---|---|
+| `#/` | `HomeScreen` | Galerie des dessins |
+| `#/sketch/:id` | `SketchScreenLoader` → `SketchScreen` | Édition d'un dessin |
+
+**Architecture** :
+- `App.tsx` : monte `HashRouter` + `Routes`, gère la migration et le CSS global
+- `SketchScreenLoader` (`src/components/SketchScreenLoader.tsx`) : wrapper async qui lit `:id` depuis l'URL, charge le dessin via `dbGetDrawing(id)`, et rend `SketchScreen` une fois prêt. Si l'ID est invalide, redirect vers `/`.
+- `HomeScreen` : utilise `useNavigate()` pour naviguer. Un nouveau dessin est d'abord persisté en IndexedDB avant la navigation (car le loader le charge par ID).
+- `key={drawing.id}` sur `SketchScreen` garantit un remount propre si l'ID change.
+
+**Pourquoi HashRouter** : compatible PWA standalone + service worker sans config serveur (Plesk/nginx). Pas besoin de fallback `index.html` côté serveur.
+
+---
+
 ## State & Persistence
 
 ### IndexedDB (données lourdes)

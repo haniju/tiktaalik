@@ -115,6 +115,15 @@ Diagnostic et nettoyage de la dette technique documentée :
 - Impact bundle : +1.3 kB gzip (négligeable)
 - Contrainte de dev : **ne pas remonter le build target** au-dessus de `es2018` tant qu'Android 9 est supporté
 
+### Hash Router — navigation persistante (branche `dev`, 2026-05-31)
+
+- **Problème** : retour sur l'app après switch = page rechargée, perte du dessin ouvert (navigation 100% en mémoire React)
+- **Solution** : `react-router-dom` v6 avec `HashRouter` — l'URL encode l'écran actif (`#/sketch/:id`)
+- Ajout de `SketchScreenLoader.tsx` (wrapper async qui charge le dessin par ID depuis IndexedDB)
+- `HomeScreen` n'a plus de props de navigation — utilise `useNavigate()` directement
+- Bouton retour Android fonctionne nativement via l'historique du navigateur
+- Impact bundle : +12 kB gzip (react-router-dom)
+
 ## Issues connues
 
 - Pinch zoom pendant édition texte sort du mode editing — limitation connue, différée

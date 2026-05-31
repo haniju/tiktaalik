@@ -14,6 +14,16 @@ Ce document décrit **ce que fait l'application** du point de vue de l'utilisate
 
 ---
 
+## Navigation
+
+L'application utilise un routage par hash dans l'URL (`#/`, `#/sketch/:id`). Cela signifie :
+
+- **Persistance de l'écran** : si l'utilisateur quitte l'app (switch vers une autre app, écran verrouillé) et revient, il retrouve son dessin ouvert sans devoir repasser par la galerie.
+- **Bouton retour natif** : le bouton retour Android/navigateur ramène à l'écran précédent (sketch → galerie).
+- **Rechargement** : un refresh de la page recharge le dessin en cours (pas de perte de contexte).
+
+---
+
 ## HomeScreen
 
 ### Galerie

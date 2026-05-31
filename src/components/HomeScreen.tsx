@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import { Drawing } from '../types';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
@@ -11,10 +12,6 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-interface Props {
-  onOpen: (drawing: Drawing) => void;
-  onNew: (drawing: Drawing) => void;
-}
 
 function newDrawing(): Drawing {
   return {
@@ -63,7 +60,8 @@ function EditIcon() {
   );
 }
 
-export function HomeScreen({ onOpen, onNew }: Props) {
+export function HomeScreen() {
+  const navigate = useNavigate();
   const storage = useDrawingStorage();
   const drawingOrder = useDrawingOrder();
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -113,7 +111,11 @@ export function HomeScreen({ onOpen, onNew }: Props) {
     }
   };
 
-  const handleNew = () => { const d = newDrawing(); onNew(d); };
+  const handleNew = async () => {
+    const d = newDrawing();
+    await storage.save(d);
+    navigate(`/sketch/${d.id}`);
+  };
 
   // Drag-to-reorder
   const handleReorder = useCallback((newDrawings: Drawing[]) => {
@@ -123,14 +125,13 @@ export function HomeScreen({ onOpen, onNew }: Props) {
 
   const handleSelect = useCallback((id: string) => {
     if (selectedIds.length === 0) {
-      const d = drawings.find(dr => dr.id === id);
-      if (d) onOpen(d);
+      navigate(`/sketch/${id}`);
     } else if (selectedIds.includes(id)) {
       setSelectedIds(prev => prev.filter(x => x !== id));
     } else {
       setSelectedIds(prev => [...prev, id]);
     }
-  }, [selectedIds, drawings, onOpen]);
+  }, [selectedIds, navigate]);
 
   const handleLongPressRelease = useCallback((id: string) => {
     setSelectedIds(prev =>

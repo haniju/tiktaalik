@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Drawing } from './types';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { HomeScreen } from './components/HomeScreen';
-import { SketchScreen } from './components/SketchScreen';
+import { SketchScreenLoader } from './components/SketchScreenLoader';
 import { migrateFromLocalStorage, isMigrationDone } from './utils/db';
 
 const SLIDER_CSS = `
@@ -54,8 +54,6 @@ const SLIDER_CSS = `
 }
 `;
 
-type Screen = 'home' | 'sketch';
-
 export default function App() {
   const [ready, setReady] = useState(isMigrationDone());
 
@@ -75,8 +73,6 @@ export default function App() {
       document.head.appendChild(el);
     }
   }, []);
-  const [screen, setScreen] = useState<Screen>('home');
-  const [currentDrawing, setCurrentDrawing] = useState<Drawing | null>(null);
 
   if (!ready) {
     return (
@@ -86,19 +82,12 @@ export default function App() {
     );
   }
 
-  if (screen === 'sketch' && currentDrawing) {
-    return (
-      <SketchScreen
-        drawing={currentDrawing}
-        onBack={() => setScreen('home')}
-      />
-    );
-  }
-
   return (
-    <HomeScreen
-      onOpen={drawing => { setCurrentDrawing(drawing); setScreen('sketch'); }}
-      onNew={drawing => { setCurrentDrawing(drawing); setScreen('sketch'); }}
-    />
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<HomeScreen />} />
+        <Route path="/sketch/:id" element={<SketchScreenLoader />} />
+      </Routes>
+    </HashRouter>
   );
 }
