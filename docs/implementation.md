@@ -327,6 +327,22 @@ Le panel de sélection maintient un état interne `panelSelected` qui contrôle 
 
 En mode select, les tracés Konva écoutent les événements (`listening={true}` par défaut + `hitStrokeWidth` adaptative). Un tap sur un tracé non sélectionné atteint le `Group`'s `onClick`/`onTap` → `handleSelectItem` → ajout à la sélection. Un drag (> 8px) sur un tracé non sélectionné annule le `dragLongPressTimer` et démarre un lasso depuis la position canvas du pointer-down (`longPressCanvasPos` ref).
 
+### Lasso — taille minimum et hit-test visible
+
+**Taille minimum adaptative** — le rectangle de sélection doit dépasser un seuil pour être pris en compte. Le seuil est adaptatif au zoom pour rester constant à **5 px écran** :
+
+```typescript
+const minSelSize = Math.min(5, 5 / scale);
+```
+
+| Zoom | Seuil monde | Seuil écran |
+|------|------------|-------------|
+| 100% | 5 px       | 5 px        |
+| 200% | 2.5 px     | 5 px        |
+| 400% | 1.25 px    | 5 px        |
+
+**Hit-test sur le tracé visible** — `isStrokeInRect` et `isAirbrushInRect` (`bounds.ts`) acceptent un paramètre `margin` optionnel qui élargit le rectangle de test. Le lasso passe `strokeWidth / 2` (strokes) ou `radius` (airbrush) pour capturer les tracés dont la partie visible intersecte le lasso, même si les points centraux sont en dehors.
+
 ### hitStrokeWidth adaptative au zoom
 
 `DrawingLayer.tsx` — la zone de hit invisible autour des tracés s'adapte au niveau de zoom pour éviter que les zones de hit débordent massivement sur les formes voisines à fort zoom :

@@ -292,13 +292,16 @@ export function getGroupBounds(layers: DrawLayer[], ids: string[]): Rect {
 }
 
 /**
- * Vérifie si au moins un point d'un stroke (flat array [x,y,x,y,...]) tombe dans le rectangle.
+ * Vérifie si le tracé visible d'un stroke intersecte le rectangle.
+ * `margin` = demi-épaisseur du trait (strokeWidth / 2) pour tester le tracé visible, pas juste les points centraux.
  */
-export function isStrokeInRect(points: number[], rect: { x: number; y: number; w: number; h: number }): boolean {
-  const rx2 = rect.x + rect.w;
-  const ry2 = rect.y + rect.h;
+export function isStrokeInRect(points: number[], rect: { x: number; y: number; w: number; h: number }, margin = 0): boolean {
+  const rx1 = rect.x - margin;
+  const ry1 = rect.y - margin;
+  const rx2 = rect.x + rect.w + margin;
+  const ry2 = rect.y + rect.h + margin;
   for (let i = 0; i < points.length; i += 2) {
-    if (points[i] >= rect.x && points[i] <= rx2 && points[i + 1] >= rect.y && points[i + 1] <= ry2) {
+    if (points[i] >= rx1 && points[i] <= rx2 && points[i + 1] >= ry1 && points[i + 1] <= ry2) {
       return true;
     }
   }
@@ -306,10 +309,13 @@ export function isStrokeInRect(points: number[], rect: { x: number; y: number; w
 }
 
 /**
- * Vérifie si au moins un point d'un airbrush ({x,y}[]) tombe dans le rectangle.
+ * Vérifie si le tracé visible d'un airbrush intersecte le rectangle.
+ * `margin` = rayon de l'airbrush pour tester la zone visible, pas juste les centres.
  */
-export function isAirbrushInRect(points: Array<{ x: number; y: number }>, rect: { x: number; y: number; w: number; h: number }): boolean {
-  const rx2 = rect.x + rect.w;
-  const ry2 = rect.y + rect.h;
-  return points.some(pt => pt.x >= rect.x && pt.x <= rx2 && pt.y >= rect.y && pt.y <= ry2);
+export function isAirbrushInRect(points: Array<{ x: number; y: number }>, rect: { x: number; y: number; w: number; h: number }, margin = 0): boolean {
+  const rx1 = rect.x - margin;
+  const ry1 = rect.y - margin;
+  const rx2 = rect.x + rect.w + margin;
+  const ry2 = rect.y + rect.h + margin;
+  return points.some(pt => pt.x >= rx1 && pt.x <= rx2 && pt.y >= ry1 && pt.y <= ry2);
 }

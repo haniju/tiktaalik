@@ -781,7 +781,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
     const currentSelRect = selRectRef.current;
     if (toolState.canvasMode === 'select' && selRectStart.current && currentSelRect) {
-      if (currentSelRect.w > 5 && currentSelRect.h > 5) {
+      // Seuil minimum du lasso : 5 px écran (adaptatif au zoom)
+      const scale = stageRef.current?.scaleX() ?? 1;
+      const minSelSize = Math.min(5, 5 / scale);
+      if (currentSelRect.w > minSelSize && currentSelRect.h > minSelSize) {
         const layers = layersRef.current;
         const selIds = layers.filter(layer => {
           if (layer.tool === 'text') return false; // géré par selT ci-dessous
@@ -793,9 +796,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
             );
           }
           if (layer.tool === 'airbrush') {
-            return isAirbrushInRect(layer.points, currentSelRect);
+            return isAirbrushInRect(layer.points, currentSelRect, layer.radius);
           } else {
-            return isStrokeInRect((layer as Stroke).points, currentSelRect);
+            const s = layer as Stroke;
+            return isStrokeInRect(s.points, currentSelRect, s.width / 2);
           }
         }).map(l => l.id);
         const selT = layers
