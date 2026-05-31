@@ -325,7 +325,39 @@ Le panel de sélection maintient un état interne `panelSelected` qui contrôle 
 
 ### Lasso sur tracés existants
 
-En mode select, les tracés Konva écoutent les événements (`listening={true}` par défaut + `hitStrokeWidth` 20px). Un tap sur un tracé non sélectionné atteint le `Group`'s `onClick`/`onTap` → `handleSelectItem` → ajout à la sélection. Un drag (> 8px) sur un tracé non sélectionné annule le `dragLongPressTimer` et démarre un lasso depuis la position canvas du pointer-down (`longPressCanvasPos` ref).
+En mode select, les tracés Konva écoutent les événements (`listening={true}` par défaut + `hitStrokeWidth` adaptative). Un tap sur un tracé non sélectionné atteint le `Group`'s `onClick`/`onTap` → `handleSelectItem` → ajout à la sélection. Un drag (> 8px) sur un tracé non sélectionné annule le `dragLongPressTimer` et démarre un lasso depuis la position canvas du pointer-down (`longPressCanvasPos` ref).
+
+### hitStrokeWidth adaptative au zoom
+
+`DrawingLayer.tsx` — la zone de hit invisible autour des tracés s'adapte au niveau de zoom pour éviter que les zones de hit débordent massivement sur les formes voisines à fort zoom :
+
+```typescript
+hitStrokeWidth={Math.max(s.width, Math.min(20, 30 / stageScale))}
+```
+
+- **Zoom ≤ 150%** : 20 px monde (inchangé), soit 20 px écran à 100%
+- **Zoom > 150%** : la zone de hit est plafonnée à **30 px écran**, soit `30 / stageScale` px monde
+
+| Zoom | hitStrokeWidth (monde) | Taille écran |
+|------|------------------------|--------------|
+| 20%  | 20 px                  | 4 px         |
+| 100% | 20 px                  | 20 px        |
+| 200% | 15 px                  | 30 px        |
+| 400% | 7.5 px                 | 30 px        |
+
+### Drag vs micro-jitter : guard distance + durée
+
+`useCanvasGestures.ts` — la confirmation d'un drag en mode select combine distance **et** durée pour distinguer un vrai déplacement d'un micro-jitter accidentel :
+
+```typescript
+const dragDuration = Date.now() - dragStartTime.current;
+const isRealDrag = totalDisp > 15 || (totalDisp > 3 && dragDuration > 300);
+```
+
+- `totalDisp > 15 px` → toujours un vrai drag (comportement d'origine)
+- `totalDisp > 3 px ET durée > 300 ms` → drag intentionnel lent, typique d'un repositionnement précis au doigt ou au stylet
+
+Sans la condition de durée, un déplacement court mais intentionnel (ex. 5 px sur 1 seconde) était annulé et traité comme un tap, restaurant la position d'origine.
 
 ## Patterns récurrents
 

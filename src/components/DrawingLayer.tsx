@@ -154,7 +154,7 @@ export const DrawingLayer = React.memo(function DrawingLayer({
                 stroke={s.color}
                 strokeWidth={s.width} opacity={s.opacity}
                 lineCap="round" lineJoin="round" tension={tension}
-                hitStrokeWidth={Math.max(s.width, 20)}
+                hitStrokeWidth={Math.max(s.width, Math.min(20, 30 / stageScale))}
               />
             </Group>
           );

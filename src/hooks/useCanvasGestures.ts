@@ -99,6 +99,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const dragPointerStart = useRef<{ x: number; y: number } | null>(null);
   const dragLayerSnapshot = useRef<DrawLayer[]>([]);
   const dragSelectionRef = useRef<string[]>([]);
+  const dragStartTime = useRef<number>(0);
   const dragLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressCanvasPos = useRef<{ x: number; y: number } | null>(null); // position canvas au mouseDown (pour lasso différé)
   const isDrawing = useRef(false);
@@ -295,6 +296,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         dragArmedHitId.current = hitId;
         dragStartPos.current = snapPos;
         dragPointerStart.current = snapScreen;
+        dragStartTime.current = Date.now();
         dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
       } else {
         // Long-press (350ms) pour les objets non sélectionnés
@@ -308,6 +310,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           selectionRef.current = [...selectionRef.current, ...expanded.filter(x => !selectionRef.current.includes(x))];
           isDraggingSelection.current = true;
           dragStartPos.current = snapPos;
+          dragStartTime.current = Date.now();
           dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
         }, 350);
       }
@@ -352,6 +355,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           dragArmedHitId.current = hitId;
           dragStartPos.current = pos;
           dragPointerStart.current = screenPos;
+          dragStartTime.current = Date.now();
           dragLayerSnapshot.current = p.current.layersRef.current.map(l => ({ ...l }));
           dragSelectionRef.current = [hitId];
           return;
@@ -744,14 +748,18 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       dragLayerSnapshot.current = [];
       dragSelectionRef.current = [];
 
-      // Vérifier si c'était un vrai drag ou juste du micro-jitter (< 15px)
+      // Vérifier si c'était un vrai drag ou juste du micro-jitter
+      // Distance > 15px → toujours un vrai drag
+      // Distance > 3px ET durée > 300ms → drag intentionnel lent (précision)
       const stage = stageRef.current;
       const screenPos = stage?.getPointerPosition();
       const totalDisp = (screenPos && savedPointerStart)
         ? Math.hypot(screenPos.x - savedPointerStart.x, screenPos.y - savedPointerStart.y)
         : Infinity;
+      const dragDuration = Date.now() - dragStartTime.current;
+      const isRealDrag = totalDisp > 15 || (totalDisp > 3 && dragDuration > 300);
 
-      if (totalDisp > 15) {
+      if (isRealDrag) {
         // Vrai drag — bloquer le tap Konva synthétique post-drag
         dragJustEndedRef.current = true;
         dragArmedHitId.current = null;
