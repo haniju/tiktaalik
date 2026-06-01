@@ -846,6 +846,11 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         } else {
           finalPoints = movingAverageSmooth(buf, 7);
         }
+        // Tap simple → un seul point [x,y] : ajouter micro-offset pour que
+        // Konva Line rende un point rond visible (lineCap="round")
+        if (finalPoints.length === 2) {
+          finalPoints = [finalPoints[0], finalPoints[1], finalPoints[0] + 0.1, finalPoints[1] + 0.1];
+        }
       } else {
         // Mode classique — utiliser livePointsRef + dernier point brut
         finalPoints = livePointsRef.current;

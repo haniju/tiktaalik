@@ -184,7 +184,7 @@ Plage réduite : `minDist = smoothing * 0.84` (100% slider = ancien 7%). Konva `
 
 **Stockage** : `Stroke.smoothingMode?: 'bezier' | 'movingAverage'` — tagué à la création dans `handleMouseDown`. `DrawingLayer` lit ce champ pour choisir `tension={0}` ou `tension={0.3}`. Les strokes legacy (sans `smoothingMode`) gardent `tension={0.3}`.
 
-**`handleMouseUp`** : recalcul final avec le dernier point brut inclus dans le buffer (évite de tronquer la fin du tracé si le filtre de distance l'avait exclu).
+**`handleMouseUp`** : recalcul final avec le dernier point brut inclus dans le buffer (évite de tronquer la fin du tracé si le filtre de distance l'avait exclu). **Guard tap simple** : si le résultat du lissage ne contient que 2 valeurs (1 point), un micro-offset `[x, y, x+0.1, y+0.1]` est ajouté pour que `Konva.Line` rende un point rond visible via `lineCap="round"` — sans cela, un tap simple en lissage avancé ne produisait rien de visible.
 
 **Fichiers** :
 | Fichier | Rôle |

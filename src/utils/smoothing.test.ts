@@ -174,6 +174,61 @@ describe('smoothingMode tagging', () => {
   });
 });
 
+// ─── Tap simple (1 point) → micro-offset pour rendu Konva ───
+
+describe('tap simple — finalisation stroke avec lissage avancé', () => {
+  // Simule la logique de handleMouseUp : si le lissage avancé retourne
+  // seulement 2 valeurs (un seul point), on ajoute un micro-offset
+  // pour que Konva Line rende un point rond visible (lineCap="round").
+  function finalizeSinglePoint(
+    rawPoints: Array<{ x: number; y: number }>,
+    mode: 'bezier' | 'movingAverage',
+  ): number[] {
+    let finalPoints: number[];
+    if (mode === 'bezier') {
+      finalPoints = bezierSmooth(rawPoints, 0.5, 8);
+    } else {
+      finalPoints = movingAverageSmooth(rawPoints, 7);
+    }
+    // Guard identique à useCanvasGestures handleMouseUp
+    if (finalPoints.length === 2) {
+      finalPoints = [finalPoints[0], finalPoints[1], finalPoints[0] + 0.1, finalPoints[1] + 0.1];
+    }
+    return finalPoints;
+  }
+
+  it('bezier — tap simple produit au moins 4 valeurs (2 points)', () => {
+    const result = finalizeSinglePoint([{ x: 100, y: 200 }], 'bezier');
+    expect(result.length).toBeGreaterThanOrEqual(4);
+    expect(result[0]).toBe(100);
+    expect(result[1]).toBe(200);
+    expect(result[2]).toBeCloseTo(100.1, 5);
+    expect(result[3]).toBeCloseTo(200.1, 5);
+  });
+
+  it('movingAverage — tap simple produit au moins 4 valeurs (2 points)', () => {
+    const result = finalizeSinglePoint([{ x: 50, y: 75 }], 'movingAverage');
+    expect(result.length).toBeGreaterThanOrEqual(4);
+    expect(result[0]).toBe(50);
+    expect(result[1]).toBe(75);
+    expect(result[2]).toBeCloseTo(50.1, 5);
+    expect(result[3]).toBeCloseTo(75.1, 5);
+  });
+
+  it('bezier — tracé normal (>1 point) n\'est pas modifié par le guard', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 5 }];
+    const result = finalizeSinglePoint(pts, 'bezier');
+    // 3 points → interpolation → bien plus de 4 valeurs
+    expect(result.length).toBeGreaterThan(4);
+  });
+
+  it('movingAverage — tracé normal (>1 point) n\'est pas modifié par le guard', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 5 }];
+    const result = finalizeSinglePoint(pts, 'movingAverage');
+    expect(result.length).toBe(6); // 3 points × 2
+  });
+});
+
 // ─── Facteur de conversion par mode ───
 
 describe('smoothingScale par mode', () => {
