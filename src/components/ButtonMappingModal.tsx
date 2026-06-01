@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import {
   ButtonMapping, MappingBinding, GestureType, ActionType, MappableMode,
-  GESTURE_LABELS, ACTION_TYPE_LABELS, MODE_LABELS,
+  ButtonThresholds, GESTURE_LABELS, ACTION_TYPE_LABELS, MODE_LABELS,
 } from '../hooks/useButtonMapping';
 
 interface Props {
   mappings: ButtonMapping[];
   listening: boolean;
+  thresholds: ButtonThresholds;
   onStartListening: () => void;
   onStopListening: () => void;
   onAddBinding: (buttonIndex: number, binding: MappingBinding) => void;
   onRemoveBinding: (buttonIndex: number, gesture: GestureType) => void;
   onRemoveMapping: (index: number) => void;
   onClearAll: () => void;
+  onUpdateThresholds: (partial: Partial<ButtonThresholds>) => void;
   onClose: () => void;
 }
 
@@ -27,9 +29,9 @@ function isValidCombo(gesture: GestureType, actionType: ActionType): boolean {
 }
 
 export function ButtonMappingModal({
-  mappings, listening,
+  mappings, listening, thresholds,
   onStartListening, onStopListening,
-  onAddBinding, onRemoveBinding, onRemoveMapping, onClearAll, onClose,
+  onAddBinding, onRemoveBinding, onRemoveMapping, onClearAll, onUpdateThresholds, onClose,
 }: Props) {
   return (
     <div style={styles.overlay} onClick={onClose}>
@@ -77,6 +79,9 @@ export function ButtonMappingModal({
         {mappings.length === 0 && !listening && (
           <p style={styles.empty}>Aucun bouton détecté. Lancez la détection pour commencer.</p>
         )}
+
+        {/* Réglages seuils */}
+        <ThresholdsSection thresholds={thresholds} onUpdate={onUpdateThresholds} />
       </div>
     </div>
   );
@@ -200,6 +205,47 @@ function AddBindingForm({ availableGestures, onConfirm, onCancel }: AddFormProps
   );
 }
 
+// ─── Section seuils ──────────────────────────────────────────────────────────
+
+interface ThresholdProps {
+  thresholds: ButtonThresholds;
+  onUpdate: (partial: Partial<ButtonThresholds>) => void;
+}
+
+function ThresholdsSection({ thresholds, onUpdate }: ThresholdProps) {
+  return (
+    <div style={styles.section}>
+      <span style={styles.sectionTitle}>Seuils de détection</span>
+      <div style={styles.thresholdRow}>
+        <label style={styles.thresholdLabel}>Maintien (ms)</label>
+        <input
+          type="range"
+          min={100}
+          max={600}
+          step={10}
+          value={thresholds.holdThreshold}
+          onChange={e => onUpdate({ holdThreshold: Number(e.target.value) })}
+          style={styles.slider}
+        />
+        <span style={styles.thresholdValue}>{thresholds.holdThreshold}</span>
+      </div>
+      <div style={styles.thresholdRow}>
+        <label style={styles.thresholdLabel}>Double click (ms)</label>
+        <input
+          type="range"
+          min={150}
+          max={600}
+          step={10}
+          value={thresholds.doubleClickWindow}
+          onChange={e => onUpdate({ doubleClickWindow: Number(e.target.value) })}
+          style={styles.slider}
+        />
+        <span style={styles.thresholdValue}>{thresholds.doubleClickWindow}</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles: Record<string, React.CSSProperties> = {
@@ -302,4 +348,10 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #ddd', background: '#fff', color: '#666', cursor: 'pointer',
   },
   empty: { fontSize: 14, color: '#999', textAlign: 'center' as const },
+  thresholdRow: {
+    display: 'flex', alignItems: 'center', gap: 8, marginTop: 8,
+  },
+  thresholdLabel: { fontSize: 12, color: '#555', minWidth: 100 },
+  slider: { flex: 1 },
+  thresholdValue: { fontSize: 12, fontWeight: 600, color: '#333', minWidth: 36, textAlign: 'right' as const },
 };

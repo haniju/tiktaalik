@@ -40,9 +40,27 @@ export const MODE_LABELS: Record<MappableMode, string> = {
 
 // ─── Constantes ──��───────────────────────────────────────────────────────────
 
-const HOLD_THRESHOLD = 250;
-const DOUBLE_CLICK_WINDOW = 300;
+const DEFAULT_HOLD_THRESHOLD = 250;
+const DEFAULT_DOUBLE_CLICK_WINDOW = 300;
 const STORAGE_KEY = 'sketchpad_button_mapping';
+const THRESHOLDS_KEY = 'sketchpad_button_thresholds';
+
+export interface ButtonThresholds {
+  holdThreshold: number;
+  doubleClickWindow: number;
+}
+
+function loadThresholds(): ButtonThresholds {
+  try {
+    const raw = localStorage.getItem(THRESHOLDS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { holdThreshold: DEFAULT_HOLD_THRESHOLD, doubleClickWindow: DEFAULT_DOUBLE_CLICK_WINDOW };
+}
+
+function persistThresholds(t: ButtonThresholds) {
+  try { localStorage.setItem(THRESHOLDS_KEY, JSON.stringify(t)); } catch { /* ignore */ }
+}
 
 // ─── Persistence & migration ─────────────────────────────────────────────────
 
@@ -115,10 +133,13 @@ export interface HoldAwareActions {
 export function useButtonMapping(actions: HoldAwareActions) {
   const [mappings, setMappings] = useState<ButtonMapping[]>(loadMappings);
   const [listening, setListening] = useState(false);
+  const [thresholds, setThresholds] = useState<ButtonThresholds>(loadThresholds);
   const mappingsRef = useRef(mappings);
   mappingsRef.current = mappings;
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
+  const thresholdsRef = useRef(thresholds);
+  thresholdsRef.current = thresholds;
 
   // --- Mode listen : capture les boutons pressés ---
   useEffect(() => {
@@ -207,7 +228,7 @@ export function useButtonMapping(actions: HoldAwareActions) {
             executeBinding(holdBinding, 'toggle');
           }
         }
-      }, HOLD_THRESHOLD);
+      }, thresholdsRef.current.holdThreshold);
 
       holdState.set(id, { timer, holding: false });
     };
@@ -254,7 +275,7 @@ export function useButtonMapping(actions: HoldAwareActions) {
             if (clickBinding) {
               executeBinding(clickBinding, 'toggle');
             }
-          }, DOUBLE_CLICK_WINDOW);
+          }, thresholdsRef.current.doubleClickWindow);
           dblState.set(id, { timer, tapCount });
         } else {
           // Pas de double-click configuré → click immédiat
@@ -317,14 +338,24 @@ export function useButtonMapping(actions: HoldAwareActions) {
     persistMappings([]);
   }, []);
 
+  const updateThresholds = useCallback((partial: Partial<ButtonThresholds>) => {
+    setThresholds(prev => {
+      const next = { ...prev, ...partial };
+      persistThresholds(next);
+      return next;
+    });
+  }, []);
+
   return {
     mappings,
     listening,
+    thresholds,
     startListening,
     stopListening,
     addBinding,
     removeBinding,
     removeMapping,
     clearAll,
+    updateThresholds,
   };
 }

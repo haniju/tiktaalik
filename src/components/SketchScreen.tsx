@@ -832,12 +832,14 @@ export function SketchScreen({ drawing, onBack }: Props) {
         <ButtonMappingModal
           mappings={buttonMapping.mappings}
           listening={buttonMapping.listening}
+          thresholds={buttonMapping.thresholds}
           onStartListening={buttonMapping.startListening}
           onStopListening={buttonMapping.stopListening}
           onAddBinding={buttonMapping.addBinding}
           onRemoveBinding={buttonMapping.removeBinding}
           onRemoveMapping={buttonMapping.removeMapping}
           onClearAll={buttonMapping.clearAll}
+          onUpdateThresholds={buttonMapping.updateThresholds}
           onClose={() => { buttonMapping.stopListening(); setMappingModalOpen(false); }}
         />
       )}
