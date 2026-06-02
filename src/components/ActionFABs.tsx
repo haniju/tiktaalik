@@ -11,14 +11,14 @@ const HOLD_THRESHOLD = 250;
 interface Props {
   canvasMode: CanvasMode;
   zoomPct: number;
-  onSetMode: (mode: CanvasMode) => void;
+  onToggleSelect: () => void;
   onTogglePan: () => void;
   onEnterPan: () => void;
   onExitPan: () => void;
   onZoomChange: (pct: number) => void;
 }
 
-export function ActionFABs({ canvasMode, zoomPct, onSetMode, onTogglePan, onEnterPan, onExitPan, onZoomChange }: Props) {
+export function ActionFABs({ canvasMode, zoomPct, onToggleSelect, onTogglePan, onEnterPan, onExitPan, onZoomChange }: Props) {
   const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomPct));
   const [showLabel, setShowLabel] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,7 +68,7 @@ export function ActionFABs({ canvasMode, zoomPct, onSetMode, onTogglePan, onEnte
       {/* Mode select */}
       <button
         style={{ ...styles.fab, ...(canvasMode === 'select' ? styles.fabActive : {}) }}
-        onClick={() => onSetMode(canvasMode === 'select' ? 'draw' : 'select')}
+        onClick={onToggleSelect}
         title="Sélectionner"
       >
         <Icon name="select" size={20} style={{ opacity: canvasMode === 'select' ? 0.9 : 0.6 }} />

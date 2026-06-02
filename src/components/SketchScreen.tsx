@@ -244,13 +244,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     scheduleSave();
   }, [layers, pushUndo, setContextPanel, centerViewOn]);
 
-  const handleSetCanvasMode = useCallback((mode: CanvasMode) => {
-    if (tbStateRef.current.kind !== 'idle') exitEditing();
-    setCanvasMode(mode);
-    setSelection([]);
-    setFocusedIds([]);
-    setSelectSubMode('none');
-  }, [setCanvasMode, exitEditing]);
+
 
   const handleTogglePan = useCallback(() => {
     // En editing → downgrade vers selected (pas idle) pour conserver le cadre
@@ -821,7 +815,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
       <ActionFABs
         canvasMode={toolState.canvasMode}
         zoomPct={zoomPct}
-        onSetMode={handleSetCanvasMode}
+        onToggleSelect={handleToggleSelect}
         onTogglePan={handleTogglePan}
         onEnterPan={handleEnterPan}
         onExitPan={handleExitPan}

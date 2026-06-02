@@ -131,9 +131,15 @@ export function useToolState() {
         persist(next); return next;
       });
     } else if (mode === 'select') {
+      // Mémorise le contexte courant avant d'entrer en select (symétrique du pan)
       setContextPanel(null);
       setState(prev => {
-        const next = { ...prev, canvasMode: mode, activeTool: null as Tool, previousMode: null };
+        const next = {
+          ...prev,
+          previousMode: { canvasMode: prev.canvasMode, activeTool: prev.activeTool },
+          canvasMode: 'select' as CanvasMode,
+          activeTool: null as Tool,
+        };
         persist(next); return next;
       });
     } else {
