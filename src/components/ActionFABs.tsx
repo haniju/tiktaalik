@@ -65,6 +65,18 @@ export function ActionFABs({ canvasMode, zoomPct, onToggleSelect, onTogglePan, o
 
   return (
     <div data-fabs style={styles.root}>
+      {/* Mode move — tap: toggle, hold: pan momentané */}
+      <button
+        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}), touchAction: 'none' }}
+        onPointerDown={handlePanPointerDown}
+        onPointerUp={handlePanPointerUp}
+        onPointerCancel={handlePanPointerUp}
+        onContextMenu={e => e.preventDefault()}
+        title="Déplacer"
+      >
+        <Icon name="drag" size={20} style={{ opacity: canvasMode === 'move' ? 0.9 : 0.6 }} />
+      </button>
+
       {/* Mode select */}
       <button
         style={{ ...styles.fab, ...(canvasMode === 'select' ? styles.fabActive : {}) }}
@@ -92,18 +104,6 @@ export function ActionFABs({ canvasMode, zoomPct, onToggleSelect, onTogglePan, o
           <button style={styles.zoomBtn} onClick={() => zoomBy(ZOOM_STEP)}>+</button>
         </div>
       </div>
-
-      {/* Mode move — tap: toggle, hold: pan momentané */}
-      <button
-        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}), touchAction: 'none' }}
-        onPointerDown={handlePanPointerDown}
-        onPointerUp={handlePanPointerUp}
-        onPointerCancel={handlePanPointerUp}
-        onContextMenu={e => e.preventDefault()}
-        title="Déplacer"
-      >
-        <Icon name="drag" size={20} style={{ opacity: canvasMode === 'move' ? 0.9 : 0.6 }} />
-      </button>
     </div>
   );
 }
