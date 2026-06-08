@@ -25,8 +25,35 @@ export function getLayerBounds(layer: DrawLayer): Rect {
   }
 }
 
+/** AABB d'un image layer — tient compte de la rotation (Konva rotate autour de img.x, img.y) */
 function getImageBounds(img: ImageLayer): Rect {
-  return { x: img.x, y: img.y, width: img.width, height: img.height };
+  const rotation = img.rotation ?? 0;
+  if (rotation === 0) return { x: img.x, y: img.y, width: img.width, height: img.height };
+
+  const rad = (rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  const corners = [
+    [0, 0],
+    [img.width, 0],
+    [img.width, img.height],
+    [0, img.height],
+  ];
+
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+
+  for (const [lx, ly] of corners) {
+    const wx = lx * cos - ly * sin + img.x;
+    const wy = lx * sin + ly * cos + img.y;
+    if (wx < minX) minX = wx;
+    if (wx > maxX) maxX = wx;
+    if (wy < minY) minY = wy;
+    if (wy > maxY) maxY = wy;
+  }
+
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 function getStrokeBounds(stroke: Stroke): Rect {

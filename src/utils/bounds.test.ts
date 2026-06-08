@@ -8,7 +8,7 @@ import {
   isStrokeInRect,
   isAirbrushInRect,
 } from './bounds';
-import { Stroke, AirbrushStroke, TextLayer, DrawLayer } from '../types';
+import { Stroke, AirbrushStroke, TextLayer, ImageLayer, DrawLayer } from '../types';
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -116,6 +116,105 @@ describe('getLayerBounds', () => {
     const bRot = getLayerBounds(tb);
     // L'AABB d'un rect tourné à 45° est plus large
     expect(bRot.width).toBeGreaterThan(bNoRot.width * 0.9);
+  });
+});
+
+function makeImage(overrides: Partial<ImageLayer> = {}): ImageLayer {
+  return {
+    id: 'img1',
+    tool: 'image',
+    imageStorageKey: 'img_test',
+    x: 100,
+    y: 100,
+    width: 200,
+    height: 100,
+    opacity: 1,
+    ...overrides,
+  };
+}
+
+// ─── getLayerBounds — image ───────────────────────────────────────────────
+
+describe('getLayerBounds — image', () => {
+  it('image sans rotation → bounds directes', () => {
+    const b = getLayerBounds(makeImage());
+    expect(b.x).toBe(100);
+    expect(b.y).toBe(100);
+    expect(b.width).toBe(200);
+    expect(b.height).toBe(100);
+  });
+
+  it('image avec rotation=0 → bounds directes', () => {
+    const b = getLayerBounds(makeImage({ rotation: 0 }));
+    expect(b.x).toBe(100);
+    expect(b.y).toBe(100);
+    expect(b.width).toBe(200);
+    expect(b.height).toBe(100);
+  });
+
+  it('image 90° → width/height inversés dans l\'AABB', () => {
+    // 200×100 tourné de 90° autour de (100,100) → AABB 100×200
+    const b = getLayerBounds(makeImage({ x: 100, y: 100, width: 200, height: 100, rotation: 90 }));
+    expect(b.width).toBeCloseTo(100);
+    expect(b.height).toBeCloseTo(200);
+  });
+
+  it('image 180° → AABB même taille, position décalée', () => {
+    const img = makeImage({ x: 0, y: 0, width: 200, height: 100, rotation: 180 });
+    const b = getLayerBounds(img);
+    expect(b.width).toBeCloseTo(200);
+    expect(b.height).toBeCloseTo(100);
+    // Tourné de 180° autour de (0,0) → coins à (-200,-100) et (0,0)
+    expect(b.x).toBeCloseTo(-200);
+    expect(b.y).toBeCloseTo(-100);
+  });
+
+  it('image 45° → AABB plus large que l\'original', () => {
+    const b0 = getLayerBounds(makeImage({ rotation: 0 }));
+    const b45 = getLayerBounds(makeImage({ rotation: 45 }));
+    // Un rectangle tourné à 45° a un AABB diagonal plus grand
+    expect(b45.width).toBeGreaterThan(b0.width);
+    expect(b45.height).toBeGreaterThan(b0.height);
+  });
+});
+
+// ─── applyRotation — image ────────────────────────────────────────────────
+
+describe('applyRotation — image', () => {
+  it('rotation 360° → position et rotation inchangées', () => {
+    const img = makeImage({ x: 50, y: 50, width: 100, height: 60 });
+    const rotated = applyRotation(img, 360, 100, 80) as ImageLayer;
+    expect(rotated.x).toBeCloseTo(50);
+    expect(rotated.y).toBeCloseTo(50);
+    expect(rotated.rotation).toBeCloseTo(0);
+  });
+
+  it('rotation cumulative conserve le centre visuel', () => {
+    const img = makeImage({ x: 0, y: 0, width: 100, height: 100 });
+    const cx = 50, cy = 50; // centre de l'image
+    // Tourner de 90° autour du centre visuel → le centre reste stable
+    const rotated = applyRotation(img, 90, cx, cy) as ImageLayer;
+    const halfW = img.width / 2;
+    const halfH = img.height / 2;
+    const nrad = ((rotated.rotation ?? 0) * Math.PI) / 180;
+    const ncos = Math.cos(nrad);
+    const nsin = Math.sin(nrad);
+    const newCx = ncos * halfW - nsin * halfH + rotated.x;
+    const newCy = nsin * halfW + ncos * halfH + rotated.y;
+    expect(newCx).toBeCloseTo(cx);
+    expect(newCy).toBeCloseTo(cy);
+  });
+
+  it('deux rotations de 90° = une rotation de 180°', () => {
+    const img = makeImage({ x: 0, y: 0, width: 200, height: 100 });
+    const cx = 100, cy = 50;
+    const r1 = applyRotation(img, 90, cx, cy) as ImageLayer;
+    const r2 = applyRotation(img, 180, cx, cy) as ImageLayer;
+    // Appliquer 90° sur le résultat de la première rotation
+    const r1then90 = applyRotation(r1, 90, cx, cy) as ImageLayer;
+    expect(r1then90.rotation).toBeCloseTo(r2.rotation ?? 0);
+    expect(r1then90.x).toBeCloseTo(r2.x);
+    expect(r1then90.y).toBeCloseTo(r2.y);
   });
 });
 
