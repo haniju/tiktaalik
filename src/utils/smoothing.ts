@@ -18,6 +18,12 @@ export function movingAverageSmooth(
   const half = Math.floor(windowSize / 2);
   const out: number[] = [];
   for (let i = 0; i < n; i++) {
+    // Épingler premier et dernier point pour éviter le décalage
+    // entre le début/fin du touch et le tracé visible
+    if (i === 0 || i === n - 1) {
+      out.push(rawPoints[i].x, rawPoints[i].y);
+      continue;
+    }
     let sx = 0, sy = 0, count = 0;
     const lo = Math.max(0, i - half);
     const hi = Math.min(n - 1, i + half);

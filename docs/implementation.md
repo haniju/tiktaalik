@@ -178,7 +178,7 @@ Gestion centralisée dans `useCanvasGestures.ts` — hook ~850 lignes qui gère 
 
 Plage réduite : `minDist = smoothing * 1.8` (100% slider = ancien 15%). Konva `tension={0}` (points déjà courbes).
 
-**Mode moyenne glissante** (`src/utils/smoothing.ts: movingAverageSmooth`) — fenêtre symétrique de 7 points. Chaque point = moyenne de ses ±3 voisins. Même pattern que Bézier : recalcul complet de `livePointsRef` à chaque move.
+**Mode moyenne glissante** (`src/utils/smoothing.ts: movingAverageSmooth`) — fenêtre symétrique de 7 points. Chaque point = moyenne de ses ±3 voisins. Même pattern que Bézier : recalcul complet de `livePointsRef` à chaque move. **Premier et dernier point épinglés** (non moyennés) pour éviter un décalage visible entre le début/fin du touch et le tracé rendu.
 
 Plage réduite : `minDist = smoothing * 0.84` (100% slider = ancien 7%). Konva `tension={0}`.
 

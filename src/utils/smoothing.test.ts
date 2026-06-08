@@ -41,14 +41,16 @@ describe('movingAverageSmooth', () => {
     expect(result.length).toBe(pts.length * 2);
   });
 
-  it('conserve le premier et dernier Y proches des originaux', () => {
+  it('épingle exactement le premier et dernier point (pas de décalage au touch)', () => {
     const pts = zigzagPoints(10);
-    const result = movingAverageSmooth(pts, 3);
+    const result = movingAverageSmooth(pts, 7);
     const smoothed = toPoints(result);
-    // Premier point Y : fenêtre tronquée → moyenne de 2 voisins seulement
-    expect(Math.abs(smoothed[0].y - pts[0].y)).toBeLessThan(3);
-    // Dernier point Y : idem
-    expect(Math.abs(smoothed[pts.length - 1].y - pts[pts.length - 1].y)).toBeLessThan(3);
+    // Premier point : identique au point brut
+    expect(smoothed[0].x).toBe(pts[0].x);
+    expect(smoothed[0].y).toBe(pts[0].y);
+    // Dernier point : identique au point brut
+    expect(smoothed[pts.length - 1].x).toBe(pts[pts.length - 1].x);
+    expect(smoothed[pts.length - 1].y).toBe(pts[pts.length - 1].y);
   });
 
   it('réduit l\'amplitude du jitter (zigzag)', () => {
