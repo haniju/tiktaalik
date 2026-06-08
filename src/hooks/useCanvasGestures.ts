@@ -580,7 +580,9 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
       const useMA = toolState.movingAverageSmoothing;
       const smoothing = toolState.toolSmoothings[toolState.activeTool as 'pen' | 'marker'] ?? 0;
       const smoothingScale = useBezier ? 1.8 : useMA ? 0.84 : 12;
-      const minDist = smoothing * smoothingScale;
+      // Plancher 0.5px monde — élimine les points dupliqués (stylet immobile,
+      // événements coalescés) même quand smoothing = 0
+      const minDist = Math.max(0.5, smoothing * smoothingScale);
       const minDistSq = minDist * minDist;
 
       for (const ce of screenPoints) {
@@ -591,8 +593,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         const wy = (clientY - stageBox.top - stagePos.y) / scale;
 
         lastRawPt.current = { x: wx, y: wy };
-        // Filtre de distance minimale — élimine le micro-jitter tactile
-        if (minDistSq > 0 && lastAcceptedPt.current) {
+        // Filtre de distance minimale — élimine les doublons et le micro-jitter tactile
+        if (lastAcceptedPt.current) {
           const dx = wx - lastAcceptedPt.current.x;
           const dy = wy - lastAcceptedPt.current.y;
           if (dx * dx + dy * dy < minDistSq) continue;

@@ -168,7 +168,7 @@ Gestion centralisée dans `useCanvasGestures.ts` — hook ~850 lignes qui gère 
 
 `toolSmoothings` (0-1 par outil). Trois modes pour stylo/marqueur, sélectionnables via `bezierSmoothing` / `movingAverageSmoothing` (booléens mutuellement exclusifs dans `ToolState`).
 
-**Mode classique** (défaut) — filtre de distance minimale : `minDist = smoothing * 12`. Élimine les points < minDist du dernier accepté. Konva applique `tension={0.3}` (Catmull-Rom) au rendu.
+**Mode classique** (défaut) — filtre de distance minimale : `minDist = max(0.5, smoothing * 12)`. Élimine les points < minDist du dernier accepté. Le plancher de 0.5px monde empêche l'accumulation de points dupliqués (stylet immobile, événements coalescés) même quand le slider est à 0%. Konva applique `tension={0.3}` (Catmull-Rom) au rendu.
 
 **Mode Bézier** (`src/utils/smoothing.ts: bezierSmooth`) — accumule les points bruts dans `rawPointsBuffer`. À chaque `handleMouseMove`, recalcule la courbe complète :
 1. Calcul des tangentes par point (moyenne des segments adjacent)

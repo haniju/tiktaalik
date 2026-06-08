@@ -231,6 +231,44 @@ describe('tap simple — finalisation stroke avec lissage avancé', () => {
   });
 });
 
+// ─── Plancher minDist anti-doublons ───
+
+describe('plancher minDist anti-doublons', () => {
+  function getMinDist(smoothing: number, bezier: boolean, ma: boolean): number {
+    const smoothingScale = bezier ? 1.8 : ma ? 0.84 : 12;
+    return Math.max(0.5, smoothing * smoothingScale);
+  }
+
+  it('smoothing=0 classique → plancher 0.5px (pas zéro)', () => {
+    expect(getMinDist(0, false, false)).toBe(0.5);
+  });
+
+  it('smoothing=0 bézier → plancher 0.5px', () => {
+    expect(getMinDist(0, true, false)).toBe(0.5);
+  });
+
+  it('smoothing=0 MA → plancher 0.5px', () => {
+    expect(getMinDist(0, false, true)).toBe(0.5);
+  });
+
+  it('smoothing=1 classique → 12px (au-dessus du plancher)', () => {
+    expect(getMinDist(1, false, false)).toBe(12);
+  });
+
+  it('smoothing=0.5 bézier → 0.9px (au-dessus du plancher)', () => {
+    expect(getMinDist(0.5, true, false)).toBe(0.9);
+  });
+
+  it('filtre les points dupliqués en dessous du plancher', () => {
+    const minDist = getMinDist(0, false, false); // 0.5px
+    const minDistSq = minDist * minDist;
+    // Point à 0.3px de distance → filtré
+    expect(0.3 * 0.3 + 0.3 * 0.3 < minDistSq).toBe(true);
+    // Point à 1px de distance → accepté
+    expect(1.0 * 1.0 + 0.0 * 0.0 < minDistSq).toBe(false);
+  });
+});
+
 // ─── Facteur de conversion par mode ───
 
 describe('smoothingScale par mode', () => {
