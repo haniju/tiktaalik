@@ -11,6 +11,8 @@ const HOLD_THRESHOLD = 250;
 interface Props {
   canvasMode: CanvasMode;
   zoomPct: number;
+  isDirty: boolean;
+  saveError: boolean;
   onToggleSelect: () => void;
   onTogglePan: () => void;
   onEnterPan: () => void;
@@ -18,7 +20,7 @@ interface Props {
   onZoomChange: (pct: number) => void;
 }
 
-export function ActionFABs({ canvasMode, zoomPct, onToggleSelect, onTogglePan, onEnterPan, onExitPan, onZoomChange }: Props) {
+export function ActionFABs({ canvasMode, zoomPct, isDirty, saveError, onToggleSelect, onTogglePan, onEnterPan, onExitPan, onZoomChange }: Props) {
   const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomPct));
   const [showLabel, setShowLabel] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,6 +105,20 @@ export function ActionFABs({ canvasMode, zoomPct, onToggleSelect, onTogglePan, o
             style={styles.zoomSlider} />
           <button style={styles.zoomBtn} onClick={() => zoomBy(ZOOM_STEP)}>+</button>
         </div>
+
+        {/* Pastille état de sauvegarde */}
+        <div style={{
+          position: 'absolute',
+          bottom: -4,
+          right: -4,
+          width: 10,
+          height: 10,
+          borderRadius: '50%',
+          background: saveError ? '#ef4444' : isDirty ? '#f59e0b' : '#22c55e',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+          transition: 'background 0.3s ease',
+          pointerEvents: 'none',
+        }} />
       </div>
     </div>
   );
