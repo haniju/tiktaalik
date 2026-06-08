@@ -773,6 +773,21 @@ export function SketchScreen({ drawing, onBack }: Props) {
 
       </div>
 
+      {/* Pastille état de sauvegarde — haut droite du canvas */}
+      <div style={{
+        position: 'fixed',
+        top: (barsRef.current?.offsetHeight ?? (TOPBAR_H + DRAWINGBAR_H)) + 10,
+        right: 10,
+        width: 12,
+        height: 12,
+        borderRadius: '50%',
+        background: saveError ? '#ef4444' : isDirty ? '#f59e0b' : '#22c55e',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+        zIndex: 90,
+        transition: 'background 0.3s ease',
+        pointerEvents: 'none',
+      }} />
+
       {/* Textarea édition texte — en position fixed pour ne pas être clippée par overflow:hidden du canvas div */}
       {editingTextBox && (
         <EditingTextarea
