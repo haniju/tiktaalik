@@ -15,7 +15,7 @@ import {
   roundTextBoxFontSize,
 } from '../utils/textboxUtils';
 import { getLayerBounds, getGroupBounds, applyScale, applyRotation, isStrokeInRect, isAirbrushInRect } from '../utils/bounds';
-import { movingAverageSmooth, bezierSmooth } from '../utils/smoothing';
+import { movingAverageSmooth, bezierSmooth, ensureVisiblePoint } from '../utils/smoothing';
 import { expandToGroups, autoDissolveGroups } from '../utils/groupUtils';
 import type { ContextPanel } from './useToolState';
 
@@ -848,11 +848,6 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         } else {
           finalPoints = movingAverageSmooth(buf, 7);
         }
-        // Tap simple → un seul point [x,y] : ajouter micro-offset pour que
-        // Konva Line rende un point rond visible (lineCap="round")
-        if (finalPoints.length === 2) {
-          finalPoints = [finalPoints[0], finalPoints[1], finalPoints[0] + 0.1, finalPoints[1] + 0.1];
-        }
       } else {
         // Mode classique — utiliser livePointsRef + dernier point brut
         finalPoints = livePointsRef.current;
@@ -861,6 +856,10 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
           finalPoints = [...finalPoints, lastRawPt.current.x, lastRawPt.current.y];
         }
       }
+      // Tap simple → un seul point : micro-offset pour rester visible (les 2 chemins).
+      // Le filtre minDist (plancher 0.5px) peut réduire rawPointsBuffer à 1 point
+      // quand le stylet est immobile, écrasant le micro-offset posé au mouseDown.
+      finalPoints = ensureVisiblePoint(finalPoints);
       lastAcceptedPt.current = null;
       lastRawPt.current = null;
       rawPointsBuffer.current = [];

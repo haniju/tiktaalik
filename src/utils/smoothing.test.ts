@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { movingAverageSmooth, bezierSmooth } from './smoothing';
+import { movingAverageSmooth, bezierSmooth, ensureVisiblePoint } from './smoothing';
 
 // ─── Helpers ───
 
@@ -286,5 +286,41 @@ describe('smoothingScale par mode', () => {
 
   it('moyenne glissante → facteur 0.84', () => {
     expect(getSmoothingScale(false, true)).toBe(0.84);
+  });
+});
+
+// ─── ensureVisiblePoint (régression tap simple) ───
+
+describe('ensureVisiblePoint', () => {
+  it('un seul point [x,y] → ajoute un micro-offset pour rester visible', () => {
+    // Régression : un tap simple où le filtre minDist a réduit le buffer à 1 point.
+    // Un Konva.Line à un seul point ne rend rien — le micro-offset force un segment minimal.
+    expect(ensureVisiblePoint([10, 20])).toEqual([10, 20, 10.1, 20.1]);
+  });
+
+  it('garantit toujours au moins 4 valeurs (2 points distincts) pour un point isolé', () => {
+    const out = ensureVisiblePoint([5, 5]);
+    expect(out.length).toBe(4);
+    // Les deux points doivent être distincts (segment de longueur non nulle)
+    expect(out[0] === out[2] && out[1] === out[3]).toBe(false);
+  });
+
+  it('préserve un point à coordonnées nulles', () => {
+    expect(ensureVisiblePoint([0, 0])).toEqual([0, 0, 0.1, 0.1]);
+  });
+
+  it('tracé à 2 points (4 valeurs) → inchangé', () => {
+    const pts = [0, 0, 30, 40];
+    expect(ensureVisiblePoint(pts)).toBe(pts);
+  });
+
+  it('tracé long → inchangé', () => {
+    const pts = [0, 0, 10, 10, 20, 5, 30, 15];
+    expect(ensureVisiblePoint(pts)).toBe(pts);
+  });
+
+  it('tableau vide → inchangé', () => {
+    const empty: number[] = [];
+    expect(ensureVisiblePoint(empty)).toBe(empty);
   });
 });

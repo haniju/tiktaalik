@@ -1,6 +1,27 @@
 // ─── Algorithmes de lissage temps réel pour pen/marker ───
 
 /**
+ * Garantit qu'un tracé réduit à un seul point reste visible.
+ *
+ * Un `Konva.Line` à un seul point `[x, y]` (segment de longueur zéro) ne rend
+ * rien, même avec `lineCap="round"`. Un tap simple peut produire ce cas : le
+ * filtre de distance minimale (plancher `minDist`) élimine les doublons émis par
+ * un stylet immobile, ne laissant qu'un point dans le buffer.
+ *
+ * On ajoute alors un micro-offset `+0.1` pour forcer un segment minimal → point
+ * rond visible. Tracé à 2+ points (4+ valeurs) : retourné tel quel.
+ *
+ * @param points Flat array `[x,y,...]`
+ * @returns `points` inchangé, ou `[x, y, x+0.1, y+0.1]` si un seul point
+ */
+export function ensureVisiblePoint(points: number[]): number[] {
+  if (points.length === 2) {
+    return [points[0], points[1], points[0] + 0.1, points[1] + 0.1];
+  }
+  return points;
+}
+
+/**
  * Moving Average — fenêtre glissante sur les N derniers points.
  * Chaque point est remplacé par la moyenne pondérée de ses voisins récents.
  * Appliqué en temps réel : on re-calcule les derniers `windowSize` points de livePoints.
