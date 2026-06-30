@@ -6,11 +6,7 @@ import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useDrawingOrder } from '../hooks/useDrawingOrder';
 import { useDragToReorder } from '../hooks/useDragToReorder';
 import { AboutModal } from './AboutModal';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
+import { getInstallPrompt, clearInstallPrompt, subscribeInstallPrompt } from '../utils/pwaInstall';
 
 
 function newDrawing(): Drawing {
@@ -72,8 +68,8 @@ export function HomeScreen() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
-  const [showInstall, setShowInstall] = useState(false);
+  // Initialisé depuis le store global : l'événement a pu être capturé avant ce mount
+  const [showInstall, setShowInstall] = useState(() => getInstallPrompt() !== null);
   const galerieRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,28 +81,19 @@ export function HomeScreen() {
   }, []);
 
 
-  // PWA install
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      deferredPrompt.current = e as BeforeInstallPromptEvent;
-      setShowInstall(true);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+  // PWA install — abonnement au store global (l'événement peut avoir été capturé
+  // avant ce mount, ou être émis pendant qu'on est sur cet écran)
+  useEffect(() => subscribeInstallPrompt(e => setShowInstall(e !== null)), []);
 
   const handleInstall = async () => {
-    const p = deferredPrompt.current;
+    const p = getInstallPrompt();
     if (!p) { setShowInstall(false); return; }
     try {
       await p.prompt();
-      const { outcome } = await p.userChoice;
-      deferredPrompt.current = null;
-      if (outcome === 'accepted') setShowInstall(false);
+      await p.userChoice;
+      clearInstallPrompt(); // consomme l'événement → showInstall passe à false via le store
     } catch {
-      deferredPrompt.current = null;
-      setShowInstall(false);
+      clearInstallPrompt();
       alert('Pour installer : ouvre le menu du navigateur (⋮) puis "Ajouter à l\'écran d\'accueil"');
     }
   };
