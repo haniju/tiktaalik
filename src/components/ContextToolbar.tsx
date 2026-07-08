@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { ToolState, DrawingTool } from '../types';
 import { ContextPanel } from '../hooks/useToolState';
 import { DrawingPanel } from './DrawingPanel';
+import { EraserPanel } from './EraserPanel';
 import { TextPanel } from './TextPanel';
 import { UnifiedColorPicker } from './UnifiedColorPicker';
 import { TextBox } from '../types';
@@ -18,6 +19,7 @@ interface Props {
   onSetToolOpacity: (tool: DrawingTool, opacity: number) => void;
   onSetAirbrushEdgeOpacity: (opacity: number) => void;
   onSetToolSmoothing: (tool: DrawingTool, smoothing: number) => void;
+  onSetEraserSize: (size: number) => void;
   onSelectClassicSmoothing: () => void;
   onToggleBezier: () => void;
   onToggleMovingAverage: () => void;
@@ -29,7 +31,7 @@ interface Props {
 
 export function ContextToolbar({
   contextPanel, state, canvasBackground, textBox,
-  onSetToolColor, onSetToolWidth, onSetToolOpacity, onSetAirbrushEdgeOpacity, onSetToolSmoothing, onSelectClassicSmoothing, onToggleBezier, onToggleMovingAverage, onSetBackground,
+  onSetToolColor, onSetToolWidth, onSetToolOpacity, onSetAirbrushEdgeOpacity, onSetToolSmoothing, onSetEraserSize, onSelectClassicSmoothing, onToggleBezier, onToggleMovingAverage, onSetBackground,
   onUpdateTextBox, onDuplicateTextBox, onSwipeClose,
 }: Props) {
   const visible = contextPanel !== null;
@@ -76,6 +78,13 @@ export function ContextToolbar({
               onSelectClassicSmoothing={onSelectClassicSmoothing}
               onToggleBezier={onToggleBezier}
               onToggleMovingAverage={onToggleMovingAverage}
+            />
+          )}
+
+          {contextPanel === 'eraser' && (
+            <EraserPanel
+              size={state.eraserSize}
+              onSizeChange={onSetEraserSize}
             />
           )}
 

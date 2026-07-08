@@ -501,7 +501,17 @@ Pattern de pré-chargement (`preloadImages`) : charge les Blobs depuis IndexedDB
 
 `eraserCursorRef` (`Konva.Circle`) dans `useCanvasGestures.ts` — même pattern que `liveLineRef` (ref impérative, update via `batchDraw()`). Position mise à jour dans `moveEraserCursor()`, appelé par `eraseAt()`.
 
-Montage conditionnel via `eraserActive` (état React) : `true` dans `handleMouseDown` quand eraser, `false` dans `handleMouseUp`. Le `Circle` est rendu dans `DrawingLayer` avec `listening={false}`, `strokeWidth` et `dash` divisés par `stageScale` pour compenser le zoom.
+Montage conditionnel via `eraserActive` (état React) : `true` dans `handleMouseDown` quand eraser, `false` dans `handleMouseUp`. Le `Circle` est rendu dans `DrawingLayer` avec `listening={false}` ; ses props géométriques viennent de `eraserCursorProps(eraserSize, stageScale)` (`utils/eraserConfig.ts`) — `strokeWidth` et `dash` divisés par `stageScale` pour compenser le zoom.
+
+### Taille de la gomme
+
+`eraserSize` est un **champ standalone** de `ToolState` (modèle « configuration du lissage » / `airbrushEdgeOpacity`, **pas** dans le record `toolWidths` keyé par `DrawingTool`). Setter dédié `setEraserSize` dans `useToolState`, borné par `clampEraserSize` (`utils/eraserConfig.ts`, plage 4–80) et persisté dans `localStorage`.
+
+**Source unique de vérité** : `eraseAt()` (hit-test des traits) et le cercle de feedback lisent tous deux `eraserSize` → la valeur du slider est exactement le rayon affiché. `eraserCursorProps()` est le seam pur testé (`eraserConfig.test.ts`) qui garantit `radius === eraserSize`.
+
+**Panneau** : `EraserPanel` (slider unique) monté dans `ContextToolbar` quand `contextPanel === 'eraser'` (nouvelle valeur de `ContextPanel`). `selectEraser` est calqué sur `selectDrawingTool` (toggle du panneau au re-tap, garde le panneau ouvert au changement d'outil, swipe géré via `onSwipeOpen('eraser')` dans `SketchScreen`).
+
+**Tests** : `eraserConfig.test.ts` (clamp + `radius === eraserSize`), `useToolState.test.ts` (setter/persistance/toggle panneau via `renderHook`), `EraserPanel.test.tsx` (slider DOM → callback, RTL). Nécessite `@testing-library/dom` (peer dep de RTL).
 
 ### Debug points (visualisation des points enregistrés)
 

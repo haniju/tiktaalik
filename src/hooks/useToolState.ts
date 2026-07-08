@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { Tool, DrawingTool, CanvasMode, ToolState } from '../types';
+import { clampEraserSize, ERASER_DEFAULT_SIZE } from '../utils/eraserConfig';
 
 const STORAGE_KEY = 'sketchpad_tool_state';
 
@@ -12,6 +13,7 @@ const DEFAULT_STATE: ToolState = {
   toolOpacities: { airbrush: 0.7, pen: 1, marker: 0.4 },
   toolSmoothings: { airbrush: 0.5, pen: 0.3, marker: 0.3 },
   airbrushEdgeOpacity: 0,
+  eraserSize: ERASER_DEFAULT_SIZE,
   bezierSmoothing: false,
   movingAverageSmoothing: false,
 };
@@ -34,13 +36,14 @@ function persist(state: ToolState) {
       toolOpacities: state.toolOpacities,
       toolSmoothings: state.toolSmoothings,
       airbrushEdgeOpacity: state.airbrushEdgeOpacity,
+      eraserSize: state.eraserSize,
       bezierSmoothing: state.bezierSmoothing,
       movingAverageSmoothing: state.movingAverageSmoothing,
     }));
   } catch { /* localStorage indisponible */ }
 }
 
-export type ContextPanel = 'drawing' | 'text' | 'background' | null;
+export type ContextPanel = 'drawing' | 'eraser' | 'text' | 'background' | null;
 
 export function useToolState() {
   const persisted = loadPersisted();
@@ -54,6 +57,7 @@ export function useToolState() {
     toolOpacities: { ...DEFAULT_STATE.toolOpacities, ...persisted.toolOpacities },
     toolSmoothings: { ...DEFAULT_STATE.toolSmoothings, ...persisted.toolSmoothings },
     airbrushEdgeOpacity: persisted.airbrushEdgeOpacity ?? DEFAULT_STATE.airbrushEdgeOpacity,
+    eraserSize: persisted.eraserSize != null ? clampEraserSize(persisted.eraserSize) : DEFAULT_STATE.eraserSize,
     bezierSmoothing: persisted.bezierSmoothing ?? DEFAULT_STATE.bezierSmoothing,
     movingAverageSmoothing: persisted.movingAverageSmoothing ?? DEFAULT_STATE.movingAverageSmoothing,
   });
@@ -100,8 +104,12 @@ export function useToolState() {
   const selectEraser = useCallback(() => {
     const { activeTool, canvasMode } = stateRef.current;
     const isSame = activeTool === 'eraser' && canvasMode === 'draw';
-    if (!isSame) {
-      setContextPanel(null);
+    if (isSame) {
+      // Même outil → toggle panel (comme les outils de dessin)
+      setContextPanel(p => p === 'eraser' ? null : 'eraser');
+    } else {
+      // Outil différent mais panel eraser déjà ouvert → le garder ouvert
+      setContextPanel(contextPanelRef.current === 'eraser' ? 'eraser' : null);
       setState(prev => {
         const next = { ...prev, activeTool: 'eraser' as Tool, canvasMode: 'draw' as CanvasMode, previousMode: null };
         persist(next); return next;
@@ -272,6 +280,13 @@ export function useToolState() {
     });
   }, []);
 
+  const setEraserSize = useCallback((size: number) => {
+    setState(prev => {
+      const next = { ...prev, eraserSize: clampEraserSize(size) };
+      persist(next); return next;
+    });
+  }, []);
+
   const selectClassicSmoothing = useCallback(() => {
     setState(prev => {
       const next = { ...prev, bezierSmoothing: false, movingAverageSmoothing: false };
@@ -304,7 +319,7 @@ export function useToolState() {
     state, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, enterPan, exitPan, togglePan, enterSelect, exitSelect, toggleSelect, collapsePanel,
-    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
+    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, setEraserSize, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
     activeColor, activeWidth,
     selectTool: (t: Tool) => setState(prev => ({ ...prev, activeTool: t })),
   };

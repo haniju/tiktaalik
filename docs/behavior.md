@@ -409,9 +409,13 @@ Contraintes :
 
 ### Alerte gomme
 
-Pendant l'utilisation de la gomme (touch & drag), un **cercle rouge en tirets** s'affiche autour du point de contact pour montrer la zone de détection. Le cercle a un rayon de 20 px canvas (= seuil de détection pour les traits stylo/marqueur). Il suit le doigt en temps réel et disparaît quand le doigt est relevé.
+Pendant l'utilisation de la gomme (touch & drag), un **cercle rouge en tirets** s'affiche autour du point de contact pour montrer la zone de détection. Le rayon du cercle **est** la taille de la gomme (= seuil de détection pour les traits stylo/marqueur) : il reflète donc exactement la zone effacée. Il suit le doigt en temps réel et disparaît quand le doigt est relevé.
 
 L'épaisseur et les tirets du cercle sont compensés par le zoom pour rester constants à l'écran.
+
+### Réglage de la taille de la gomme
+
+La gomme dispose de son propre **panneau de réglage** (un slider unique pour la taille, modèle identique au slider de lissage). Ouverture/fermeture **comme les panneaux des outils de dessin** : re-taper sur la gomme déjà active ouvre/ferme le panneau (toggle), un swipe vers le bas l'ouvre, un swipe vers le haut le ferme, et changer d'outil le ferme. La taille (rayon en px canvas, plage 4–80) est **persistée** et partagée par le hit-test d'effacement et le cercle de feedback.
 
 #### Visualisation des points (mode Debug)
 

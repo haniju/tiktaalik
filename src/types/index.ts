@@ -17,6 +17,7 @@ export interface ToolState {
   toolOpacities: Record<DrawingTool, number>;
   toolSmoothings: Record<DrawingTool, number>;
   airbrushEdgeOpacity: number;
+  eraserSize: number;             // rayon de la gomme en px monde (champ standalone, pas dans toolWidths)
   bezierSmoothing: boolean;       // lissage Bézier cubique temps réel
   movingAverageSmoothing: boolean; // lissage moyenne glissante temps réel
 }

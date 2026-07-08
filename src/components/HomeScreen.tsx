@@ -87,7 +87,10 @@ export function HomeScreen() {
 
   const handleInstall = async () => {
     const p = getInstallPrompt();
-    if (!p) { setShowInstall(false); return; }
+    if (!p) {
+      alert('Pour installer : ouvre le menu du navigateur (⋮) puis "Ajouter à l\'écran d\'accueil" (ou "Installer l\'application")');
+      return;
+    }
     try {
       await p.prompt();
       await p.userChoice;
@@ -186,9 +189,6 @@ export function HomeScreen() {
       {/* Topbar */}
       <div style={styles.topBar}>
         <span style={styles.title}>Mes dessins{IS_BETA && <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#e63946', borderRadius: 6, padding: '2px 6px', marginLeft: 6, verticalAlign: 'middle' }}>BETA</span>}</span>
-        {showInstall && (
-          <button style={styles.installBtn} onClick={handleInstall}>Installer</button>
-        )}
         <button style={styles.newBtn} onClick={handleNew}>+ Nouveau</button>
         <div style={{ position: 'relative' }}>
           <button style={{ ...styles.burgerBtn, ...(menuOpen ? styles.burgerBtnActive : {}) }} onClick={() => setMenuOpen(p => !p)}>
@@ -200,6 +200,9 @@ export function HomeScreen() {
             <>
             <div style={styles.dropdownOverlay} onClick={() => setMenuOpen(false)} onTouchEnd={e => { e.preventDefault(); setMenuOpen(false); }} />
             <div style={styles.dropdown}>
+              <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); handleInstall(); }}>
+                {showInstall ? 'Installer l\'application' : 'Comment installer ?'}
+              </button>
               <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); setShowAbout(true); }}>À propos</button>
             </div>
             </>
@@ -374,7 +377,6 @@ const styles: Record<string, React.CSSProperties> = {
   topBar: { display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #e8e8e8', padding: '12px 16px', gap: 8 },
   title: { flex: 1, fontSize: 18, fontWeight: 700, color: '#1a1a1a' },
   newBtn: { background: '#e63946', border: 'none', borderRadius: 10, padding: '8px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' },
-  installBtn: { background: '#118ab2', border: 'none', borderRadius: 10, padding: '8px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' },
   empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 },
   emptyText: { color: '#aaa', fontSize: 16 },
   newBtnLarge: { background: '#e63946', border: 'none', borderRadius: 12, padding: '12px 28px', color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer' },

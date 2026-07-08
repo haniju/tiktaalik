@@ -173,6 +173,8 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
 
   const eraseAt = useCallback((pos: { x: number; y: number }) => {
     moveEraserCursor(pos);
+    // Rayon de la gomme — piloté par le slider du panneau, identique au cercle de feedback
+    const eraserSize = p.current.toolStateRef.current.eraserSize;
     p.current.setLayers(prev => {
       const filtered = prev.filter(layer => {
         // Les images ne sont jamais effacées par la gomme (décision UX)
@@ -186,7 +188,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
         } else {
           const pts = (layer as Stroke).points;
           for (let i = 0; i < pts.length - 2; i += 2) {
-            if (Math.hypot(pts[i] - pos.x, pts[i + 1] - pos.y) < 20) return false;
+            if (Math.hypot(pts[i] - pos.x, pts[i + 1] - pos.y) < eraserSize) return false;
           }
           return true;
         }

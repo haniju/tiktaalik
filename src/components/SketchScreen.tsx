@@ -51,7 +51,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
     setCanvasMode, enterPan, exitPan, togglePan, enterSelect, exitSelect, toggleSelect, collapsePanel,
-    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
+    setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, setEraserSize, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
   } = useToolState();
@@ -606,8 +606,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
             onSelectEraser={() => { if (tbStateRef.current.kind !== 'idle') { exitEditing(); } selectEraser(); }}
             onSelectBackground={selectBackground}
             onSwipeOpen={(target) => {
-              if (target === 'eraser') return;
-              if (target === 'text') { selectTextTool(); setContextPanel('text'); }
+              if (target === 'eraser') { selectEraser(); setContextPanel('eraser'); }
+              else if (target === 'text') { selectTextTool(); setContextPanel('text'); }
               else if (target === 'background') { selectBackground(); }
               else if (['airbrush', 'pen', 'marker'].includes(target)) {
                 selectDrawingTool(target as DrawingTool);
@@ -628,6 +628,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onSetToolOpacity={setToolOpacity}
           onSetAirbrushEdgeOpacity={setAirbrushEdgeOpacity}
           onSetToolSmoothing={setToolSmoothing}
+          onSetEraserSize={setEraserSize}
           onSelectClassicSmoothing={selectClassicSmoothing}
           onToggleBezier={toggleBezierSmoothing}
           onToggleMovingAverage={toggleMovingAverageSmoothing}
@@ -755,6 +756,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
             liveLineRef={liveLineRef}
             eraserCursorRef={eraserCursorRef}
             eraserActive={eraserActive}
+            eraserSize={toolState.eraserSize}
             selRect={selRect}
             stageRef={stageRef}
             textNodesRef={textNodesRef}
