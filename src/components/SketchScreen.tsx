@@ -32,6 +32,7 @@ import { GridSettingsPanel } from './GridSettingsPanel';
 import { CanvasConfigPanel } from './CanvasConfigPanel';
 import { ImageOpacityPanel } from './ImageOpacityPanel';
 import { useButtonMapping } from '../hooks/useButtonMapping';
+import { useFabPositions } from '../hooks/useFabPositions';
 import { getWorldBounds } from '../utils/canvasConfig';
 
 
@@ -331,6 +332,8 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [showOpacityPanel, setShowOpacityPanel] = useState(false);
+  const [fabRepositioning, setFabRepositioning] = useState(false);
+  const { fabPositions, setFabPosition, resetFabPositions } = useFabPositions();
   const buttonMapping = useButtonMapping({
     toggle: { pan: handleTogglePan, select: handleToggleSelect },
     enter: { pan: handleEnterPan, select: handleEnterSelect },
@@ -415,6 +418,22 @@ export function SketchScreen({ drawing, onBack }: Props) {
     activeColor, activeWidth,
     worldBoundsRef,
   });
+
+  // Double-tap n'importe où sur le canevas → quitte le mode select si une sélection est active
+  const lastCanvasTapRef = useRef(0);
+  const DOUBLE_TAP_EXIT_MS = 300;
+  const handleStageTouchEnd = useCallback(() => {
+    handleMouseUp();
+    if (toolStateRef.current.canvasMode === 'select' && selectionRef.current.length > 0) {
+      const now = Date.now();
+      if (now - lastCanvasTapRef.current < DOUBLE_TAP_EXIT_MS) {
+        lastCanvasTapRef.current = 0;
+        handleExitSelect();
+      } else {
+        lastCanvasTapRef.current = now;
+      }
+    }
+  }, [handleMouseUp, handleExitSelect]);
 
   const selectedTextId = tbState.kind === 'selected' ? tbState.id : null;
 
@@ -593,6 +612,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           onTogglePinchZoom={() => setPinchZoom(p => !p)}
           onImportImage={handleImportImage}
           onOpenButtonMapping={() => setMappingModalOpen(true)}
+          onOpenFabPositioning={() => setFabRepositioning(true)}
           onOpenAbout={() => setAboutModalOpen(true)}
         />
 
@@ -734,7 +754,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           width={stageSize.width}
           height={canvasH}
           onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
-          onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp}
+          onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleStageTouchEnd}
           onWheel={handleWheel}
         >
           <DrawingLayer
@@ -824,7 +844,28 @@ export function SketchScreen({ drawing, onBack }: Props) {
         onEnterPan={handleEnterPan}
         onExitPan={handleExitPan}
         onZoomChange={zoomTo}
+        fabPositions={fabPositions}
+        repositioning={fabRepositioning}
+        onDragFab={setFabPosition}
       />
+
+      {fabRepositioning && (
+        <div style={{
+          position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 56px)', left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 8, background: '#1a1a1a', borderRadius: 12, padding: '8px 10px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 220,
+        }}>
+          <span style={{ color: '#fff', fontSize: 13, alignSelf: 'center', padding: '0 4px' }}>Glissez les boutons</span>
+          <button
+            style={{ background: '#333', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 13, cursor: 'pointer' }}
+            onClick={resetFabPositions}
+          >Réinitialiser</button>
+          <button
+            style={{ background: '#118ab2', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            onClick={() => setFabRepositioning(false)}
+          >Terminé</button>
+        </div>
+      )}
 
       {mappingModalOpen && (
         <ButtonMappingModal

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CanvasMode } from '../types';
 import { Icon } from './Icon';
+import { FabKey, FabPosition } from '../hooks/useFabPositions';
 
 const MIN_ZOOM = 20;
 const MAX_ZOOM = 400;
@@ -18,9 +19,12 @@ interface Props {
   onEnterPan: () => void;
   onExitPan: () => void;
   onZoomChange: (pct: number) => void;
+  fabPositions: Partial<Record<FabKey, FabPosition>>;
+  repositioning: boolean;
+  onDragFab: (key: FabKey, pos: FabPosition) => void;
 }
 
-export function ActionFABs({ canvasMode, zoomPct, isDirty, saveError, onToggleSelect, onTogglePan, onEnterPan, onExitPan, onZoomChange }: Props) {
+export function ActionFABs({ canvasMode, zoomPct, isDirty, saveError, onToggleSelect, onTogglePan, onEnterPan, onExitPan, onZoomChange, fabPositions, repositioning, onDragFab }: Props) {
   const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomPct));
   const [showLabel, setShowLabel] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,6 +55,52 @@ export function ActionFABs({ canvasMode, zoomPct, isDirty, saveError, onToggleSe
     }
   }, [onTogglePan, onExitPan]);
 
+  // ─── Repositionnement libre des boutons pan/select ─────────────────────────
+  const [dragKey, setDragKey] = useState<FabKey | null>(null);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  const startDrag = useCallback((key: FabKey) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!repositioning) return;
+    e.preventDefault();
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    setDragKey(key);
+    setDragOffset({ x: 0, y: 0 });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, [repositioning]);
+
+  const moveDrag = useCallback((key: FabKey) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!repositioning || dragKey !== key) return;
+    setDragOffset({ x: e.clientX - dragStartRef.current.x, y: e.clientY - dragStartRef.current.y });
+  }, [repositioning, dragKey]);
+
+  const endDrag = useCallback((key: FabKey) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!repositioning || dragKey !== key) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    onDragFab(key, {
+      x: Math.min(1, Math.max(0, (rect.left + rect.width / 2) / window.innerWidth)),
+      y: Math.min(1, Math.max(0, (rect.top + rect.height / 2) / window.innerHeight)),
+    });
+    setDragKey(null);
+    setDragOffset({ x: 0, y: 0 });
+  }, [repositioning, dragKey, onDragFab]);
+
+  function fabPositionStyle(key: FabKey): React.CSSProperties {
+    const custom = fabPositions[key];
+    const dragging = dragKey === key;
+    const transform = dragging ? `translate(${dragOffset.x}px, ${dragOffset.y}px)` : undefined;
+    if (custom) {
+      return {
+        position: 'fixed',
+        left: `${custom.x * 100}%`,
+        top: `${custom.y * 100}%`,
+        transform: transform ? `translate(-50%, -50%) ${transform}` : 'translate(-50%, -50%)',
+        zIndex: dragging ? 150 : 100,
+      };
+    }
+    return transform ? { position: 'relative', transform, zIndex: 150 } : {};
+  }
+
   useEffect(() => {
     if (clamped !== prevZoomRef.current) {
       prevZoomRef.current = clamped;
@@ -69,10 +119,17 @@ export function ActionFABs({ canvasMode, zoomPct, isDirty, saveError, onToggleSe
     <div data-fabs style={styles.root}>
       {/* Mode move — tap: toggle, hold: pan momentané */}
       <button
-        style={{ ...styles.fab, ...(canvasMode === 'move' ? styles.fabActive : {}), touchAction: 'none' }}
-        onPointerDown={handlePanPointerDown}
-        onPointerUp={handlePanPointerUp}
-        onPointerCancel={handlePanPointerUp}
+        style={{
+          ...styles.fab,
+          ...(canvasMode === 'move' ? styles.fabActive : {}),
+          ...(repositioning ? styles.fabRepositioning : {}),
+          touchAction: 'none',
+          ...fabPositionStyle('pan'),
+        }}
+        onPointerDown={repositioning ? startDrag('pan') : handlePanPointerDown}
+        onPointerMove={repositioning ? moveDrag('pan') : undefined}
+        onPointerUp={repositioning ? endDrag('pan') : handlePanPointerUp}
+        onPointerCancel={repositioning ? endDrag('pan') : handlePanPointerUp}
         onContextMenu={e => e.preventDefault()}
         title="Déplacer"
       >
@@ -81,8 +138,18 @@ export function ActionFABs({ canvasMode, zoomPct, isDirty, saveError, onToggleSe
 
       {/* Mode select */}
       <button
-        style={{ ...styles.fab, ...(canvasMode === 'select' ? styles.fabActive : {}) }}
-        onClick={onToggleSelect}
+        style={{
+          ...styles.fab,
+          ...(canvasMode === 'select' ? styles.fabActive : {}),
+          ...(repositioning ? styles.fabRepositioning : {}),
+          touchAction: 'none',
+          ...fabPositionStyle('select'),
+        }}
+        onClick={repositioning ? undefined : onToggleSelect}
+        onPointerDown={repositioning ? startDrag('select') : undefined}
+        onPointerMove={repositioning ? moveDrag('select') : undefined}
+        onPointerUp={repositioning ? endDrag('select') : undefined}
+        onPointerCancel={repositioning ? endDrag('select') : undefined}
         title="Sélectionner"
       >
         <Icon name="select" size={20} style={{ opacity: canvasMode === 'select' ? 0.9 : 0.6 }} />
@@ -152,6 +219,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fabActive: {
     background: 'linear-gradient(135deg, #118ab2, #06d6a0)',
+  },
+  fabRepositioning: {
+    boxShadow: '0 0 0 2px #f59e0b, 0 2px 10px rgba(0,0,0,0.15)',
+    cursor: 'grab',
   },
   zoomWrapper: {
     position: 'relative',

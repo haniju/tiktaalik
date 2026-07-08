@@ -21,10 +21,11 @@ interface Props {
   onTogglePinchZoom: () => void;
   onImportImage: () => void;
   onOpenButtonMapping: () => void;
+  onOpenFabPositioning: () => void;
   onOpenAbout: () => void;
 }
 
-export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZoom, onBack, onUndo, onRedo, onExport, onRename, onDelete, onToggleGrid, onOpenGridSettings, onOpenCanvasConfig, onToggleDebug, onTogglePinchZoom, onImportImage, onOpenButtonMapping, onOpenAbout }: Props) {
+export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZoom, onBack, onUndo, onRedo, onExport, onRename, onDelete, onToggleGrid, onOpenGridSettings, onOpenCanvasConfig, onToggleDebug, onTogglePinchZoom, onImportImage, onOpenButtonMapping, onOpenFabPositioning, onOpenAbout }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(drawingName);
@@ -137,6 +138,7 @@ export function Topbar({ drawingName, canUndo, canRedo, showGrid, debug, pinchZo
               </span>
             </button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenButtonMapping(); }}>Mapping boutons</button>
+            <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenFabPositioning(); }}>Repositionner les boutons</button>
             <button style={styles.dropdownItem} onClick={() => { setMenuOpen(false); onOpenAbout(); }}>À propos</button>
             <button style={{ ...styles.dropdownItem, color: '#e63946' }} onClick={() => { setMenuOpen(false); onDelete(); }}>Supprimer</button>
           </div>
