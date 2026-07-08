@@ -120,6 +120,9 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   displayUnit: 'px',
 };
 
+export type ColorPickerMode = 'drawing' | 'background' | 'text';
+export type PaletteMap = Partial<Record<ColorPickerMode, string[]>>;
+
 export interface Drawing {
   id: string;
   name: string;
