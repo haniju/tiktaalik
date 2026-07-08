@@ -281,7 +281,7 @@ Drag partagé entre mode select et mode text. `dragArmed` / `dragArmedHitId` / `
 
 Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange (bounds via `getGroupBounds`). Handles : taille fixe écran (divisée par stageScale).
 
-- **Scale** : 4 handles aux coins + 1 handle circulaire au centre. Chaque handle définit son **origine** (point fixe) et la transmet à `onScaleStart(origin)` ; le facteur reste uniforme (`sx === sy`).
+- **Scale** : 4 handles aux coins + 1 handle circulaire au centre. Chaque handle définit son **origine** (point fixe) et la transmet à `onScaleStart(origin)` ; le facteur reste uniforme (`sx === sy`). La géométrie vit dans `utils/scaleHandles.ts` (fonctions pures, testées dans `scaleHandles.test.ts`) — le composant ne fait que câbler `dragProps(handle, origin, refDist, factorFn, half)` sur les events Konva. Facteur planchéré à `MIN_SCALE_FACTOR = 0.02` : un objet écrasé à zéro serait irrécupérable.
   - *Coin* : origine = coin opposé (`corners[(i+2)%4]`). `sf = dist(pointeur, origine) / dist(coin, origine)`, les deux valeurs figées au `dragStart` (les bounds bougent pendant le drag).
   - *Centre* : origine = centre. Le pointeur **démarre sur l'origine**, donc une distance radiale ne peut pas porter de signe sans discontinuité (un drag horizontal traversant `y = cy` sauterait de `sf = 1.5` à `sf = 0.5`). Le facteur est donc piloté par le **déplacement vertical seul** : `sf = 1 + (cy - pointerY) / demiDiagonale`, plancher `0.02`.
   - Ligne pointillée de feedback tracée origine → pointeur.
@@ -290,6 +290,12 @@ Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange 
 ⚠️ La zone d'accroche du handle central (`HIT_SIZE` = 30 px écran) recouvre le centre de la sélection : un objet situé là est masqué au tap tant que le sous-mode scale est actif.
 
 ## Rotation & Scale
+
+`scaleHandles.ts` (géométrie des poignées, pure) :
+- `boundsCorners(bounds)` / `oppositeCorner(bounds, i)` — coins horaires depuis le top-left ; l'opposé est `(i+2)%4`
+- `boundsCenter(bounds)` / `halfDiagonal(bounds)` — origine et distance de référence du handle central
+- `cornerScaleFactor(pointer, origin, refDist)` — ratio radial au coin opposé
+- `centerScaleFactor(pointer, origin, refDist)` — `1 + (originY - pointerY) / refDist`, vertical seul
 
 `bounds.ts` :
 - `getLayerBounds(layer): Rect` — bounding box (stroke: min/max points ± width/2, airbrush: ± radius, text: x/y/width + hauteur via wrapText)

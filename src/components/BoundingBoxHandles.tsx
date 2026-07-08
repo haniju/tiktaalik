@@ -2,6 +2,10 @@ import React, { useRef, useState } from 'react';
 import { Group, Rect, Line, Circle } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { Rect as RectType } from '../utils/bounds';
+import {
+  Point, boundsCorners, oppositeCorner, halfDiagonal,
+  cornerScaleFactor, centerScaleFactor,
+} from '../utils/scaleHandles';
 
 interface ScaleProps {
   bounds: RectType;
@@ -75,10 +79,7 @@ export function BoundingBoxHandles(props: Props) {
 //           à ce coin opposé restent en place).
 // - Centre: scale uniforme ancré sur le CENTRE de la forme.
 //
-// Dans les deux cas le facteur = dist(pointeur, origine) / dist(handle, origine)
-// figés au dragStart (les bounds bougent pendant le drag).
-
-const MIN_REF_DIST = 1e-3;
+// Géométrie des facteurs → `utils/scaleHandles.ts` (testée unitairement).
 
 function ScaleHandles({ bounds, stageScale, handleSize, hitSize, cx, cy, onScaleStart, onScaleMove, onScaleEnd }: {
   bounds: RectType; stageScale: number; handleSize: number; hitSize: number; cx: number; cy: number;
@@ -88,29 +89,26 @@ function ScaleHandles({ bounds, stageScale, handleSize, hitSize, cx, cy, onScale
   const origDistRef = useRef(0);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
 
-  const corners = [
-    { x: bounds.x, y: bounds.y },
-    { x: bounds.x + bounds.width, y: bounds.y },
-    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-    { x: bounds.x, y: bounds.y + bounds.height },
-  ];
+  const corners = boundsCorners(bounds);
 
-  /** Câble un handle draggable : origine figée + facteur radial. */
-  const dragProps = (handle: { x: number; y: number }, origin: { x: number; y: number }, half: number) => ({
+  /** Câble un handle draggable : origine figée au dragStart + facteur via `factorFn`. */
+  const dragProps = (
+    handle: Point,
+    origin: Point,
+    refDist: number,
+    factorFn: (pointer: Point, origin: Point, refDist: number) => number,
+    half: number,
+  ) => ({
     onDragStart: () => {
       originRef.current = origin;
-      origDistRef.current = Math.hypot(handle.x - origin.x, handle.y - origin.y);
+      origDistRef.current = refDist;
       onScaleStart(origin);
     },
     onDragMove: (e: KonvaEventObject<DragEvent>) => {
       const node = e.target;
-      const newX = node.x() + half;
-      const newY = node.y() + half;
-      const o = originRef.current;
-      const newDist = Math.hypot(newX - o.x, newY - o.y);
-      const sf = origDistRef.current > MIN_REF_DIST ? newDist / origDistRef.current : 1;
-      setDragPos({ x: newX, y: newY });
-      onScaleMove(sf);
+      const pointer = { x: node.x() + half, y: node.y() + half };
+      setDragPos(pointer);
+      onScaleMove(factorFn(pointer, originRef.current, origDistRef.current));
     },
     onDragEnd: (e: KonvaEventObject<DragEvent>) => {
       e.target.position({ x: handle.x - half, y: handle.y - half });
@@ -121,13 +119,16 @@ function ScaleHandles({ bounds, stageScale, handleSize, hitSize, cx, cy, onScale
 
   return (
     <>
-      {corners.map((corner, i) => (
+      {corners.map((corner, i) => {
+        const origin = oppositeCorner(bounds, i);
+        const refDist = Math.hypot(corner.x - origin.x, corner.y - origin.y);
+        return (
         <Group key={i}>
           <Rect
             x={corner.x - hitSize / 2} y={corner.y - hitSize / 2}
             width={hitSize} height={hitSize}
             fill="transparent" draggable
-            {...dragProps(corner, corners[(i + 2) % 4], hitSize / 2)}
+            {...dragProps(corner, origin, refDist, cornerScaleFactor, hitSize / 2)}
           />
           <Rect
             x={corner.x - handleSize / 2} y={corner.y - handleSize / 2}
@@ -137,39 +138,16 @@ function ScaleHandles({ bounds, stageScale, handleSize, hitSize, cx, cy, onScale
             listening={false}
           />
         </Group>
-      ))}
+      );})}
 
-      {/* Handle central — scale ancré sur le centre.
-          La distance de référence est la demi-diagonale (le pointeur démarre
-          sur l'origine, on ne peut donc pas prendre dist(handle, origine)). */}
+      {/* Handle central — scale ancré sur le centre, piloté par le déplacement
+          vertical (voir centerScaleFactor pour le pourquoi). */}
       <Group>
         <Rect
           x={cx - hitSize / 2} y={cy - hitSize / 2}
           width={hitSize} height={hitSize}
           fill="transparent" draggable
-          onDragStart={() => {
-            originRef.current = { x: cx, y: cy };
-            origDistRef.current = Math.hypot(bounds.width, bounds.height) / 2;
-            onScaleStart({ x: cx, y: cy });
-          }}
-          onDragMove={(e) => {
-            const node = e.target;
-            const newX = node.x() + hitSize / 2;
-            const newY = node.y() + hitSize / 2;
-            const o = originRef.current;
-            // Le pointeur démarre sur l'origine : une distance radiale ne peut pas
-            // porter de signe sans discontinuité. On pilote par le déplacement
-            // vertical — vers le haut agrandit, vers le bas réduit.
-            const ref = origDistRef.current;
-            const sf = ref > MIN_REF_DIST ? Math.max(0.02, 1 + (o.y - newY) / ref) : 1;
-            setDragPos({ x: newX, y: newY });
-            onScaleMove(sf);
-          }}
-          onDragEnd={(e) => {
-            e.target.position({ x: cx - hitSize / 2, y: cy - hitSize / 2 });
-            setDragPos(null);
-            onScaleEnd();
-          }}
+          {...dragProps({ x: cx, y: cy }, { x: cx, y: cy }, halfDiagonal(bounds), centerScaleFactor, hitSize / 2)}
         />
         <Circle
           x={cx} y={cy} radius={handleSize / 2}
