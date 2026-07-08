@@ -50,11 +50,11 @@ Les dessins apparaissent dans un ordre personnalisable (voir Réordonnancement).
 
 Un badge en bas affiche la version de l'app et l'horodatage du dernier build. Il est cliquable et ouvre le panneau À propos.
 
-Un bouton d'installation PWA est disponible quand l'app est éligible.
-
 ### Menu & À propos
 
-Un bouton hamburger dans la barre supérieure ouvre un menu déroulant. Il contient un item « À propos » qui ouvre un panneau modal scrollable avec :
+Un bouton hamburger dans la barre supérieure ouvre un menu déroulant. Il contient :
+- Un item **« Installer l'application »**, toujours visible (pas conditionné à la disponibilité du prompt natif du navigateur). Si le navigateur propose l'installation automatique, le tap déclenche directement l'invite native (« Installer l'application »). Sinon, le libellé devient « Comment installer ? » et le tap affiche les instructions manuelles (menu du navigateur → « Ajouter à l'écran d'accueil »).
+- Un item « À propos » qui ouvre un panneau modal scrollable avec :
 - Nom de l'application, badge BETA (si build beta), version et date de build
 - Description courte
 - Liste complète des fonctionnalités, organisée par catégorie (galerie, outils, couleur, canvas, sélection, groupes, texte, export, boutons physiques, mobile/PWA)
@@ -87,7 +87,7 @@ Types de calques :
 Cinq outils disponibles : stylo, marqueur, aérographe, gomme, texte. La sélection d'outil se fait dans la barre d'outils.
 
 Chaque outil a ses propres réglages persistés entre sessions :
-- **Couleur** : palette de presets + sélecteur HSL extensible. Palette vive pour dessin/texte, palette neutre pour le fond.
+- **Couleur** : palette de 8 pastilles éditables + sélecteur HSL extensible. Palette vive pour dessin/texte, palette neutre pour le fond.
 - **Épaisseur** : slider par outil.
 - **Opacité** : slider pour le marqueur et l'aérographe (centre + bord séparés pour l'aérographe).
 - **Lissage** : slider par outil de dessin (0-100%). Réduit le tremblement tactile pour stylo/marqueur, élimine les artefacts de perles pour l'aérographe. Défauts : stylo/marqueur 30%, aérographe 50%.
@@ -97,7 +97,15 @@ Chaque outil a ses propres réglages persistés entre sessions :
   - **Moyenne glissante** — chaque point est remplacé par la moyenne de ses voisins (fenêtre de 7 points). Absorbe le jitter sans décalage perceptible. Plage très réduite (0–0.84px).
   - Les modes sont mutuellement exclusifs. Le mode actif est persisté entre sessions. Chaque tracé mémorise le mode utilisé pour un rendu cohérent à la relecture.
 
-**Sélecteur de couleur unifié** : le même composant sert pour la couleur de dessin, la couleur de fond et la couleur de texte, avec des palettes de presets adaptées au contexte.
+**Sélecteur de couleur unifié** : le même composant sert pour la couleur de dessin, la couleur de fond et la couleur de texte, avec des palettes adaptées au contexte.
+
+**Palettes éditables** : les 8 pastilles ne sont pas des presets figés, mais une palette que l'utilisateur peut réécrire.
+- **Tap** sur une pastille → sélectionne la couleur.
+- **Double tap** → déplie le sélecteur HSL (le même que celui du chevron) braqué sur cette pastille, signalée par un liseré pointillé. Toute modification dans le sélecteur remplace la couleur de la pastille, immédiatement et définitivement. Un second double tap referme.
+- **Appui long** (500 ms) → restaure la couleur d'origine de la pastille.
+- Le **chevron** ouvre le sélecteur en mode libre : il change la couleur courante sans toucher à la palette.
+
+Il existe trois palettes indépendantes, une par contexte : dessin (partagée entre stylo, marqueur et aérographe), fond de canvas, et texte. Elles sont persistées entre sessions.
 
 ### Outil texte
 
@@ -206,6 +214,7 @@ En mode select :
 - **Tap sur un objet** non sélectionné : l'ajoute à la sélection.
 - **Tap sur un objet** déjà sélectionné : toggle dans le sous-groupe focus (niveau 2).
 - **Tap sur le fond** : désélectionne tout.
+- **Double tap n'importe où sur le canevas** (fond ou objet), quand une sélection est active : quitte le mode select entièrement (retour au mode/outil précédent).
 
 Un panneau de sélection affiche la liste des objets sélectionnés avec label descriptif, vignette, et actions par item (supprimer, retirer de la sélection). Toolbar en haut, de gauche à droite : supprimer tout, [spacer], group/ungroup + rotate/scale + dupliquer (visibles seulement quand des items sont focusés), select-all / unselect-all, compteur.
 
@@ -297,6 +306,17 @@ Affiche des options contextuelles selon l'outil/mode actif. Animation slide pour
 #### Panneau dessin / Panneau texte
 
 Les panneaux affichent les options de l'outil sélectionné (couleur, épaisseur, opacité, lissage pour le dessin ; police, taille, style, alignement, couleur pour le texte).
+
+#### Repositionnement des boutons pan / select
+
+Les boutons flottants (FAB) « Déplacer » (pan) et « Sélectionner » sont par défaut regroupés en bas au centre de l'écran, à côté du zoom. Leur position peut être personnalisée :
+
+- **Activation** : item « Repositionner les boutons » dans le menu déroulant de la topbar.
+- En mode repositionnement, une bannière apparaît en haut de l'écran (« Glissez les boutons », avec les actions **Réinitialiser** et **Terminé**), et les deux boutons affichent un contour orange.
+- **Glisser-déposer** : chaque bouton peut être déplacé indépendamment à n'importe quel endroit de l'écran par drag tactile.
+- **Terminé** referme le mode repositionnement et fige les boutons à leur nouvel emplacement — les taps normaux (toggle pan / toggle select) redeviennent actifs.
+- **Réinitialiser** ramène les deux boutons à leur position par défaut (regroupés près du zoom).
+- La position choisie est **persistée** entre sessions (par appareil).
 
 ### Zoom & Viewport
 
@@ -433,4 +453,4 @@ L'application cible **Android 9+** (Chrome ≥ 69). Le build est transpilé en E
 
 Les dessins et images sont stockés dans **IndexedDB** (quota de centaines de Mo, bien au-delà de la limite de ~5-10 Mo de localStorage). Lors de la première ouverture après mise à jour, les données existantes sont migrées automatiquement (écran « Migration en cours… » affiché brièvement).
 
-Les réglages d'outils (couleurs, épaisseurs, opacités, lissage, mode canvas, outil actif, mapping de boutons) restent en localStorage (données légères) et sont restaurés au chargement — y compris l'outil texte. Au lancement d'un dessin, un délai de 300ms bloque les interactions canvas pour éviter les interactions fantômes issues du tap sur la vignette (les navigateurs mobiles émettent des événements souris synthétiques aux mêmes coordonnées après un touch).
+Les réglages d'outils (couleurs, palettes éditées, épaisseurs, opacités, lissage, mode canvas, outil actif, mapping de boutons) restent en localStorage (données légères) et sont restaurés au chargement — y compris l'outil texte. Au lancement d'un dessin, un délai de 300ms bloque les interactions canvas pour éviter les interactions fantômes issues du tap sur la vignette (les navigateurs mobiles émettent des événements souris synthétiques aux mêmes coordonnées après un touch).
