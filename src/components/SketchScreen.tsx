@@ -1,7 +1,7 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { Stage } from 'react-konva';
 import { v4 as uuidv4 } from 'uuid';
-import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, ImageLayer, CanvasMode, GridSettings, DEFAULT_GRID_SETTINGS, DEFAULT_CANVAS_CONFIG } from '../types';
+import { Drawing, DrawLayer, DrawingTool, TextBox, TextLayer, ImageLayer, CanvasMode, ColorPickerMode, GridSettings, DEFAULT_GRID_SETTINGS, DEFAULT_CANVAS_CONFIG } from '../types';
 import { useToolState } from '../hooks/useToolState';
 import { useDrawingStorage } from '../hooks/useDrawingStorage';
 import { useAutosave } from '../hooks/useAutosave';
@@ -34,6 +34,8 @@ import { ImageOpacityPanel } from './ImageOpacityPanel';
 import { useButtonMapping } from '../hooks/useButtonMapping';
 import { useFabPositions } from '../hooks/useFabPositions';
 import { getWorldBounds } from '../utils/canvasConfig';
+import { PaletteContext } from './PaletteContext';
+import { resolvePalettes, savePalette } from '../utils/palettes';
 
 
 const DEBUG_DEFAULT = false;
@@ -48,6 +50,9 @@ interface Props {
 export function SketchScreen({ drawing, onBack }: Props) {
   const storage = useDrawingStorage();
 
+  // Session du dessin — capturée au montage : les re-renders ne doivent pas la re-appliquer
+  const initialSession = useRef(drawing.session).current;
+
   const {
     state: toolState, contextPanel, setContextPanel,
     selectDrawingTool, selectTextTool, selectEraser, selectBackground,
@@ -55,7 +60,11 @@ export function SketchScreen({ drawing, onBack }: Props) {
     setToolColor, setToolWidth, setToolOpacity, setToolSmoothing, setAirbrushEdgeOpacity, setEraserSize, selectClassicSmoothing, toggleBezierSmoothing, toggleMovingAverageSmoothing,
     activeColor, activeWidth,
     // compat (non utilisé directement dans ce composant)
-  } = useToolState();
+  } = useToolState({
+    activeTool: initialSession?.activeTool,
+    canvasMode: initialSession?.canvasMode,
+    previousMode: initialSession?.previousMode,
+  });
 
   const [debug, setDebug] = useState(DEBUG_DEFAULT);
 
@@ -152,7 +161,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const [drawingName, setDrawingName] = useState(drawing.name);
 
   // ─── Autosave ─────────────────────────────────────────────────────────────
-  const { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, imageKeysRef, saveError, setSaveError } = useAutosave({
+  const { scheduleSave, flushAll, saveSessionNow, getSessionRef, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, imageKeysRef, saveError, setSaveError } = useAutosave({
     drawing, storage, setIsDirty,
   });
   layersRef.current = layers;
@@ -177,9 +186,36 @@ export function SketchScreen({ drawing, onBack }: Props) {
   const barsRef = useRef<HTMLDivElement>(null);
 
   // ─── Viewport ─────────────────────────────────────────────────────────────
-  const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn, zoomTo } = useStageViewport(canvasConfig);
+  const { stageRef, stageSize, zoomPct, setZoomPct, canvasH, TOPBAR_H, DRAWINGBAR_H, centerViewOn, zoomTo } = useStageViewport(canvasConfig, initialSession?.view);
   const centerViewOnRef = useRef(centerViewOn);
   centerViewOnRef.current = centerViewOn;
+
+  // ─── Palettes de couleurs (propres au dessin, défauts = dernières couleurs utilisées) ───
+  const [palettes, setPalettes] = useState(() => resolvePalettes(initialSession?.palettes));
+  const palettesRef = useRef(palettes);
+  palettesRef.current = palettes;
+  const setPalette = useCallback((mode: ColorPickerMode, colors: string[]) => {
+    setPalettes(prev => ({ ...prev, [mode]: colors }));
+    palettesRef.current = { ...palettesRef.current, [mode]: colors };
+    savePalette(mode, colors); // devient aussi le défaut des prochains dessins
+    saveSessionNow();
+  }, [saveSessionNow]);
+  const paletteCtx = useMemo(() => ({ palettes, setPalette }), [palettes, setPalette]);
+
+  // ─── Session restaurée à la réouverture : zoom, pan, outil, palettes ───────
+  // Lue à la demande par l'autosave — le zoom/pan vivent sur le stage Konva, pas dans le state React
+  getSessionRef.current = () => {
+    const stage = stageRef.current;
+    return {
+      view: stage
+        ? { zoomPct: stage.scaleX() * 100, stageX: stage.x(), stageY: stage.y() }
+        : initialSession?.view,
+      activeTool: toolStateRef.current.activeTool,
+      canvasMode: toolStateRef.current.canvasMode,
+      previousMode: toolStateRef.current.previousMode,
+      palettes: palettesRef.current,
+    };
+  };
 
   // ─── Undo / Redo ──────────────────────────────────────────────────────────
   const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo({
@@ -578,6 +614,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
   }, []);
 
   return (
+    <PaletteContext.Provider value={paletteCtx}>
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#f0f0f0' }}>
 
       {/* Barres en haut — dans le flux normal */}
@@ -590,7 +627,7 @@ export function SketchScreen({ drawing, onBack }: Props) {
           debug={debug}
           pinchZoom={pinchZoom}
           onBack={async () => {
-            try { await saveNow(); } catch { /* ne pas bloquer la navigation */ }
+            try { await flushAll(); } catch { /* ne pas bloquer la navigation */ }
             // Nettoyage des blobs image orphelins (importés/dupliqués puis supprimés)
             const currentKeys = new Set(
               layersRef.current.filter(l => l.tool === 'image').map(l => (l as ImageLayer).imageStorageKey)
@@ -928,5 +965,6 @@ export function SketchScreen({ drawing, onBack }: Props) {
         />
       )}
     </div>
+    </PaletteContext.Provider>
   );
 }

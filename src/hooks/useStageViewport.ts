@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
-import { CanvasConfig, DEFAULT_CANVAS_CONFIG } from '../types';
+import { CanvasConfig, DEFAULT_CANVAS_CONFIG, DrawingView } from '../types';
 import { getWorldBounds, WorldBounds } from '../utils/canvasConfig';
 
 /** Clamp la position du stage pour que le centre du viewport reste dans la zone monde */
@@ -33,10 +33,33 @@ interface UseStageViewportReturn {
   worldBounds: WorldBounds;
 }
 
-export function useStageViewport(canvasConfig: CanvasConfig = DEFAULT_CANVAS_CONFIG): UseStageViewportReturn {
+// Mêmes bornes que le pinch/wheel de useCanvasGestures (scale 0.2 → 40)
+const MIN_ZOOM_PCT = 20;
+const MAX_ZOOM_PCT = 4000;
+
+function clampZoomPct(pct: number): number {
+  if (!Number.isFinite(pct)) return 100;
+  return Math.max(MIN_ZOOM_PCT, Math.min(MAX_ZOOM_PCT, pct));
+}
+
+/**
+ * @param initialView Vue restaurée depuis `Drawing.session.view`. Absente → cadrage centré à 100 %.
+ */
+export function useStageViewport(
+  canvasConfig: CanvasConfig = DEFAULT_CANVAS_CONFIG,
+  initialView?: DrawingView,
+): UseStageViewportReturn {
   const stageRef = useRef<Konva.Stage>(null);
   const [stageSize, setStageSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const [zoomPct, setZoomPct] = useState(100);
+  // Capturé une seule fois : la restauration ne doit pas se rejouer si le dessin est re-sauvegardé
+  const initialViewRef = useRef(
+    initialView && Number.isFinite(initialView.stageX) && Number.isFinite(initialView.stageY)
+      ? initialView
+      : undefined,
+  );
+  const [zoomPct, setZoomPct] = useState(() =>
+    initialViewRef.current ? clampZoomPct(initialViewRef.current.zoomPct) : 100,
+  );
 
   const canvasH = stageSize.height - TOPBAR_H - DRAWINGBAR_H;
   const wb = getWorldBounds(canvasConfig);
@@ -51,14 +74,18 @@ export function useStageViewport(canvasConfig: CanvasConfig = DEFAULT_CANVAS_CON
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const sc = 1.0;
+    const saved = initialViewRef.current;
+    // Vue restaurée, sinon canevas centré à 100 %
+    const pct = saved ? clampZoomPct(saved.zoomPct) : 100;
+    const sc = pct / 100;
+    const raw = saved
+      ? { x: saved.stageX, y: saved.stageY }
+      : { x: (stageSize.width - canvasWidth * sc) / 2, y: (canvasH - canvasHeight * sc) / 2 };
     stage.scale({ x: sc, y: sc });
-    stage.position(clampStagePos(
-      { x: (stageSize.width - canvasWidth * sc) / 2, y: (canvasH - canvasHeight * sc) / 2 },
-      sc, stageSize.width, canvasH, wb,
-    ));
+    // Le clamp rattrape un viewport de taille différente (rotation, autre appareil)
+    stage.position(clampStagePos(raw, sc, stageSize.width, canvasH, wb));
     stage.batchDraw();
-    setZoomPct(100);
+    setZoomPct(pct);
   }, []); // stageRef/setZoomPct sont stables, le tableau vide est intentionnel
 
   const centerViewOn = useCallback((cx: number, cy: number, immediate = false, topOffsetPx = 0) => {

@@ -396,6 +396,20 @@ Timer debounced de 4 secondes après chaque mutation. Sauvegarde immédiate sur 
 
 Un bouton de sauvegarde manuelle reste disponible en fallback.
 
+### Session de travail par dessin
+
+Chaque dessin mémorise l'état dans lequel on l'a laissé. À sa réouverture, on retrouve :
+
+- **le zoom** et **la position du viewport** (cadrage exact) ;
+- **le dernier outil utilisé** et le mode canvas (draw / select / move) ;
+- **les couleurs personnalisées** des palettes (dessin, fond, texte).
+
+Un dessin neuf hérite du zoom par défaut (canevas centré à 100 %), du dernier outil utilisé toutes séances confondues et des dernières couleurs personnalisées — modifier une palette dans un dessin met donc à jour le point de départ des dessins suivants, sans affecter les dessins existants qui gardent la leur.
+
+La session est enregistrée au retour à la galerie, à la mise en arrière-plan et à la fermeture de la page. Elle ne compte pas comme une modification du dessin : zoomer ou changer d'outil ne réordonne pas la galerie (triée par date de modification) et ne régénère pas la vignette.
+
+Si la fenêtre a changé de taille entre deux ouvertures (rotation de l'écran, autre appareil), le cadrage est ramené dans les limites de la zone monde.
+
 ### Mapping de boutons physiques
 
 Système de mapping de boutons physiques vers des actions de l'app. Destiné aux téléphones durcis Android (Blackview etc.) avec boutons programmables.
@@ -455,4 +469,4 @@ L'application cible **Android 9+** (Chrome ≥ 69). Le build est transpilé en E
 
 Les dessins et images sont stockés dans **IndexedDB** (quota de centaines de Mo, bien au-delà de la limite de ~5-10 Mo de localStorage). Lors de la première ouverture après mise à jour, les données existantes sont migrées automatiquement (écran « Migration en cours… » affiché brièvement).
 
-Les réglages d'outils (couleurs, palettes éditées, épaisseurs, opacités, lissage, mode canvas, outil actif, mapping de boutons) restent en localStorage (données légères) et sont restaurés au chargement — y compris l'outil texte. Au lancement d'un dessin, un délai de 300ms bloque les interactions canvas pour éviter les interactions fantômes issues du tap sur la vignette (les navigateurs mobiles émettent des événements souris synthétiques aux mêmes coordonnées après un touch).
+Les réglages d'outils (couleurs, palettes éditées, épaisseurs, opacités, lissage, mode canvas, outil actif, mapping de boutons) restent en localStorage (données légères) et sont restaurés au chargement — y compris l'outil texte. Ils servent de valeurs par défaut : à l'ouverture d'un dessin, sa propre session (voir « Session de travail par dessin ») prend le dessus sur l'outil, le mode et les palettes. Au lancement d'un dessin, un délai de 300ms bloque les interactions canvas pour éviter les interactions fantômes issues du tap sur la vignette (les navigateurs mobiles émettent des événements souris synthétiques aux mêmes coordonnées après un touch).

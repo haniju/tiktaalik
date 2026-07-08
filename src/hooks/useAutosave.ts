@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Drawing, DrawLayer, GridSettings, DEFAULT_GRID_SETTINGS, CanvasConfig, DEFAULT_CANVAS_CONFIG } from '../types';
+import { Drawing, DrawLayer, DrawingSession, GridSettings, DEFAULT_GRID_SETTINGS, CanvasConfig, DEFAULT_CANVAS_CONFIG } from '../types';
 import { generateThumbnail } from '../utils/export';
+import { dbGetDrawing, dbPutDrawing } from '../utils/db';
 import { useDrawingStorage } from './useDrawingStorage';
 
 interface UseAutosaveOptions {
@@ -23,6 +24,10 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
   const savingRef = useRef(false); // empêche les saves concurrents
   const [saveError, setSaveError] = useState(false);
 
+  // Zoom/pan vivent sur le stage Konva (impératif) et l'outil courant dans useToolState :
+  // on les lit à la demande au moment du save plutôt que de les suivre à chaque événement.
+  const getSessionRef = useRef<() => DrawingSession>(() => ({}));
+
   const saveNow = useCallback(async () => {
     if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
     if (!isDirtyRef.current) return;
@@ -32,7 +37,7 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
       const bg = canvasBgRef.current;
       const cc = canvasConfigRef.current;
       const thumb = await generateThumbnail(layersRef.current, cc.canvasWidth, cc.canvasHeight, bg);
-      const ok = await storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, imageKeys: [...imageKeysRef.current], updatedAt: Date.now(), thumbnail: thumb });
+      const ok = await storage.save({ ...drawing, name: drawingNameRef.current, layers: layersRef.current, background: bg, showGrid: showGridRef.current, gridSettings: gridSettingsRef.current, canvasConfig: cc, session: getSessionRef.current(), imageKeys: [...imageKeysRef.current], updatedAt: Date.now(), thumbnail: thumb });
       if (ok) {
         isDirtyRef.current = false;
         setIsDirty(false);
@@ -50,10 +55,34 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
     }
   }, [drawing, storage, setIsDirty]);
 
+  /**
+   * Écrit uniquement `session` (zoom, pan, outil, palettes) dans le dessin stocké.
+   * Ni thumbnail ni `updatedAt` : un simple zoom ne doit pas réordonner la galerie.
+   */
+  const saveSessionNow = useCallback(async () => {
+    // Un save complet est en cours ou imminent → il embarquera déjà la session
+    if (savingRef.current || isDirtyRef.current) return;
+    try {
+      const stored = await dbGetDrawing(drawing.id);
+      if (!stored) return; // dessin supprimé entre-temps
+      await dbPutDrawing({ ...stored, session: getSessionRef.current() });
+    } catch (e) {
+      console.warn('[autosave] session save error', e);
+    }
+  }, [drawing.id]);
+
   // Ref stable vers saveNow — évite que scheduleSave / useEffect recréent un timer
   // à chaque render (storage instable → saveNow instable → useEffect cleanup cancel le timer)
   const saveNowRef = useRef(saveNow);
   saveNowRef.current = saveNow;
+  const saveSessionNowRef = useRef(saveSessionNow);
+  saveSessionNowRef.current = saveSessionNow;
+
+  /** Flush complet : données si dirty, sinon session seule. À appeler avant de quitter l'écran. */
+  const flushAll = useCallback(async () => {
+    await saveNowRef.current();
+    await saveSessionNowRef.current();
+  }, []);
 
   const scheduleSave = useCallback(() => {
     isDirtyRef.current = true;
@@ -64,8 +93,9 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
 
   // Save immédiat sur visibilitychange / beforeunload
   useEffect(() => {
-    const onVisChange = () => { if (document.hidden) saveNowRef.current(); };
-    const onBeforeUnload = () => { saveNowRef.current(); };
+    // Best-effort : beforeunload ne permet pas d'attendre les promesses IndexedDB
+    const onVisChange = () => { if (document.hidden) flushAll(); };
+    const onBeforeUnload = () => { flushAll(); };
     document.addEventListener('visibilitychange', onVisChange);
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
@@ -73,7 +103,7 @@ export function useAutosave({ drawing, storage, setIsDirty }: UseAutosaveOptions
       window.removeEventListener('beforeunload', onBeforeUnload);
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
-  }, []); // saveNowRef est stable — pointe toujours vers le saveNow courant
+  }, [flushAll]); // flushAll est stable (refs)
 
-  return { saveNow, scheduleSave, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, imageKeysRef, isDirtyRef, saveError, setSaveError };
+  return { saveNow, saveSessionNow, flushAll, scheduleSave, getSessionRef, layersRef, canvasBgRef, showGridRef, gridSettingsRef, canvasConfigRef, drawingNameRef, imageKeysRef, isDirtyRef, saveError, setSaveError };
 }

@@ -45,13 +45,17 @@ function persist(state: ToolState) {
 
 export type ContextPanel = 'drawing' | 'eraser' | 'text' | 'background' | null;
 
-export function useToolState() {
+/**
+ * @param initial Surcharges propres au dessin ouvert (outil/mode restaurés depuis `Drawing.session`).
+ *                Priorité : défauts < localStorage (session globale) < `initial`.
+ */
+export function useToolState(initial: Partial<ToolState> = {}) {
   const persisted = loadPersisted();
   const [state, setState] = useState<ToolState>({
     ...DEFAULT_STATE,
-    activeTool: persisted.activeTool ?? DEFAULT_STATE.activeTool,
-    canvasMode: persisted.canvasMode ?? DEFAULT_STATE.canvasMode,
-    previousMode: persisted.previousMode ?? null,
+    activeTool: initial.activeTool !== undefined ? initial.activeTool : (persisted.activeTool ?? DEFAULT_STATE.activeTool),
+    canvasMode: initial.canvasMode ?? persisted.canvasMode ?? DEFAULT_STATE.canvasMode,
+    previousMode: (initial.canvasMode !== undefined ? initial.previousMode : persisted.previousMode) ?? null,
     toolColors: { ...DEFAULT_STATE.toolColors, ...persisted.toolColors },
     toolWidths: { ...DEFAULT_STATE.toolWidths, ...persisted.toolWidths },
     toolOpacities: { ...DEFAULT_STATE.toolOpacities, ...persisted.toolOpacities },

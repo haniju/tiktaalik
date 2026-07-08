@@ -67,24 +67,42 @@ Au premier lancement après la mise à jour, `App.tsx` appelle `migrateFromLocal
 
 Idempotent : si interrompu, le flag n'est pas posé, la migration recommence au prochain lancement. Un écran « Migration en cours… » s'affiche pendant l'opération.
 
+### DrawingSession (zoom / pan / outil / palettes par dessin)
+
+`Drawing.session?: DrawingSession` (`src/types/index.ts`) porte l'état de travail restauré à la réouverture : `view` (`zoomPct`, `stageX`, `stageY`), le triple `activeTool` / `canvasMode` / `previousMode`, et `palettes`. Champ optionnel → aucune migration IndexedDB (pas de bump `DB_VERSION`), les anciens dessins retombent sur les défauts.
+
+**Lecture paresseuse, pas de suivi événementiel.** Le zoom et le pan vivent sur le stage Konva (impératif) ; l'outil vit dans `useToolState`. Plutôt que d'observer chaque `pinch`/`wheel`/`pan`, `useAutosave` expose `getSessionRef` — un ref vers une fonction que `SketchScreen` réassigne à chaque render et qui lit `stage.scaleX()` / `stage.position()` **au moment du save**. Aucun re-render sur zoom/pan.
+
+**Deux chemins d'écriture :**
+- `saveNow()` (save complet, débounce 4 s, régénère la vignette et `updatedAt`) embarque la session au passage ;
+- `saveSessionNow()` écrit **uniquement** `session` par read-modify-write (`dbGetDrawing` → `dbPutDrawing`), sans vignette ni `updatedAt` — un simple zoom ne doit pas réordonner la galerie. Il no-op si `savingRef` ou `isDirtyRef` sont vrais : le save complet en cours/imminent embarquera déjà la session.
+- `flushAll()` = `saveNow()` puis `saveSessionNow()`. Branché sur retour galerie, `visibilitychange` et `beforeunload`.
+
+**Restauration au montage.** `SketchScreen` fige `drawing.session` dans un ref (`initialSession`) : les re-renders qui suivent un autosave ne doivent pas ré-appliquer une vue périmée. Puis :
+- `useStageViewport(canvasConfig, initialSession?.view)` — applique scale + position dans l'effet de montage, `clampStagePos` rattrape un viewport de taille différente (rotation, autre appareil). `zoomPct` borné à 20–4000 % (mêmes bornes que le pinch/wheel de `useCanvasGestures`), `stageX`/`stageY` non finis → vue ignorée.
+- `useToolState(initial)` — priorité défauts < `localStorage` < session du dessin. `activeTool`, `canvasMode` et `previousMode` sont restaurés **ensemble** : `activeTool` est `null` en mode move/select, et sans `previousMode` on ne pourrait plus sortir du pan.
+
+**Palettes.** `PaletteContext` (`src/components/PaletteContext.tsx`) fournit `{ palettes, setPalette }` depuis `SketchScreen`. `UnifiedColorPicker` garde la palette en state **local** et ne pousse vers le contexte que débouncé (200 ms) : le picker HSL émet en continu pendant le drag, un state remonté ferait re-rendre tout `SketchScreen` (donc le stage Konva) à chaque `pointermove`. Hors provider, le picker retombe sur `loadPalette`/`savePalette` (localStorage). `resolvePalettes()` (`src/utils/palettes.ts`) applique défauts < globales < dessin, et complète toute palette tronquée/corrompue. `setPalette` écrit aussi la palette globale → un nouveau dessin hérite des dernières couleurs.
+
 ### localStorage (données légères)
 
 Les réglages légers restent en localStorage (quelques Ko, accès synchrone) :
 - `sketchpad_drawing_order` — array d'IDs pour l'ordre galerie (Option A : séparé des objets Drawing, filtré au chargement)
 - `sketchpad_tool_state` — réglages d'outil actifs (couleurs, épaisseurs, outil actif, canvasMode, previousMode)
+- `sketchpad_palettes` — palettes de pastilles éditées, par mode (`drawing` / `background` / `text`)
 - `sketchpad_button_mapping` — array `{ key, code, keyCode, label, bindings: [{ gesture, actionType, mode }] }` pour le mapping de boutons physiques (migration auto depuis l'ancien format `action`)
 - `idb_migrated` — flag de migration IndexedDB (`'1'` = fait)
 
 ### Hooks custom
 
 - `useDrawingStorage` — CRUD drawings async via IndexedDB (`db.ts`), migration automatique des formats legacy
-- `useToolState` — outil actif, canvasMode, couleurs, épaisseurs, opacités par outil. **`canvasBackground` n'est PAS ici** — c'est un état par-Drawing
+- `useToolState(initial?)` — outil actif, canvasMode, couleurs, épaisseurs, opacités par outil. `initial` = surcharges venant de `Drawing.session`. **`canvasBackground` n'est PAS ici** — c'est un état par-Drawing
 - `useButtonMapping` — deux phases : listen mode (capture `keydown`, `preventDefault` sur tout, ajoute à la liste détectée) et active mode (détection multi-geste : click 250ms, hold 250ms, double-click fenêtre 300ms). Interface `HoldAwareActions: { toggle, enter, exit }` contenant un `Record<MappableMode, () => void>` (`MappableMode = 'select' | 'pan'`). UI : `ButtonMappingModal` avec cards par bouton, bindings (geste × action × mode), formulaire d'ajout inline
 - `useDragToReorder` — layout `'horizontal'` (SelectionPanel) et `'grid'` (HomeScreen). Long-press deux phases (`onLongPressRelease` pour sélection, move après long-press pour drag). `blockNativeScroll()` intercepte `touchmove` (non-passive) sur le scroll container
 - `useDrawingOrder` — persistance de l'ordre galerie. `applyOrder()` trie, filtre les IDs périmés, place les nouveaux dessins en premier
-- `useAutosave` — timer debounced, saveNow async/scheduleSave, listeners visibilitychange/beforeunload, guard anti-concurrence (`savingRef`)
+- `useAutosave` — timer debounced, saveNow async/scheduleSave, `saveSessionNow`/`flushAll`/`getSessionRef` (voir DrawingSession), listeners visibilitychange/beforeunload, guard anti-concurrence (`savingRef`)
 - `useUndoRedo` — undoStack, pushUndo, undo/redo, raccourci Cmd+Z
-- `useStageViewport` — stageRef, stageSize, zoomPct, canvasH, centerViewOn, zoomTo. Constantes exportées : `TOPBAR_H = 48`, `DRAWINGBAR_H = 48`
+- `useStageViewport(canvasConfig, initialView?)` — stageRef, stageSize, zoomPct, canvasH, centerViewOn, zoomTo. Constantes exportées : `TOPBAR_H = 48`, `DRAWINGBAR_H = 48`
 
 ## Canevas & Viewport
 
@@ -529,5 +547,5 @@ Rayon des points : `2.5 / stageScale` (constant à l'écran).
 ## Tests
 
 - **Unit/integration** : Vitest avec jsdom. Setup : `src/test/setup.ts`
-- **E2E** : Playwright (config : `playwright.config.ts`)
-- Actuellement seul `src/utils/textboxUtils.test.ts` existe
+- **E2E** : Playwright (config : `playwright.config.ts`, specs dans `tests/`)
+- `tests/session-restore.spec.ts` vérifie le round-trip zoom/viewport via IndexedDB (retour galerie **et** rechargement complet)

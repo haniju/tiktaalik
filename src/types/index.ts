@@ -123,6 +123,26 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
 export type ColorPickerMode = 'drawing' | 'background' | 'text';
 export type PaletteMap = Partial<Record<ColorPickerMode, string[]>>;
 
+/** État du viewport Konva — scale + position du stage (px écran) */
+export interface DrawingView {
+  zoomPct: number;
+  stageX: number;
+  stageY: number;
+}
+
+/**
+ * État de travail restauré à la réouverture d'un dessin.
+ * Distinct des données du dessin : ne modifie jamais updatedAt.
+ */
+export interface DrawingSession {
+  view?: DrawingView;
+  // Triple cohérent — `activeTool` est null en mode move/select, `previousMode` permet d'en sortir
+  activeTool?: Tool;
+  canvasMode?: CanvasMode;
+  previousMode?: PreviousMode | null;
+  palettes?: PaletteMap;
+}
+
 export interface Drawing {
   id: string;
   name: string;
@@ -131,6 +151,7 @@ export interface Drawing {
   showGrid?: boolean; // affichage de la grille de pixels canvas
   gridSettings?: GridSettings; // paramètres avancés de la grille
   canvasConfig?: CanvasConfig; // dimensions du canevas et zone monde
+  session?: DrawingSession; // zoom/pan/outil/palettes restaurés à l'ouverture
   imageKeys?: string[]; // toutes les clés image allouées (pour nettoyage orphelins)
   createdAt: number;
   updatedAt: number;

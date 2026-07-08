@@ -3,6 +3,45 @@ import { renderHook, act } from '@testing-library/react';
 import { useToolState } from './useToolState';
 import { ERASER_DEFAULT_SIZE, ERASER_MIN_SIZE, ERASER_MAX_SIZE } from '../utils/eraserConfig';
 
+describe('useToolState — restauration depuis la session du dessin', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('sans surcharge, restaure l\'outil persisté globalement', () => {
+    const { result: a } = renderHook(() => useToolState());
+    act(() => a.current.selectDrawingTool('marker'));
+    const { result: b } = renderHook(() => useToolState());
+    expect(b.current.state.activeTool).toBe('marker');
+  });
+
+  it('l\'outil du dessin prime sur l\'outil persisté globalement', () => {
+    const { result: a } = renderHook(() => useToolState());
+    act(() => a.current.selectDrawingTool('marker'));
+    const { result: b } = renderHook(() => useToolState({ activeTool: 'airbrush', canvasMode: 'draw' }));
+    expect(b.current.state.activeTool).toBe('airbrush');
+  });
+
+  it('restaure le mode move avec activeTool null et previousMode (sortie de pan possible)', () => {
+    const { result } = renderHook(() => useToolState({
+      activeTool: null,
+      canvasMode: 'move',
+      previousMode: { canvasMode: 'draw', activeTool: 'pen' },
+    }));
+    expect(result.current.state.canvasMode).toBe('move');
+    expect(result.current.state.activeTool).toBeNull();
+    act(() => result.current.exitPan());
+    expect(result.current.state.canvasMode).toBe('draw');
+    expect(result.current.state.activeTool).toBe('pen');
+  });
+
+  it('ignore previousMode global quand le dessin fournit un mode', () => {
+    const { result: a } = renderHook(() => useToolState());
+    act(() => a.current.enterPan()); // persiste canvasMode:'move' + previousMode
+    const { result: b } = renderHook(() => useToolState({ activeTool: 'pen', canvasMode: 'draw' }));
+    expect(b.current.state.canvasMode).toBe('draw');
+    expect(b.current.state.previousMode).toBeNull();
+  });
+});
+
 describe('useToolState — taille de la gomme', () => {
   beforeEach(() => {
     localStorage.clear();
