@@ -244,8 +244,10 @@ En mode select, deux sous-modes disponibles via la toolbar du panneau sélection
 
 **Scale** :
 - Boîte englobante pointillée orange autour des objets focusés.
-- 4 poignées aux coins. Drag d'une poignée = scale proportionnel (facteur = distance au centre).
-- Ligne indicatrice centre → coin actif pendant le drag.
+- Scale toujours proportionnel, mais **le point fixe dépend de la poignée saisie** :
+  - **Poignée de coin** (4, une par coin) : le **coin opposé reste en place**, la forme grandit/rétrécit « par le côté ». Facteur = distance au coin opposé.
+  - **Poignée centrale** (1, cercle au centre de la boîte) : le **centre reste en place**, la forme grandit/rétrécit symétriquement. Le geste est **vertical** : glisser vers le haut agrandit, vers le bas rétrécit (l'amplitude d'une demi-diagonale double / annule la taille).
+- Ligne indicatrice point fixe → poignée active pendant le drag.
 - Textboxes : la taille de police et la largeur sont scalées proportionnellement (police min 8, max 200, arrondie à l'entier au relâchement).
 
 **Rotate** :

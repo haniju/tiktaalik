@@ -263,8 +263,13 @@ Drag partagé entre mode select et mode text. `dragArmed` / `dragArmedHitId` / `
 
 Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange (bounds via `getGroupBounds`). Handles : taille fixe écran (divisée par stageScale).
 
-- **Scale** : 4 handles aux coins, ligne diagonale centre→coin actif. Scale factor = distance(coin courant, centre) / distance(coin original, centre).
+- **Scale** : 4 handles aux coins + 1 handle circulaire au centre. Chaque handle définit son **origine** (point fixe) et la transmet à `onScaleStart(origin)` ; le facteur reste uniforme (`sx === sy`).
+  - *Coin* : origine = coin opposé (`corners[(i+2)%4]`). `sf = dist(pointeur, origine) / dist(coin, origine)`, les deux valeurs figées au `dragStart` (les bounds bougent pendant le drag).
+  - *Centre* : origine = centre. Le pointeur **démarre sur l'origine**, donc une distance radiale ne peut pas porter de signe sans discontinuité (un drag horizontal traversant `y = cy` sauterait de `sf = 1.5` à `sf = 0.5`). Le facteur est donc piloté par le **déplacement vertical seul** : `sf = 1 + (cy - pointerY) / demiDiagonale`, plancher `0.02`.
+  - Ligne pointillée de feedback tracée origine → pointeur.
 - **Rotate** : 1 handle circulaire au-dessus du coin top-right, ligne pointillée. Angle via `atan2`.
+
+⚠️ La zone d'accroche du handle central (`HIT_SIZE` = 30 px écran) recouvre le centre de la sélection : un objet situé là est masqué au tap tant que le sous-mode scale est actif.
 
 ## Rotation & Scale
 
@@ -280,7 +285,7 @@ Composant Konva avec prop `mode` (`'scale' | 'rotate'`). Rect pointillé orange 
 - `isPointInTextBox` — dé-rotation du point de tap dans le repère local de la TB avant test rectangulaire (hit-test TB rotées)
 
 `useCanvasGestures.ts` — 3 handlers par mode :
-- Scale : `handleScaleStart` (snapshot + centre), `handleScaleMove(sf)`, `handleScaleEnd` (arrondi fontSize + undo + save)
+- Scale : `handleScaleStart(origin)` (snapshot + origine **fournie par le handle**, pas recalculée), `handleScaleMove(sf)` (applique `applyScale(layer, sf, sf, origin.x, origin.y)`), `handleScaleEnd` (arrondi fontSize + undo + save)
 - Rotate : `handleRotateStart` (snapshot + centre), `handleRotateMove(angleDeg)` (stocke aussi dans `rotateLatestRef` pour accès synchrone), `handleRotateEnd` (lit `rotateLatestRef` au lieu de `layersRef` pour éviter le stale state si React n'a pas rendu entre le dernier move et le end)
 
 ## Duplication d'objets

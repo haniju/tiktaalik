@@ -40,7 +40,7 @@ interface DrawingLayerProps {
   onTapById: (tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => void;
   onLayerUpdate: React.Dispatch<React.SetStateAction<DrawLayer[]>>;
   onDragEnd: () => void;
-  onScaleStart: () => void;
+  onScaleStart: (origin: { x: number; y: number }) => void;
   onScaleMove: (scaleFactor: number) => void;
   onScaleEnd: () => void;
   onRotateStart: () => void;

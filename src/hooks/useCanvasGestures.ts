@@ -57,7 +57,7 @@ export interface UseCanvasGesturesReturn {
   handleTapById: (tbId: string, tbH: number, e: Konva.KonvaEventObject<Event>) => void;
   handleDragEnd: () => void;
   handleSelectItem: (id: string) => void;
-  handleScaleStart: () => void;
+  handleScaleStart: (origin: { x: number; y: number }) => void;
   handleScaleMove: (scaleFactor: number) => void;
   handleScaleEnd: () => void;
   handleRotateStart: () => void;
@@ -123,7 +123,7 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   const textNodesRef = useRef<Map<string, Konva.Text>>(new Map());
   // Scale — snapshot pattern (même approche que drag-to-move)
   const scaleSnapshotRef = useRef<DrawLayer[]>([]);
-  const scaleCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const scaleOriginRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   // Rotate — snapshot pattern
   const rotateSnapshotRef = useRef<DrawLayer[]>([]);
   const rotateCenterRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -981,20 +981,21 @@ export function useCanvasGestures(params: UseCanvasGesturesParams): UseCanvasGes
   }, []);
 
   // ─── Scale handlers (appelés par BoundingBoxHandles via Konva drag) ────────
-  const handleScaleStart = useCallback(() => {
-    const { layersRef, focusedIdsRef } = p.current;
+  // `origin` = point fixe du scale, fourni par le handle : centre de la forme
+  // pour le handle central, coin opposé pour un handle de coin.
+  const handleScaleStart = useCallback((origin: { x: number; y: number }) => {
+    const { layersRef } = p.current;
     scaleSnapshotRef.current = layersRef.current.map(l => ({ ...l }));
-    const bounds = getGroupBounds(layersRef.current, focusedIdsRef.current);
-    scaleCenterRef.current = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+    scaleOriginRef.current = origin;
   }, []);
 
   const handleScaleMove = useCallback((scaleFactor: number) => {
     const { setLayers, focusedIdsRef } = p.current;
     const snapshot = scaleSnapshotRef.current;
-    const center = scaleCenterRef.current;
+    const origin = scaleOriginRef.current;
     const ids = new Set(focusedIdsRef.current);
     setLayers(snapshot.map(layer =>
-      ids.has(layer.id) ? applyScale(layer, scaleFactor, scaleFactor, center.x, center.y) : layer
+      ids.has(layer.id) ? applyScale(layer, scaleFactor, scaleFactor, origin.x, origin.y) : layer
     ));
   }, []);
 
